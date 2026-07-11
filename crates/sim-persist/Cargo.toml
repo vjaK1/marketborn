@@ -1,0 +1,16 @@
+[package]
+name = "sim-persist"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Marketborn SQLite persistence: save, load, replay, archives"
+
+[dependencies]
+sim-core = { path = "../sim-core" }
+rusqlite = { workspace = true }
+postcard = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

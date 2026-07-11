@@ -1,0 +1,18 @@
+{
+  "name": "marketborn-root",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Marketborn workspace orchestration: quality gates and app scripts",
+  "scripts": {
+    "check": "npm run check:fmt && npm run build:app && npm run check:clippy && npm run check:cargo-test && npm run check:ts && npm run check:vitest",
+    "check:fmt": "cargo fmt --all --check",
+    "check:clippy": "cargo clippy --workspace --all-targets -- -D warnings",
+    "check:cargo-test": "cargo test --workspace",
+    "check:ts": "npm --prefix app run typecheck",
+    "check:vitest": "npm --prefix app run test:run",
+    "check:full": "npm run check && cargo test --workspace --release -- --include-ignored",
+    "build:app": "npm --prefix app run build",
+    "app:dev": "npm --prefix app run dev",
+    "app:desktop": "npm run build:app && cargo run -p marketborn"
+  }
+}

@@ -1,0 +1,17 @@
+# Rust
+/target/
+
+# Tauri build artifacts
+/src-tauri/gen/
+
+# Node
+node_modules/
+app/dist/
+
+# Saves / local data
+*.mbsave
+/saves/
+
+# Editor / OS
+.DS_Store
+Thumbs.db

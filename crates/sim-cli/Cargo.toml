@@ -1,0 +1,15 @@
+[package]
+name = "sim-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Marketborn headless runner: run, replay, hash, diff"
+
+[[bin]]
+name = "sim-cli"
+path = "src/main.rs"
+
+[dependencies]
+sim-core = { path = "../sim-core" }
+sim-persist = { path = "../sim-persist" }
+clap = { workspace = true }
