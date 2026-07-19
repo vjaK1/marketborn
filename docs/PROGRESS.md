@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage, business books, market view
+## Session 2 — 2026-07-19 — Phase 1: industry chain, conservation, tools, spoilage, books, market view, construction
 
 ### Where the project stands
 
@@ -18,8 +18,9 @@ is invariant-checked every sweep; the Phase 1 acceptance centerpiece
 reconciled against its cash by a dedicated invariant (DECISIONS #016);
 `sim-cli metrics` dumps per-day time series (incl. per-business columns)
 for economy analysis; the UI carries a market view v1 (per-good standing
-depth + shortages). Still to come in Phase 1: construction goods and the
-100-agent/20-business scale-up.
+depth + shortages); the construction chain builds homes the wealthy buy
+(9 goods, 10 businesses, population 29 — DECISIONS #017). Still to come
+in Phase 1: the 100-agent/20-business scale-up acceptance run.
 
 ### What was built
 
@@ -74,15 +75,26 @@ depth + shortages). Still to come in Phase 1: construction goods and the
   snapshot `markets` section; Markets panel in the UI (stacked under
   Businesses) with shortage highlighting. Largest buyers/sellers and
   per-good historical charts are Phase 5 polish per BRIEF.
+- **Construction chain** (DECISIONS #017): lumber camp → wood, brickworks
+  → bricks, construction co (6 wood + 6 bricks → home at $300). Homes are
+  one-shot durable assets: a household crossing $600 cash buys one, paying
+  ≤ half its cash — after comfort meals, the second hoard-recycling
+  channel. Owned homes count in goods conservation; lumber camp and
+  brickworks use tools (widening industry demand); homes trade too rarely
+  to chart (excluded from the price chart, present in the markets table).
+  Population 29, 10 businesses, 9 goods; the year-one housing boom is
+  real (~8 homes; construction briefly the most profitable per-worker
+  business) and the post-boom idle is the design (see flagged
+  limitations).
 - **Docs**: ECONOMIC_RULES rewritten for Phase 1 (tool rules, comfort rule,
   utilization pricing, new parameter table with the closed-loop audit);
   DECISIONS #012–#014; TEST_PLAN and PERF_RESULTS updated.
 
 ### Actual verification results (all run this session)
 
-- `npm run check`: **exit 0**. 63 sim-core unit + 4 determinism + 1
-  industry-integration + 3 sim-cli + 7 persistence tests green; vitest
-  11/11; fmt/clippy/tsc clean.
+- `npm run check`: **exit 0**. 65 sim-core unit + 4 determinism + 2
+  integration (industry, construction) + 3 sim-cli + 7 persistence tests
+  green; vitest 11/11; fmt/clippy/tsc clean.
 - `npm run check:full` (release, `--include-ignored`, incl. soak_1500):
   **exit 0**. (One earlier run hit a transient Windows link-lock on the
   shell's test binary — same AV behavior as session 1's zero-byte save;
@@ -90,20 +102,22 @@ depth + shortages). Still to come in Phase 1: construction goods and the
 - Integration centerpiece green in debug (invariants every tick, 180 days):
   ore/steel/tool purchases at every stage, bonus production observed, wear
   destroys tools, per-good + money conservation exact.
-- Headless soaks with final calibration (release, seed 42 — runtime
-  economics are currently seed-invariant, RNG only names agents):
-  **year 1** fully healthy — 16 employed, 11 hungry, all seven businesses
-  staffed and solvent, tools trading at $22, bakery holding a 27-food
-  larder. **Year 4** — 13 employed, both farms alive, food $5.49 ≈ start
-  price. **Year 10** — chain alive in the harsh equilibrium: mill, bakery
-  and one farm staffed (10 employed), the surviving farm pricing as a
-  monopolist (~4× prices), structural hunger; money conserved at $16,200
-  throughout, all invariants green.
-- App launched and inspected three times (screenshots): Y1·D153 with the
+- Headless soaks with final calibration (release, seed 42, population 29 —
+  runtime economics are currently seed-invariant, RNG only names agents):
+  **year 1** — food + industry fully staffed (16 employed), the housing
+  boom complete (construction sold ~8 homes, $1,367 lifetime profit, then
+  idled by design), 18 hungry during the boom-year price discovery.
+  **Year 10** — the best long-run equilibrium observed: both farms, mill
+  and bakery staffed (13 employed), food $3.51 (below start), 14 of 29
+  hungry (the structurally idle), money conserved at $20,700 throughout,
+  all invariants green. Industry dies ~year 4 (known limitation);
+  construction idles post-boom (the design).
+- App launched and inspected four times (screenshots): Y1·D153 with the
   6-series chart and industry dividends; Y1·D56 with the Assets column
-  live; Y1·D50 with the Markets panel catching a real shortage day in the
-  data — flour/food at zero offered against live demand with unmet
-  quantities highlighted, wheat offered with no buyer mid-batch-cycle.
+  live; Y1·D50 with the Markets panel catching a real shortage day;
+  Y1·D66 (three-chain build) with the 8-series chart, 19/19 employed, the
+  Home column showing the boom mid-flight (8 homeowners) and construction
+  dividends in the event log.
 - Perf recorded: 1,000 agents × 3,650 ticks in 0.19 s release
   (PERF_RESULTS.md).
 
@@ -117,13 +131,17 @@ Root causes and fix paths are analyzed in DECISIONS #013: business entry
 (Phase 4). Phase 1's remaining work does not depend on decade-scale
 industry persistence; revisit when those mechanics land.
 
-**Late-game farm monopoly.** One farm dies somewhere in years 4–8 (a
-knife-edge cash event during a demand trough) and the survivor prices at
-~4× — alive and stable, but harsh. Same fix family: entry restores
-competition. Roughly ten calibration collapses were diagnosed to first
-causes across this session — the audit trail lives in DECISIONS
-#013/#014/#015, and the `sim-cli metrics` CSV workflow is the tool for the
-next round.
+**Late-game farm monopoly.** In some configurations one farm dies during a
+mid-game demand trough and the survivor prices as a monopolist (the
+final 29-town run kept both farms alive to year 10 — knife-edge either
+way). Same fix family: entry restores competition.
+
+**Construction post-boom idle.** The housing boom exhausts one-shot home
+demand in roughly a year; the sector then idles with no restart path
+until Phase 2 (by design — DECISIONS #017). Roughly ten calibration
+collapses were diagnosed to first causes across this session — the audit
+trail lives in DECISIONS #013–#017, and the `sim-cli metrics` CSV
+workflow is the tool for the next round.
 
 ### Breaking-save-change note (pre-1.0 policy)
 
@@ -131,21 +149,24 @@ Session 1 saves are incompatible: `SimState` gained `expected_total_goods`,
 `Business` gained fields, `Good`/`BusinessKind`/recipes changed. All hashes
 shift. schema_version stays 1; no released saves exist.
 
-### Exact next task (Phase 1 continuation)
+### Exact next task (Phase 1 completion)
 
-1. The **construction chain** (wood, bricks → buildings) per BRIEF.md —
-   new goods + business kinds behind the existing machinery, with a
-   calibration audit like ECONOMIC_RULES §World parameters, and buildings
-   as the first non-tradable asset (design decision needed: what buildings
-   do in Phase 1 — record it in DECISIONS.md). Read BRIEF.md's goods list
-   and construction section first.
-2. Then the **100-agent / 20-business scale-up** acceptance run (the last
-   open Phase 1 criterion alongside construction).
+1. The **100-agent / 20-business scale-up** — the last open Phase 1
+   acceptance criterion. Worldgen needs a business-multiplicity rule
+   (instances per N population with distinct names, calibrated so
+   population 100 yields ~20 businesses and the demand/supply audit still
+   balances — extend the ECONOMIC_RULES rationale). Then the acceptance
+   run: 100 agents, one sim year headless, all invariants green, plus
+   soaks and a fresh PERF_RESULTS row.
+2. After that, declare Phase 1 complete in PLAN/PROGRESS (`check:full`
+   green required) and start Phase 2 (agent society — decision engine,
+   memory, relationships; also unlocks entry/exit, the fix for all three
+   flagged limitations).
 3. When touching the economy, verify with the soak checkpoints
    (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and, on any
    surprise, dump `sim-cli metrics <save> --csv` and read the day-by-day
-   series — end states hide limit cycles. Year-1 health bar: all 7
-   staffed, hungry ≤ ~11, prices near start.
+   series — end states hide limit cycles. Year-1 health bar: food+industry
+   staffed, hungry ≤ ~18 during the boom year, prices near start.
 
 Session protocol reminder: `npm run check` first — green at this commit on
 `main`.

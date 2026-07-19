@@ -17,6 +17,9 @@ pub struct Agent {
     /// The business this agent owns, if any. Owners do not take wage jobs
     /// in Phase 0.
     pub owns: Option<BusinessId>,
+    /// Whether this household owns its home (a durable asset bought once
+    /// from the construction company; counted in goods conservation).
+    pub owns_home: bool,
     /// Consecutive days the agent failed to eat.
     pub hungry_streak: u32,
     /// Consecutive days without employment (owners excluded from job seeking).

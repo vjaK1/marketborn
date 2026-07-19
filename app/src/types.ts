@@ -48,6 +48,7 @@ export interface AgentRow {
   workplace: string | null;
   cash_cents: number;
   pantry: number;
+  owns_home: boolean;
   hungry_streak: number;
   days_unemployed: number;
 }

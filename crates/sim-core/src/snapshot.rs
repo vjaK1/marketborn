@@ -71,6 +71,7 @@ pub struct AgentRow {
     pub workplace: Option<String>,
     pub cash_cents: i64,
     pub pantry: i64,
+    pub owns_home: bool,
     pub hungry_streak: u32,
     pub days_unemployed: u32,
 }
@@ -296,6 +297,7 @@ impl WorldSnapshot {
                     workplace,
                     cash_cents: a.cash.cents(),
                     pantry: a.pantry,
+                    owns_home: a.owns_home,
                     hungry_streak: a.hungry_streak,
                     days_unemployed: a.days_unemployed,
                 }
@@ -398,8 +400,11 @@ impl WorldSnapshot {
         let skip = world.journal.metrics.len() - history_len;
         let window: Vec<_> = world.journal.metrics.iter().skip(skip).collect();
         let ticks = window.iter().map(|m| m.tick).collect();
+        // The price chart shows flow goods; the Home asset trades too rarely
+        // for a line (it stays in the markets table).
         let series = Good::ALL
             .iter()
+            .filter(|good| **good != Good::Home)
             .map(|good| GoodSeries {
                 good: good.name().to_string(),
                 points: window
@@ -463,9 +468,14 @@ mod tests {
         assert_eq!(s.tick, 20);
         assert_eq!(s.year, 1);
         assert_eq!(s.day_of_year, 21);
-        assert_eq!(s.stats.population, 26);
-        assert_eq!(s.agents.len(), 26);
-        assert_eq!(s.businesses.len(), 7);
+        assert_eq!(s.stats.population, 29);
+        assert_eq!(s.agents.len(), 29);
+        assert_eq!(s.businesses.len(), 10);
+        assert_eq!(
+            s.price_history.series.len(),
+            Good::ALL.len() - 1,
+            "the home asset is not charted"
+        );
         let farm = s
             .businesses
             .iter()

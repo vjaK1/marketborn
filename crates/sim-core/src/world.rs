@@ -65,15 +65,16 @@ impl SimState {
     }
 
     /// Total on-hand quantity of one good across the whole world: business
-    /// inventories plus household pantries (pantries hold food).
+    /// inventories plus household holdings (pantries hold food; owned homes
+    /// are household property).
     pub fn total_goods(&self, good: Good) -> Qty {
         let in_businesses: Qty = self.businesses.values().map(|b| b.stock(good)).sum();
-        let in_pantries: Qty = if good == Good::Food {
-            self.agents.values().map(|a| a.pantry).sum()
-        } else {
-            0
+        let in_households: Qty = match good {
+            Good::Food => self.agents.values().map(|a| a.pantry).sum(),
+            Good::Home => self.agents.values().filter(|a| a.owns_home).count() as Qty,
+            _ => 0,
         };
-        in_businesses + in_pantries
+        in_businesses + in_households
     }
 }
 

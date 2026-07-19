@@ -21,6 +21,12 @@ pub const INPUT_TARGET_DAYS: Qty = 3;
 pub const PANTRY_TARGET: i64 = 3;
 /// Days of payroll a business reserves before spending on inputs.
 const PAYROLL_RESERVE_DAYS: i64 = 3;
+/// A household starts shopping for a home once its cash reaches this floor
+/// (well above the comfort floor: homes are the aspiration of the truly
+/// wealthy, and the channel that recycles large hoards — DECISIONS.md #017).
+pub const HOME_CASH_FLOOR: Money = Money::from_cents(60_000);
+/// The most a household will pay for a home, in basis points of its cash.
+const HOME_BUDGET_SHARE_BP: i64 = 5000;
 
 #[derive(Clone, Copy, Debug)]
 struct Offer {
@@ -188,6 +194,23 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
         }
     }
 
+    // Wealthy households buy one home, once — a durable asset and the
+    // channel that returns large hoards to circulation (DECISIONS.md #017).
+    if good == Good::Home {
+        for a in state.agents.values() {
+            if a.owns_home || a.cash < HOME_CASH_FLOOR {
+                continue;
+            }
+            orders.push(Order {
+                buyer: AccountId::Agent(a.id),
+                urgency: 1,
+                qty: 1,
+                max_spend: None,
+                max_unit_price: Some(a.cash.mul_bp(HOME_BUDGET_SHARE_BP)),
+            });
+        }
+    }
+
     // Households buy food up to a pantry target plus today's meal(s):
     // comfortable households (cash above the comfort floor) shop for their
     // second daily meal too (DECISIONS.md #014).
@@ -283,7 +306,12 @@ fn execute_orders(
             match order.buyer {
                 AccountId::Agent(id) => {
                     if let Some(agent) = state.agents.get_mut(&id) {
-                        agent.pantry += take;
+                        match good {
+                            // Home orders are always qty 1; ownership is a
+                            // flag, not a pantry count.
+                            Good::Home => agent.owns_home = true,
+                            _ => agent.pantry += take,
+                        }
                         agent.total_spent += cost;
                     }
                 }
@@ -503,6 +531,49 @@ mod tests {
         assert_eq!(w.state.businesses[&ids[0]].stock(Good::Tools), 0);
         assert_eq!(w.state.businesses[&ids[6]].sold_today, 0);
         assert_eq!(acc.unmet_demand[&Good::Tools], 2, "refused, not absent");
+    }
+
+    #[test]
+    fn wealthy_households_buy_one_home_and_own_it() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        // ids[9] is the construction company.
+        {
+            let cc = w.state.businesses.get_mut(&ids[9]).unwrap();
+            cc.add_stock(Good::Home, 2);
+            cc.price = Money::from_cents(30_000);
+        }
+        let rich = *w.state.agents.keys().next().unwrap();
+        // WTP is half of cash: $350 covers the $300 home.
+        w.state.agents.get_mut(&rich).unwrap().cash = Money::from_cents(70_000);
+        w.state.expected_total_money = w.state.total_cash();
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert!(w.state.agents[&rich].owns_home);
+        assert_eq!(w.state.businesses[&ids[9]].stock(Good::Home), 1);
+        assert_eq!(w.state.agents[&rich].cash, Money::from_cents(40_000));
+        // An owner never buys a second home.
+        let mut acc2 = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 2, &mut acc2).unwrap();
+        assert_eq!(w.state.businesses[&ids[9]].stock(Good::Home), 1);
+    }
+
+    #[test]
+    fn homes_above_half_of_cash_are_refused() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        {
+            let cc = w.state.businesses.get_mut(&ids[9]).unwrap();
+            cc.add_stock(Good::Home, 1);
+            cc.price = Money::from_cents(40_000); // WTP is only $350
+        }
+        let rich = *w.state.agents.keys().next().unwrap();
+        w.state.agents.get_mut(&rich).unwrap().cash = Money::from_cents(70_000);
+        w.state.expected_total_money = w.state.total_cash();
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert!(!w.state.agents[&rich].owns_home);
+        assert_eq!(acc.unmet_demand[&Good::Home], 1, "refused, not absent");
     }
 
     #[test]

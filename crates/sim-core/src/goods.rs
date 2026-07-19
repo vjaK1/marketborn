@@ -19,19 +19,28 @@ pub enum Good {
     /// Capital good: extraction businesses equip workers with tools for a
     /// production bonus; tools wear out with use (see `business.rs`).
     Tools,
+    Wood,
+    Bricks,
+    /// Durable asset: built by the construction company, bought once by a
+    /// wealthy household. Owned homes leave business inventory but stay in
+    /// the conservation totals (DECISIONS.md #017).
+    Home,
 }
 
 impl Good {
     /// All goods in canonical market order. Goods markets clear in this order
     /// every tick (part of the determinism contract). New goods append; the
     /// existing order never reshuffles.
-    pub const ALL: [Good; 6] = [
+    pub const ALL: [Good; 9] = [
         Good::Wheat,
         Good::Flour,
         Good::Food,
         Good::IronOre,
         Good::Steel,
         Good::Tools,
+        Good::Wood,
+        Good::Bricks,
+        Good::Home,
     ];
 
     pub fn name(self) -> &'static str {
@@ -42,6 +51,9 @@ impl Good {
             Good::IronOre => "iron ore",
             Good::Steel => "steel",
             Good::Tools => "tools",
+            Good::Wood => "wood",
+            Good::Bricks => "bricks",
+            Good::Home => "home",
         }
     }
 
@@ -52,7 +64,14 @@ impl Good {
     pub fn spoilage_bp(self) -> i64 {
         match self {
             Good::Food => 400,
-            Good::Wheat | Good::Flour | Good::IronOre | Good::Steel | Good::Tools => 0,
+            Good::Wheat
+            | Good::Flour
+            | Good::IronOre
+            | Good::Steel
+            | Good::Tools
+            | Good::Wood
+            | Good::Bricks
+            | Good::Home => 0,
         }
     }
 

@@ -29,7 +29,8 @@ release tests). Never claim green without running them.
   purchases conserve money; unmet demand marks seller stockouts; urgent
   buyers ordered by id; tool users buy one per worker under the value cap;
   overpriced tools refused (unmet demand recorded); comfortable households
-  shop for the second meal.
+  shop for the second meal; the wealthy buy exactly one home under the
+  half-of-cash cap (overpriced homes refused).
 - production: capacity-bound, input-bound, stops at inventory target;
   perishable output targets the smaller larder buffer; equipped workers
   produce the tool bonus; tools wear out and burn through the goods
@@ -50,7 +51,7 @@ release tests). Never claim green without running them.
   edits caught by goods_conservation.
 - hashing: equal states hash equal; state change changes hash;
   journal/inputs don't affect hash.
-- worldgen: deterministic; town shape (26/7/16, three tool users, goods
+- worldgen: deterministic; town shape (29/10/19, five tool users, goods
   targets seeded); tiny-population clamp valid.
 - tick: conservation over 30 ticks; manifest cadence; commands causal and
   tick-exact; past-tick queue rejected; overdraw command ⇒ event not halt;
@@ -59,14 +60,17 @@ release tests). Never claim green without running them.
   cover every good with sane standing depth; balance sheets add up.
 - sim-cli: manifest diff helpers (divergence, misaligned cadences).
 
-### Integration (sim-core/tests/industry.rs)
+### Integration (sim-core/tests/)
 
-- `ore_steel_tools_farm_productivity_chain` (180 days, default world): ore
+- `ore_steel_tools_farm_productivity_chain` (industry.rs, 180 days): ore
   bought by the steelworks, steel by the factory, tools by farms/mine; some
   extraction business held tools and out-produced bare-handed capacity;
   wear destroyed tools (bought > held); per-good reconciliation and money
   conservation hold to the end; every business's books reconcile with its
   cash and record real revenue and payroll.
+- `wood_bricks_homes_reach_wealthy_households` (construction.rs, 450
+  days): materials sold at every stage, homes sold, at least one household
+  owns a home; conservation (including owned homes) holds to the end.
 
 ### Determinism (sim-core/tests/determinism.rs)
 

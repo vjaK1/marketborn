@@ -33,7 +33,7 @@ impl WorldConfig {
     pub fn default_with_seed(master_seed: u64) -> WorldConfig {
         WorldConfig {
             master_seed,
-            population: 26,
+            population: 29,
             hash_every: 50,
         }
     }
@@ -173,6 +173,51 @@ fn templates() -> Vec<BusinessTemplate> {
             sales_ema_milli: 1_000,
             uses_tools: false,
         },
+        BusinessTemplate {
+            name: "Tallpine Lumber Camp",
+            kind: BusinessKind::LumberCamp,
+            recipe: Recipe {
+                inputs: vec![],
+                output: (Good::Wood, 1),
+                batches_per_worker: 2,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(500),
+            stock: &[(Good::Wood, 6)],
+            sales_ema_milli: 1_000,
+            uses_tools: true,
+        },
+        BusinessTemplate {
+            name: "Redclay Brickworks",
+            kind: BusinessKind::Brickworks,
+            recipe: Recipe {
+                inputs: vec![],
+                output: (Good::Bricks, 1),
+                batches_per_worker: 2,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(600),
+            stock: &[(Good::Bricks, 6)],
+            sales_ema_milli: 1_000,
+            uses_tools: true,
+        },
+        BusinessTemplate {
+            name: "Keystone Construction",
+            kind: BusinessKind::ConstructionCo,
+            recipe: Recipe {
+                inputs: vec![(Good::Wood, 6), (Good::Bricks, 6)],
+                output: (Good::Home, 1),
+                batches_per_worker: 1,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(30_000),
+            stock: &[(Good::Wood, 6), (Good::Bricks, 6), (Good::Home, 1)],
+            sales_ema_milli: 100,
+            uses_tools: false,
+        },
     ]
 }
 
@@ -195,6 +240,7 @@ pub fn generate(config: WorldConfig) -> World {
                 pantry: START_PANTRY,
                 employer: None,
                 owns: None,
+                owns_home: false,
                 hungry_streak: 0,
                 days_unemployed: 0,
                 total_earned: Money::ZERO,
@@ -312,19 +358,22 @@ mod tests {
     #[test]
     fn default_town_shape() {
         let w = generate(WorldConfig::default_with_seed(42));
-        assert_eq!(w.state.agents.len(), 26);
-        assert_eq!(w.state.businesses.len(), 7);
+        assert_eq!(w.state.agents.len(), 29);
+        assert_eq!(w.state.businesses.len(), 10);
         let owners = w.state.agents.values().filter(|a| a.owns.is_some()).count();
-        assert_eq!(owners, 7);
+        assert_eq!(owners, 10);
         let employed = w
             .state
             .agents
             .values()
             .filter(|a| a.employer.is_some())
             .count();
-        assert_eq!(employed, 16, "3 + 3 + 3 + 4 + 1 + 1 + 1 staffing plan");
+        assert_eq!(
+            employed, 19,
+            "3+3+3+4 food, 1+1+1 industry, 1+1+1 construction"
+        );
         let tool_users = w.state.businesses.values().filter(|b| b.uses_tools).count();
-        assert_eq!(tool_users, 3, "two farms and the mine");
+        assert_eq!(tool_users, 5, "farms, mine, lumber camp, brickworks");
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
         for good in Good::ALL {
             assert_eq!(
@@ -343,9 +392,9 @@ mod tests {
             population: 0,
             hash_every: 50,
         });
-        assert_eq!(w.state.agents.len(), 8);
-        // All seven businesses exist and have owners; staffing is partial.
-        assert_eq!(w.state.businesses.len(), 7);
+        assert_eq!(w.state.agents.len(), 11);
+        // All ten businesses exist and have owners; staffing is partial.
+        assert_eq!(w.state.businesses.len(), 10);
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
     }
 }

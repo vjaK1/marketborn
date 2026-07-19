@@ -14,6 +14,9 @@ pub enum BusinessKind {
     Mine,
     SteelMill,
     ToolFactory,
+    LumberCamp,
+    Brickworks,
+    ConstructionCo,
 }
 
 impl BusinessKind {
@@ -25,6 +28,9 @@ impl BusinessKind {
             BusinessKind::Mine => "mine",
             BusinessKind::SteelMill => "steel mill",
             BusinessKind::ToolFactory => "tool factory",
+            BusinessKind::LumberCamp => "lumber camp",
+            BusinessKind::Brickworks => "brickworks",
+            BusinessKind::ConstructionCo => "construction co",
         }
     }
 }

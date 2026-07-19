@@ -24,7 +24,7 @@ Every tick executes exactly this sequence:
 | 2 | Scheduled events | *[activates: Phase 4]* |
 | 3 | **Production** | Businesses run recipes; equipped workers add the tool bonus and wear tools down (see §Production). |
 | 4 | **Labor market** | Job matching, then daily payroll (see §Labor). |
-| 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools (see §Markets). |
+| 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
 | 6 | Contract settlement | *[activates: Phase 3]* |
 | 7 | Banking | *[activates: Phase 3]* |
 | 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
@@ -85,6 +85,10 @@ current business inventory (equivalent to refreshing standing offers):
      where meals = 2 above the comfort floor (§Consumption), else 1.
      Urgency 0 when the pantry is empty, else 1. Households are
      price-takers (survival good); their cash is the only limit.
+   - *Homes*: a household holding cash ≥ `HOME_CASH_FLOOR ($600.00)` that
+     does not yet own a home orders exactly one, paying at most half its
+     cash. Ownership is permanent; owned homes remain in the
+     goods-conservation totals (DECISIONS.md #017).
 3. **Execution**: each order takes the cheapest offer (ties → lower seller
    id), limited by remaining demand, offer quantity, the buyer's reservation
    price, and affordable units at the buyer's live balance/budget; then moves
@@ -195,14 +199,16 @@ in later phases, but changes must be recorded (they shift every hash).
 
 | Entity | Values |
 |--------|--------|
-| Population | 26 (7 owners, 16 staffed jobs, 3 unemployed) — configurable |
-| Agent start | $300.00 cash, pantry 3 |
+| Population | 29 (10 owners, 19 staffed jobs, 0 unemployed at start) — configurable |
+| Agent start | $300.00 cash, pantry 3, no home |
 | Food chain | 2 farms (3 workers, wage $7.00, wheat $5.50, uses tools) · mill (3 workers, $7.00, flour $7.60) · bakery (4 workers, $7.00, food $5.40) |
 | Industry chain | mine (1 worker, wage $6.00, iron ore $7.50, uses tools) · steelworks (1, $6.00, steel $15.00) · tool factory (1, $6.00, tools $22.00) |
-| Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker |
+| Construction chain | lumber camp (1 worker, $6.00, wood $5.00, uses tools) · brickworks (1, $6.00, bricks $6.00, uses tools) · construction co (1, $6.00, home $300.00) |
+| Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker · lumber camp → 1 wood, 2/worker · brickworks → 1 bricks, 2/worker · construction 6 wood + 6 bricks → 1 home, 1/worker |
 | Business start cash | $1,200.00 each |
 | Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
 | Comfort floor | $400.00 cash → second daily meal |
+| Home floor | $600.00 cash → buy one home, paying ≤ half of cash |
 | Consumption | 1 food per agent per day (2 above the comfort floor) |
 | Spoilage | food 4%/day per holder, toward zero (remainder stays fresh); all other goods durable |
 | Output buffers | durable 4+1 days · perishable 2+1 days · light-glut signal strictly above at >6 days |

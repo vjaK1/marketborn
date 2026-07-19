@@ -317,3 +317,36 @@ total assets — which immediately quantified the calibration picture
 (year 1: bakery ≈ $17.7k lifetime profit, mill ≈ $7.4k, farms ≈ $5.4k,
 the industry chain within ±$60 of break-even). Save blobs from before
 this ADR are incompatible; hashes shift (`Business` grew).
+
+## 017 — Construction chain: homes as one-shot durable assets; the boom is the design
+
+**Context.** Phase 1's third chain (lumber camp → wood · brickworks →
+bricks → construction company → buildings, per BRIEF). Buildings need a
+buyer and a purpose. Business-side buildings (warehouses, factories) have
+no mechanical effect until expansion strategy (Phase 2) and inventory has
+no capacity model; households are the honest Phase 1 customer. The demand
+arithmetic is unforgiving: a ~29-person town buys at most a couple dozen
+homes ever, so no calibration makes a three-business chain permanently
+self-sustaining on housing alone.
+
+**Decision.** `Good::Home` is a durable asset (9 goods total): built from
+6 wood + 6 bricks, sold at a posted price like any good, bought **once**
+per household when cash crosses `HOME_CASH_FLOOR ($600.00)`, paying at
+most half its cash (`HOME_BUDGET_SHARE_BP`). Ownership is a flag on the
+agent; owned homes stay in the goods-conservation totals. Lumber camp and
+brickworks are tool users (BRIEF: tools boost construction), widening the
+industry chain's demand. The construction sector runs at $6.00 wages;
+population rises to 29 (three new owners, the three unemployed staff the
+chain). Homes are excluded from the price chart (an asset that trades
+monthly is not a line); they appear in the markets table.
+
+**Consequences.** The chain is a deliberate **boom industry**: year one
+sees a real housing boom (~8 homes; the construction company is briefly
+the town's most profitable per-worker business), recycling the largest
+household hoards back into the wage cycle — after comfort meals, the
+second demand-side stabilizer. When everyone above the floor owns a home,
+the sector idles and sheds workers; without business exit/entry
+(Phase 2), rehiring for later demand works but the long idle is absorbing
+for the material producers. Same flagged-limitation family as the
+industry chain. The year-ten food core is unharmed — best equilibrium
+observed (both farms staffed, food below start price).

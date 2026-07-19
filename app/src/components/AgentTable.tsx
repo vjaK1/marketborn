@@ -24,6 +24,7 @@ export function AgentTable({ agents }: { agents: AgentRow[] }) {
           <th>Occupation</th>
           <th className="num">Cash</th>
           <th className="num">Pantry</th>
+          <th className="num">Home</th>
           <th className="num">Hunger</th>
         </tr>
       </thead>
@@ -34,6 +35,7 @@ export function AgentTable({ agents }: { agents: AgentRow[] }) {
             <td>{roleCell(a)}</td>
             <td className="num">{formatMoney(a.cash_cents)}</td>
             <td className="num">{a.pantry}</td>
+            <td className="num">{a.owns_home ? '⌂' : '—'}</td>
             <td className="num">
               {a.hungry_streak > 0 ? (
                 <span className="hungry-dot">● {a.hungry_streak}d</span>
