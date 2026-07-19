@@ -11,8 +11,23 @@ export interface WorldSnapshot {
   stats: Stats;
   agents: AgentRow[];
   businesses: BusinessRow[];
+  markets: MarketRow[];
   price_history: PriceHistory;
   events: EventRow[];
+}
+
+export interface MarketRow {
+  good: string;
+  last_price_cents: number | null;
+  volume_today: number;
+  unmet_today: number;
+  spoiled_today: number;
+  sellers: number;
+  offered_qty: number;
+  best_ask_cents: number | null;
+  demand_qty: number;
+  urgent_demand_qty: number;
+  world_stock: number;
 }
 
 export interface Stats {

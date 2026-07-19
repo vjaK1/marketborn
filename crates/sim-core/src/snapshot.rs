@@ -25,8 +25,29 @@ pub struct WorldSnapshot {
     pub stats: Stats,
     pub agents: Vec<AgentRow>,
     pub businesses: Vec<BusinessRow>,
+    pub markets: Vec<MarketRow>,
     pub price_history: PriceHistory,
     pub events: Vec<EventRow>,
+}
+
+/// Per-good market view: standing depth (derived from the live offer/order
+/// rules) plus the last completed day's outcomes from the metrics journal.
+#[derive(Clone, Debug, Serialize)]
+pub struct MarketRow {
+    pub good: String,
+    /// Volume-weighted average execution price of the most recent day with
+    /// trades.
+    pub last_price_cents: Option<i64>,
+    pub volume_today: i64,
+    pub unmet_today: i64,
+    pub spoiled_today: i64,
+    pub sellers: u32,
+    pub offered_qty: i64,
+    pub best_ask_cents: Option<i64>,
+    pub demand_qty: i64,
+    pub urgent_demand_qty: i64,
+    /// Total units in the world (business inventories + pantries).
+    pub world_stock: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -350,6 +371,29 @@ impl WorldSnapshot {
             })
             .collect();
 
+        let last_day = world.journal.metrics.back();
+        let markets = Good::ALL
+            .iter()
+            .map(|good| {
+                let d = crate::market::depth(state, *good);
+                let day_stat =
+                    |f: &dyn Fn(&crate::metrics::MetricsDay) -> i64| last_day.map(f).unwrap_or(0);
+                MarketRow {
+                    good: good.name().to_string(),
+                    last_price_cents: state.market.last_prices.get(good).map(|p| p.cents()),
+                    volume_today: day_stat(&|m| m.volume.get(good).copied().unwrap_or(0)),
+                    unmet_today: day_stat(&|m| m.unmet_demand.get(good).copied().unwrap_or(0)),
+                    spoiled_today: day_stat(&|m| m.spoiled.get(good).copied().unwrap_or(0)),
+                    sellers: d.sellers,
+                    offered_qty: d.offered_qty,
+                    best_ask_cents: d.best_ask.map(|p| p.cents()),
+                    demand_qty: d.demand_qty,
+                    urgent_demand_qty: d.urgent_demand_qty,
+                    world_stock: state.total_goods(*good),
+                }
+            })
+            .collect();
+
         let history_len = world.journal.metrics.len().min(HISTORY_DAYS);
         let skip = world.journal.metrics.len() - history_len;
         let window: Vec<_> = world.journal.metrics.iter().skip(skip).collect();
@@ -399,6 +443,7 @@ impl WorldSnapshot {
             },
             agents,
             businesses,
+            markets,
             price_history: PriceHistory { ticks, series },
             events,
         }
@@ -441,6 +486,14 @@ mod tests {
         assert!(
             s.businesses.iter().any(|b| b.books.revenue_cents > 0),
             "someone sold something in 20 days"
+        );
+        assert_eq!(s.markets.len(), Good::ALL.len());
+        let food = s.markets.iter().find(|m| m.good == "food").unwrap();
+        assert!(food.world_stock > 0, "the town holds food");
+        assert!(food.demand_qty > 0, "households always shop toward target");
+        assert!(
+            s.markets.iter().any(|m| m.sellers > 0),
+            "someone is offering something"
         );
         assert_eq!(s.price_history.ticks.len(), 20);
         assert!(!s.events.is_empty());

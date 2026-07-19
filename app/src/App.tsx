@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AgentTable } from './components/AgentTable';
 import { BusinessTable } from './components/BusinessTable';
 import { EventLog } from './components/EventLog';
+import { MarketTable } from './components/MarketTable';
 import { PriceChart } from './components/PriceChart';
 import { SpeedControls } from './components/SpeedControls';
 import { StatsBar } from './components/StatsBar';
@@ -68,12 +69,20 @@ export default function App() {
             <PriceChart history={snapshot.price_history} />
           </div>
         </section>
-        <section className="panel">
-          <h2>Businesses</h2>
-          <div className="body">
-            <BusinessTable businesses={snapshot.businesses} />
-          </div>
-        </section>
+        <div className="stack">
+          <section className="panel">
+            <h2>Businesses</h2>
+            <div className="body">
+              <BusinessTable businesses={snapshot.businesses} />
+            </div>
+          </section>
+          <section className="panel">
+            <h2>Markets</h2>
+            <div className="body">
+              <MarketTable markets={snapshot.markets} />
+            </div>
+          </section>
+        </div>
         <section className="panel">
           <h2>Event log</h2>
           <div className="body">

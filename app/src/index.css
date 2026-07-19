@@ -189,6 +189,19 @@ body {
   overflow: hidden;
 }
 
+/* Two stacked panels sharing one grid cell. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.stack .panel {
+  flex: 1;
+  min-height: 0;
+}
+
 .panel > h2 {
   margin: 0;
   padding: 9px 14px 7px;

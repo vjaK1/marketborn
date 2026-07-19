@@ -315,6 +315,34 @@ fn execute_orders(
     Ok(())
 }
 
+/// Read-only standing depth of one good's market, derived from the same
+/// offer/order rules the clearing phase uses — the market view can never
+/// drift from real market behavior.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MarketDepth {
+    pub sellers: u32,
+    pub offered_qty: Qty,
+    pub best_ask: Option<Money>,
+    pub demand_qty: Qty,
+    pub urgent_demand_qty: Qty,
+}
+
+pub fn depth(state: &SimState, good: Good) -> MarketDepth {
+    let offers = build_offers(state, good);
+    let orders = build_orders(state, good);
+    MarketDepth {
+        sellers: offers.len() as u32,
+        offered_qty: offers.iter().map(|o| o.qty).sum(),
+        best_ask: offers.first().map(|o| o.price),
+        demand_qty: orders.iter().map(|o| o.qty).sum(),
+        urgent_demand_qty: orders
+            .iter()
+            .filter(|o| o.urgency == 0)
+            .map(|o| o.qty)
+            .sum(),
+    }
+}
+
 /// Clear all goods markets for this tick, in canonical good order.
 pub fn run_goods_markets(
     state: &mut SimState,

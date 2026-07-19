@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage, business books
+## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage, business books, market view
 
 ### Where the project stands
 
@@ -17,8 +17,9 @@ is invariant-checked every sweep; the Phase 1 acceptance centerpiece
 (DECISIONS #015); every business carries lifetime cash-basis books
 reconciled against its cash by a dedicated invariant (DECISIONS #016);
 `sim-cli metrics` dumps per-day time series (incl. per-business columns)
-for economy analysis. Still to come in Phase 1: construction goods, market
-view v1, and the 100-agent/20-business scale-up.
+for economy analysis; the UI carries a market view v1 (per-good standing
+depth + shortages). Still to come in Phase 1: construction goods and the
+100-agent/20-business scale-up.
 
 ### What was built
 
@@ -67,6 +68,12 @@ view v1, and the 100-agent/20-business scale-up.
   operating profit, and the businesses table gained an Assets column.
   Verified zero behavioral impact (year-1 trajectory identical to the
   cent pre/post books).
+- **Market view v1**: per-good standing depth (`market::depth` reuses the
+  real offer/order-building rules, so the view cannot drift from market
+  behavior) + last-day outcomes (volume, unmet, spoilage) in a new
+  snapshot `markets` section; Markets panel in the UI (stacked under
+  Businesses) with shortage highlighting. Largest buyers/sellers and
+  per-good historical charts are Phase 5 polish per BRIEF.
 - **Docs**: ECONOMIC_RULES rewritten for Phase 1 (tool rules, comfort rule,
   utilization pricing, new parameter table with the closed-loop audit);
   DECISIONS #012–#014; TEST_PLAN and PERF_RESULTS updated.
@@ -92,10 +99,11 @@ view v1, and the 100-agent/20-business scale-up.
   and one farm staffed (10 employed), the surviving farm pricing as a
   monopolist (~4× prices), structural hunger; money conserved at $16,200
   throughout, all invariants green.
-- App launched and inspected twice (screenshots): first at Y1·D153 with
-  the 6-series chart and industry dividends in the event log; again after
-  the accounting increment at Y1·D56 with the Assets column live
-  (cash + inventory valuation visibly diverging where stock is held).
+- App launched and inspected three times (screenshots): Y1·D153 with the
+  6-series chart and industry dividends; Y1·D56 with the Assets column
+  live; Y1·D50 with the Markets panel catching a real shortage day in the
+  data — flour/food at zero offered against live demand with unmet
+  quantities highlighted, wheat offered with no buyer mid-batch-cycle.
 - Perf recorded: 1,000 agents × 3,650 ticks in 0.19 s release
   (PERF_RESULTS.md).
 
@@ -125,17 +133,15 @@ shift. schema_version stays 1; no released saves exist.
 
 ### Exact next task (Phase 1 continuation)
 
-1. **Market view v1**: per-good market depth in the UI — offers, orders,
-   unmet demand, volumes, spoilage — from a new snapshot section (the
-   market phase already computes all of it; capture into the accumulator →
-   snapshot). Read BRIEF.md's market-view sketch first.
-2. Then the **construction chain** (wood, bricks → buildings) per
-   BRIEF.md — new goods + business kinds behind the existing machinery,
-   with a calibration audit like ECONOMIC_RULES §World parameters, and
-   buildings as the first non-tradable asset (design decision needed:
-   what buildings do in Phase 1 — record it in DECISIONS.md).
-3. Then the **100-agent / 20-business scale-up** acceptance run.
-4. When touching the economy, verify with the soak checkpoints
+1. The **construction chain** (wood, bricks → buildings) per BRIEF.md —
+   new goods + business kinds behind the existing machinery, with a
+   calibration audit like ECONOMIC_RULES §World parameters, and buildings
+   as the first non-tradable asset (design decision needed: what buildings
+   do in Phase 1 — record it in DECISIONS.md). Read BRIEF.md's goods list
+   and construction section first.
+2. Then the **100-agent / 20-business scale-up** acceptance run (the last
+   open Phase 1 criterion alongside construction).
+3. When touching the economy, verify with the soak checkpoints
    (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and, on any
    surprise, dump `sim-cli metrics <save> --csv` and read the day-by-day
    series — end states hide limit cycles. Year-1 health bar: all 7

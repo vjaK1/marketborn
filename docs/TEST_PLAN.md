@@ -55,7 +55,8 @@ release tests). Never claim green without running them.
 - tick: conservation over 30 ticks; manifest cadence; commands causal and
   tick-exact; past-tick queue rejected; overdraw command ⇒ event not halt;
   halted world refuses to tick; corruption halts with report.
-- snapshot: reflects a running world; serializes to JSON.
+- snapshot: reflects a running world; serializes to JSON; market rows
+  cover every good with sane standing depth; balance sheets add up.
 - sim-cli: manifest diff helpers (divergence, misaligned cadences).
 
 ### Integration (sim-core/tests/industry.rs)
