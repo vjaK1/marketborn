@@ -176,10 +176,12 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 seq: 0, // assigned by the journal
                 tick,
                 actor: b.owner,
-                business: bid,
-                inputs,
-                considered,
-                chosen: action,
+                detail: decision::DecisionDetail::PriceReview {
+                    business: bid,
+                    inputs,
+                    considered,
+                    chosen: action,
+                },
             });
             let mut new_price = None;
             let repriced = match action {

@@ -321,6 +321,7 @@ td.neg {
 }
 
 .event-kind.k-hired,
+.event-kind.k-job_switched,
 .event-kind.k-dividend_paid,
 .event-kind.k-owner_invested {
   background: var(--good);

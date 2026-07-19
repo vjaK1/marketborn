@@ -64,11 +64,11 @@ fn twin_runs_produce_identical_hashes_and_events() {
         !a.journal.decisions.is_empty(),
         "price reviews must journal decision records"
     );
-    let decisions = |w: &sim_core::World| -> Vec<(u64, u32, sim_core::PriceAction)> {
+    let decisions = |w: &sim_core::World| -> Vec<String> {
         w.journal
             .decisions
             .iter()
-            .map(|d| (d.tick, d.business.0, d.chosen))
+            .map(|d| format!("{}:{}:{:?}", d.tick, d.actor.0, d.detail))
             .collect()
     };
     assert_eq!(decisions(&a), decisions(&b), "decision sequences");

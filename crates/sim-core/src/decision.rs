@@ -17,6 +17,7 @@
 use crate::agent::Traits;
 use crate::goods::Qty;
 use crate::ids::{AgentId, BusinessId};
+use crate::money::Money;
 use serde::{Deserialize, Serialize};
 
 /// Price-review actions, in tie-break order (earlier wins on equal score —
@@ -149,39 +150,140 @@ pub struct ScoredAction {
     pub score: f64,
 }
 
-/// One journaled decision: who chose what for which business, every score
-/// considered, and the inputs that mattered.
+/// A job with its posted wage, as seen at decision time.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct JobRef {
+    pub business: BusinessId,
+    pub wage: Money,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JobAction {
+    /// Keep the current job (no rival offer cleared the loyalty premium).
+    Stay,
+    /// Quit the current job for a better-paying vacancy.
+    SwitchTo(BusinessId),
+    /// Unemployed and holding out: every open wage is below reservation.
+    HoldOut,
+}
+
+/// The wage an unemployed agent holds out for: 0.5–1.5× the going food
+/// price depending on ambition, **decaying linearly with unemployment
+/// duration** over a patience-scaled horizon (30–90 days) — pride is a
+/// wasting asset, so a holdout can never permanently block restaffing (a
+/// non-decaying reservation let comfortable workers watch their would-be
+/// employer die — the seed-42 lesson, DECISIONS.md #020). Desperation
+/// (hunger, or savings below a month of food) drops it to zero at once.
+/// The division rounds toward zero, slightly favoring employment.
+pub fn reservation_wage(
+    food_price: Money,
+    ambition: u8,
+    patience: u8,
+    days_unemployed: u32,
+    desperate: bool,
+) -> Money {
+    if desperate {
+        return Money::ZERO;
+    }
+    let base = food_price.mul_bp(5_000 + i64::from(ambition) * 100);
+    let horizon = 30 + i64::from(patience) * 60 / 100; // 30 ..= 90 days
+    let left = (horizon - i64::from(days_unemployed)).max(0);
+    Money::from_cents(base.cents() * left / horizon)
+}
+
+/// The raise premium a rival job must clear before a worker switches:
+/// 10%–20% of the current wage, widened by loyalty.
+pub fn switch_premium_bp(loyalty: u8) -> i64 {
+    1_000 + i64::from(loyalty) * 10
+}
+
+/// One journaled decision: who chose what, every score considered, and the
+/// inputs that mattered.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DecisionRecord {
     pub seq: u64,
     pub tick: u64,
     pub actor: AgentId,
-    pub business: BusinessId,
-    pub inputs: PriceInputs,
-    pub considered: Vec<ScoredAction>,
-    pub chosen: PriceAction,
+    pub detail: DecisionDetail,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum DecisionDetail {
+    PriceReview {
+        business: BusinessId,
+        inputs: PriceInputs,
+        considered: Vec<ScoredAction>,
+        chosen: PriceAction,
+    },
+    JobReview {
+        current: Option<JobRef>,
+        best_open: Option<JobRef>,
+        reservation: Money,
+        premium_bp: i64,
+        chosen: JobAction,
+    },
 }
 
 impl DecisionRecord {
     /// Human-readable "why": rendered for the agent inspector.
     pub fn explanation(&self) -> String {
-        let i = &self.inputs;
-        let scores = self
-            .considered
-            .iter()
-            .map(|s| format!("{} {:+.2}", s.action.label(), s.score))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!(
-            "Chose to {}: {} stockout day(s), {} day(s) of stock, {}% of capacity selling, window {} — weighing greed {} and aggression {}. Scores: {scores}.",
-            self.chosen.label(),
-            i.stockout_days,
-            i.stock_days,
-            i.utilization_pct,
-            if i.window_profitable { "profitable" } else { "loss-making" },
-            i.greed,
-            i.aggression,
-        )
+        match &self.detail {
+            DecisionDetail::PriceReview {
+                inputs: i,
+                considered,
+                chosen,
+                ..
+            } => {
+                let scores = considered
+                    .iter()
+                    .map(|s| format!("{} {:+.2}", s.action.label(), s.score))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "Chose to {}: {} stockout day(s), {} day(s) of stock, {}% of capacity selling, window {} — weighing greed {} and aggression {}. Scores: {scores}.",
+                    chosen.label(),
+                    i.stockout_days,
+                    i.stock_days,
+                    i.utilization_pct,
+                    if i.window_profitable {
+                        "profitable"
+                    } else {
+                        "loss-making"
+                    },
+                    i.greed,
+                    i.aggression,
+                )
+            }
+            DecisionDetail::JobReview {
+                current,
+                best_open,
+                reservation,
+                premium_bp,
+                chosen,
+            } => {
+                let cur = current
+                    .map(|j| format!("earning {} at {}", j.wage, j.business))
+                    .unwrap_or_else(|| "unemployed".to_string());
+                let open = best_open
+                    .map(|j| format!("best open job pays {} at {}", j.wage, j.business))
+                    .unwrap_or_else(|| "no open jobs".to_string());
+                match chosen {
+                    JobAction::Stay => format!(
+                        "Stayed put: {cur}; {open} — below the +{}% switch premium.",
+                        premium_bp / 100
+                    ),
+                    JobAction::SwitchTo(b) => {
+                        format!(
+                            "Switched to {b}: {cur}; {open} — cleared the +{}% premium.",
+                            premium_bp / 100
+                        )
+                    }
+                    JobAction::HoldOut => {
+                        format!("Held out: {open}, below the {reservation} reservation wage.")
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -252,14 +354,67 @@ mod tests {
             seq: 0,
             tick: 12,
             actor: crate::ids::AgentId(4),
-            business: crate::ids::BusinessId(4),
-            inputs,
-            considered,
-            chosen,
+            detail: DecisionDetail::PriceReview {
+                business: crate::ids::BusinessId(4),
+                inputs,
+                considered,
+                chosen,
+            },
         };
         let text = r.explanation();
         assert!(text.contains("raise the price"));
         assert!(text.contains("3 stockout day(s)"));
         assert!(text.contains("greed 50"));
+    }
+
+    #[test]
+    fn reservation_wage_scales_with_ambition_and_yields_to_desperation() {
+        let food = Money::from_cents(800);
+        assert_eq!(
+            reservation_wage(food, 0, 50, 0, false),
+            Money::from_cents(400)
+        );
+        assert_eq!(
+            reservation_wage(food, 50, 50, 0, false),
+            Money::from_cents(800)
+        );
+        assert_eq!(
+            reservation_wage(food, 100, 50, 0, false),
+            Money::from_cents(1_200)
+        );
+        assert_eq!(reservation_wage(food, 100, 50, 0, true), Money::ZERO);
+    }
+
+    #[test]
+    fn reservation_wage_decays_to_zero_over_the_patience_horizon() {
+        let food = Money::from_cents(800);
+        // Patience 50 → 60-day horizon.
+        let fresh = reservation_wage(food, 50, 50, 0, false);
+        let month = reservation_wage(food, 50, 50, 30, false);
+        let done = reservation_wage(food, 50, 50, 60, false);
+        assert_eq!(fresh, Money::from_cents(800));
+        assert_eq!(
+            month,
+            Money::from_cents(400),
+            "half the horizon, half the pride"
+        );
+        assert_eq!(done, Money::ZERO, "past the horizon any wage is acceptable");
+        // Patience widens the horizon.
+        assert!(reservation_wage(food, 50, 100, 60, false) > Money::ZERO);
+        assert_eq!(reservation_wage(food, 50, 0, 30, false), Money::ZERO);
+    }
+
+    #[test]
+    fn switch_premium_widens_with_loyalty() {
+        assert_eq!(switch_premium_bp(0), 1_000);
+        assert_eq!(switch_premium_bp(50), 1_500);
+        assert_eq!(switch_premium_bp(100), 2_000);
+        // A 16% raise moves the disloyal but not the loyal — identical
+        // conditions, different people, different choices.
+        let current = Money::from_cents(700);
+        let offer = current + current.mul_bp(1_600);
+        let clears = |loyalty: u8| offer >= current + current.mul_bp(switch_premium_bp(loyalty));
+        assert!(clears(0));
+        assert!(!clears(100));
     }
 }

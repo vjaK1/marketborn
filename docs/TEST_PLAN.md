@@ -36,7 +36,9 @@ release tests). Never claim green without running them.
   produce the tool bonus; tools wear out and burn through the goods
   ledger; no tools ⇒ no bonus, no wear.
 - labor: daily payroll pays every worker; broke business ⇒ missed payroll
-  event + workers quit; deterministic vacancy matching.
+  event + workers quit; deterministic vacancy matching; workers switch
+  only over the loyalty premium; comfortable ambition holds out and
+  desperation accepts.
 - consumption: pantry decrement, hunger streaks + events; comfort meal for
   the wealthy, never into hunger; perishables spoil toward zero through the
   goods ledger; durable goods and small stocks untouched.
@@ -48,7 +50,10 @@ release tests). Never claim green without running them.
   even when total money is conserved.
 - decision engine: neutral traits reproduce the rule family; loss-making
   businesses never cut for volume; identical conditions + different traits
-  ⇒ different choices; records render explanations with their inputs.
+  ⇒ different choices; records render explanations with their inputs;
+  reservation wages scale with ambition, decay to zero over the patience
+  horizon, and yield to desperation; switch premiums widen with loyalty
+  (a 16% raise moves the disloyal, not the loyal).
 - worldgen traits: same seed ⇒ same person; traits vary across the town;
   different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each

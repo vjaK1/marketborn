@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits + scored price review)
+## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits, scored price review, labor mobility)
 
 ### What was built
 
@@ -39,21 +39,33 @@ Living state of the project. Updated at the end of every session
   and deflated two of three towns to collapse; the shipped bands are
   deliberately narrow.
 
+### Labor mobility (second engine increment, this session — DECISIONS #020)
+
+- Weekly per-agent job reviews: employed workers switch to open jobs that
+  clear a loyalty-widened 10–20% premium (`JobSwitched` events + records);
+  the unemployed hold out above an ambition-scaled reservation wage that
+  **decays to zero over a patience-scaled 30–90-day horizon** and collapses
+  under desperation; matching honors reservations. +5 unit tests.
+- Soaks: seeds 7/123 hold their year-ten cores (13 employed); the 100-town
+  matches its pre-mobility decade shape. **Seed 42 got harsher**: workers
+  now flee its wage-cutting farm mid-trough and it dies ~year 4 where
+  captive labor once kept it alive (year 10: 5 employed). Labor flight
+  from failing firms is real economics; the counterweight is entry/exit,
+  which is the next increment — re-evaluate all seeds after it lands.
+
 ### Exact next task (Phase 2 continuation)
 
-1. **Household job decisions on the engine**: job switching with
-   reservation wages (quit for better pay; traits weight loyalty vs
-   ambition), replacing take-first-offer matching — the labor-mobility
-   mechanic that lets wages equilibrate (workers currently starve on $7
-   while food costs more, with no pressure on employers).
-2. Then **business entry/exit** (the fix for all three flagged
-   limitations: dead industry/construction restart, farm-monopoly
-   competition) — a wealthy agent founds or revives a business where
-   standing unmet demand persists; design against AGENT_DESIGN.md and
-   record the ADR.
-3. Then memory, relationships, reputation, and the agent inspector
+1. **Business entry/exit** (the fix for the three Phase 1 limitations AND
+   mobility's absorbing states): formal exit for long-dead businesses;
+   founding/revival — a wealthy, ambitious agent takes over or restarts a
+   business where standing unmet demand persists, seeding it with personal
+   capital through the ledger/books doorways. Design against
+   AGENT_DESIGN.md ("start/expand/close business"), record the ADR, then
+   re-run the three-seed + 100-town soak matrix expecting absorbing states
+   to disappear.
+2. Then memory, relationships, reputation, and the agent inspector
    (surfacing DecisionRecords is the inspector's first job).
-4. Soak checkpoints after every economy change: seeds 42/7/123 at
+3. Soak checkpoints after every economy change: seeds 42/7/123 at
    365/1500/3650 plus `--population 100`; on surprises dump
    `sim-cli metrics <save> --csv`.
 

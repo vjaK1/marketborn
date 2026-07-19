@@ -404,3 +404,33 @@ healthy mill utilization and two of three towns deflated to collapse —
 traits must decide the ambiguous calls, never the clear ones. Wage and
 dividend reviews stay rule-based, moving onto the engine in later
 increments alongside new actions (job switching, entry/exit).
+
+## 020 — Labor mobility: switch premiums and duration-decaying reservation wages
+
+**Context.** Phase 0/1 workers took the first job in id order and never
+left voluntarily — no pressure ever reached employers through the labor
+market. AGENT_DESIGN.md requires seek/quit as engine actions.
+
+**Decision.** Weekly per-agent job reviews (same 7-day stagger as business
+reviews), in agent id order, executed immediately so later reviewers see
+updated rosters. *Employed*: switch to the best open vacancy (highest
+wage, tie → lower id, same marginal cash gate hiring uses) whose wage
+clears a loyalty-widened premium of 10–20% over the current wage.
+*Unemployed*: hold out above a reservation wage of 0.5–1.5× the going
+food price by ambition, **decaying linearly to zero over a
+patience-scaled horizon (30–90 days of unemployment)** — pride is a
+wasting asset, so holdouts can never permanently block restaffing —
+and collapsing to zero at once under desperation (hunger, or savings
+under a month of food). Matching honors reservations; declined-offer
+holdouts and switches journal `DecisionRecord`s (`JobReview` detail);
+switches emit `JobSwitched` events.
+
+**Consequences.** Wage differentials finally move people: underpaying
+businesses lose staff to rivals and feel vacancy pressure. The flip side
+is honest and kept: businesses cutting wages through a trough now lose
+workers mid-crisis and can die faster (seed 42's Riverside Farm dies
+~year 4 where the captive-labor world kept it alive; seeds 7 and 123 hold
+their year-ten cores). Labor flight from failing firms is real economics;
+the missing counterweight is business entry/exit — the next increment —
+which turns dead firms from absorbing states into vacancies for the next
+founder.

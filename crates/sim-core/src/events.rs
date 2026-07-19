@@ -30,6 +30,15 @@ pub enum Event {
         business: BusinessId,
         owed: Money,
     },
+    /// A worker left one job for a better-paying one (Phase 2 labor
+    /// mobility).
+    JobSwitched {
+        agent: AgentId,
+        from: BusinessId,
+        to: BusinessId,
+        old_wage: Money,
+        new_wage: Money,
+    },
     MissedPayroll {
         business: BusinessId,
         workers_unpaid: u32,
@@ -79,6 +88,7 @@ impl Event {
             Event::Hired { .. } => "hired",
             Event::Fired { .. } => "fired",
             Event::QuitUnpaid { .. } => "quit_unpaid",
+            Event::JobSwitched { .. } => "job_switched",
             Event::MissedPayroll { .. } => "missed_payroll",
             Event::PriceChanged { .. } => "price_changed",
             Event::WageChanged { .. } => "wage_changed",

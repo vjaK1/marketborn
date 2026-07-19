@@ -19,15 +19,18 @@ Everything here is deterministic, id-ordered, and float-free.
 
 ## Phase 2 status
 
-Implemented so far (session 2, DECISIONS #019): the nine personality
+Implemented so far (session 2, DECISIONS #019–#020): the nine personality
 traits (integer 0–100, per-agent `"traits"` substream, field order = roll
 order); the utility engine core (`decision.rs`) with float scoring,
 enum-order tie-breaks and journaled `DecisionRecord`s that render their own
-explanations; the business **price review** runs through it, with greed and
-aggression acting in narrow threshold bands. Seeds now produce economically
-distinct histories. Still to come: remaining owner reviews on the engine,
-household actions (job switching, reservation wages), business entry/exit,
-memory, relationships, reputation, the agent inspector.
+explanations; the business **price review** runs through it (greed and
+aggression in narrow threshold bands); **labor mobility** — weekly job
+reviews with loyalty-widened switch premiums, ambition-scaled reservation
+wages decaying over a patience-scaled unemployment horizon, desperation
+override. Seeds produce economically distinct histories. Still to come:
+remaining owner reviews on the engine, business entry/exit (next — the
+counterweight to labor flight from failing firms), memory, relationships,
+reputation, the agent inspector.
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

@@ -123,8 +123,19 @@ Sales EMA: integer milli-units, `ema += (today·1000 − ema) / 8`, toward zero.
 
 ## Labor
 
-- **Matching** (daily): businesses in id order fill vacancies from job
-  seekers in id order (owners never seek). Marginal hiring gate: a business
+- **Job reviews** (weekly, per-agent stagger `(tick + agent id) % 7`, in
+  id order, executed immediately — DECISIONS.md #020): an employed worker
+  switches to the best open job (highest wage, tie → lower business id,
+  hiring cash gate applied) whose wage clears a loyalty-widened premium of
+  10–20% over the current wage (`JobSwitched` event + decision record). An
+  unemployed agent holds out above a reservation wage — 0.5–1.5× the going
+  food price by ambition, decaying linearly to zero over a
+  patience-scaled 30–90-day unemployment horizon, zero at once when
+  desperate (hungry, or savings below 30 days of food). Holding out
+  against a live offer journals a decision record.
+- **Matching** (daily): businesses in id order fill vacancies from
+  *willing* job seekers in id order (owners never seek; seekers decline
+  wages below their reservation). Marginal hiring gate: a business
   staffs up only as far as cash covers `HIRING_CASH_DAYS (5) × wage` per
   resulting worker — so a downsized business can bootstrap back one hire at
   a time instead of needing the full target payroll upfront.

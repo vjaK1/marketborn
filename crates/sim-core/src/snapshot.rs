@@ -202,6 +202,18 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
             "{} missed payroll for {workers_unpaid} worker(s), {shortfall} short",
             business_label(state, *business)
         ),
+        Event::JobSwitched {
+            agent,
+            from,
+            to,
+            old_wage,
+            new_wage,
+        } => format!(
+            "{} left {} for {} ({old_wage} → {new_wage}/day)",
+            agent_label(state, *agent),
+            business_label(state, *from),
+            business_label(state, *to)
+        ),
         Event::PriceChanged {
             business,
             good,
