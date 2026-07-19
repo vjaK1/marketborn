@@ -103,6 +103,7 @@ pub fn check_all(state: &SimState, journal: &Journal) -> Result<(), Box<Invarian
     non_negative_cash(state, journal)?;
     non_negative_inventory(state, journal)?;
     employment_reciprocity(state, journal)?;
+    business_books(state, journal)?;
     // Aggregate reconciliation runs after the specific checks so a negative
     // stock reports as non_negative_inventory, not as a totals mismatch.
     goods_conservation(state, journal)?;
@@ -124,6 +125,29 @@ fn money_conservation(state: &SimState, journal: &Journal) -> Result<(), Box<Inv
             actual - expected,
             None,
         ));
+    }
+    Ok(())
+}
+
+/// Per-business accounting reconciliation: the live cash balance must equal
+/// what the lifetime books imply (starting cash + revenue + owner
+/// investment + policy, minus inputs, tools, wages and dividends). A
+/// mismatch means a cash flow reached the business without being
+/// categorized at its ledger site (DECISIONS.md #016).
+fn business_books(state: &SimState, journal: &Journal) -> Result<(), Box<InvariantViolation>> {
+    for b in state.businesses.values() {
+        let expected = b.books.expected_cash();
+        if b.cash != expected {
+            return Err(violation(
+                state,
+                journal,
+                "business_books",
+                format!("{} books imply {expected}", b.id),
+                format!("cash is {}", b.cash),
+                b.cash - expected,
+                Some(AccountId::Business(b.id)),
+            ));
+        }
     }
     Ok(())
 }
@@ -343,6 +367,21 @@ mod tests {
         assert_eq!(v.invariant, "goods_conservation");
         assert!(v.summary().contains("steel"));
         assert!(v.delta.contains('5'));
+    }
+
+    #[test]
+    fn uncategorized_business_cash_flows_are_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        let id = *w.state.businesses.keys().next().unwrap();
+        // Move money between two businesses' cash without touching books —
+        // total money is conserved, so only the books reconciliation sees
+        // it.
+        let other = *w.state.businesses.keys().last().unwrap();
+        w.state.businesses.get_mut(&id).unwrap().cash += Money::from_cents(500);
+        w.state.businesses.get_mut(&other).unwrap().cash -= Money::from_cents(500);
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "business_books");
+        assert!(v.delta.contains("5.00"));
     }
 
     #[test]

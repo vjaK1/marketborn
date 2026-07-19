@@ -5,7 +5,7 @@
 //! produce above their bare-handed capacity; tools wear out, sustaining
 //! replacement demand — all under every conservation invariant.
 
-use sim_core::{AccountId, BusinessId, BusinessKind, Good, TxKind, World, WorldConfig};
+use sim_core::{AccountId, BusinessId, BusinessKind, Good, Money, TxKind, World, WorldConfig};
 
 const RUN_DAYS: u64 = 180;
 
@@ -109,5 +109,18 @@ fn ore_steel_tools_farm_productivity_chain() {
         );
     }
     assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+
+    // --- Every business's lifetime books reconcile with its cash, and
+    // every stage of both chains recorded real revenue and payroll. ---
+    for b in w.state.businesses.values() {
+        assert_eq!(
+            b.cash,
+            b.books.expected_cash(),
+            "{} books must reconcile",
+            b.name
+        );
+        assert!(b.books.revenue > Money::ZERO, "{} never sold", b.name);
+        assert!(b.books.wages > Money::ZERO, "{} never paid wages", b.name);
+    }
     assert!(!w.is_halted());
 }

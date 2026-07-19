@@ -226,6 +226,20 @@ DECISIONS.md #013/#014 for the failure modes that shaped it):
   the upstream price with review headroom: ore $7.50 < $10.50, steel
   $15.00 < $15.40, tools $22.00 < ~$25 (at trough wheat) to $29.70.
 
+## Business accounting (lifetime cash-basis books)
+
+Every business carries `Books`: starting cash plus cumulative revenue,
+input costs, tool (capital) costs, wages, dividends, owner investment, net
+monetary policy, and spoiled units (a physical write-down, outside the cash
+identity). Each flow is categorized at its ledger site — sales/purchases in
+the goods market, payroll in labor, dividends/investment in decisions,
+policy in the money ledger. Books influence no decision in Phase 1; they
+exist for statements (P&L, balance sheet, cash flow — derived views in the
+snapshot), the market view, and Phase 3 credit scoring. Balance-sheet
+inventory is valued at last market execution prices, falling back to the
+business's own posted price for its sold good, else zero (derived view
+only, never accounting state).
+
 ## Conservation invariants (checked continuously)
 
 1. `money_conservation` — Σ cash == expected total.
@@ -238,6 +252,9 @@ DECISIONS.md #013/#014 for the failure modes that shaped it):
 4. `non_negative_inventory` — business stock and pantries ≥ 0.
 5. `employment_reciprocity` — rosters ↔ employer fields agree; nobody is
    employed twice.
+6. `business_books` — per business: live cash == the books' implied cash
+   (starting + revenue + owner investment + policy − inputs − tools −
+   wages − dividends). A flow that bypasses categorization halts the run.
 
 On violation: the simulation halts (`SimStatus::Halted`), and the report
 carries tick, invariant, expected vs actual, delta, and the last 50

@@ -52,6 +52,20 @@ export interface BusinessRow {
   last_window_profit_cents: number;
   sold_today: number;
   produced_today: number;
+  books: BooksRow;
+}
+
+export interface BooksRow {
+  revenue_cents: number;
+  input_costs_cents: number;
+  tool_costs_cents: number;
+  wages_cents: number;
+  dividends_cents: number;
+  owner_invested_cents: number;
+  lifetime_profit_cents: number;
+  spoiled_units: number;
+  inventory_value_cents: number;
+  assets_cents: number;
 }
 
 export interface InputStockRow {

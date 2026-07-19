@@ -78,6 +78,9 @@ fn spoil(state: &mut SimState, acc: &mut DayAccumulator) {
             if spoiled > 0 {
                 goods_ledger::consume_stock(state, bid, *good, spoiled);
                 *acc.spoiled.entry(*good).or_insert(0) += spoiled;
+                if let Some(b) = state.businesses.get_mut(&bid) {
+                    b.books.spoiled_units += spoiled;
+                }
             }
         }
     }

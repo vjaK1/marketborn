@@ -97,6 +97,9 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 amount,
                 TxKind::OwnerInvestment,
             )?;
+            if let Some(b) = state.businesses.get_mut(&bid) {
+                b.books.owner_invested += amount;
+            }
             journal.push_event(
                 tick,
                 Event::OwnerInvested {
@@ -299,6 +302,9 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 amount,
                 TxKind::Dividend,
             )?;
+            if let Some(b) = state.businesses.get_mut(&bid) {
+                b.books.dividends += amount;
+            }
             if let Some(a) = state.agents.get_mut(&owner) {
                 a.total_earned += amount;
             }

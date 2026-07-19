@@ -15,12 +15,14 @@ export function BusinessTable({ businesses }: { businesses: BusinessRow[] }) {
           <th className="num">Sold today</th>
           <th className="num">Profit (7d)</th>
           <th className="num">Cash</th>
+          <th className="num">Assets</th>
         </tr>
       </thead>
       <tbody>
         {businesses.map((b) => {
           const short = b.workers < b.target_workers;
           const profit = b.last_window_profit_cents;
+          const lifetime = b.books.lifetime_profit_cents;
           return (
             <tr key={b.id}>
               <td title={b.kind}>{b.name}</td>
@@ -36,6 +38,12 @@ export function BusinessTable({ businesses }: { businesses: BusinessRow[] }) {
                 {formatMoney(profit)}
               </td>
               <td className="num">{formatMoney(b.cash_cents)}</td>
+              <td
+                className="num"
+                title={`Cash + inventory at market value · lifetime operating profit ${formatMoney(lifetime)}`}
+              >
+                {formatMoney(b.books.assets_cents)}
+              </td>
             </tr>
           );
         })}

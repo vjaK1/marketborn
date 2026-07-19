@@ -70,12 +70,31 @@ pub struct BusinessRow {
     pub last_window_profit_cents: i64,
     pub sold_today: i64,
     pub produced_today: i64,
+    pub books: BooksRow,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct InputStockRow {
     pub good: String,
     pub qty: i64,
+}
+
+/// Derived accounting view: the lifetime cash-basis books plus a
+/// balance-sheet valuation (inventory at last market prices, falling back
+/// to the business's own posted price for its sold good).
+#[derive(Clone, Debug, Serialize)]
+pub struct BooksRow {
+    pub revenue_cents: i64,
+    pub input_costs_cents: i64,
+    pub tool_costs_cents: i64,
+    pub wages_cents: i64,
+    pub dividends_cents: i64,
+    pub owner_invested_cents: i64,
+    pub lifetime_profit_cents: i64,
+    pub spoiled_units: i64,
+    pub inventory_value_cents: i64,
+    /// Total assets: cash + inventory value (no liabilities until Phase 3).
+    pub assets_cents: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -283,6 +302,34 @@ impl WorldSnapshot {
                         qty: b.stock(Good::Tools),
                     });
                 }
+                let inventory_value_cents: i64 = b
+                    .inventory
+                    .iter()
+                    .map(|(good, qty)| {
+                        let unit = state.market.last_prices.get(good).copied().unwrap_or(
+                            if *good == b.sells {
+                                b.price
+                            } else {
+                                crate::money::Money::ZERO
+                            },
+                        );
+                        unit.checked_mul_qty(*qty)
+                            .unwrap_or(crate::money::Money::MAX)
+                            .cents()
+                    })
+                    .sum();
+                let books = BooksRow {
+                    revenue_cents: b.books.revenue.cents(),
+                    input_costs_cents: b.books.input_costs.cents(),
+                    tool_costs_cents: b.books.tool_costs.cents(),
+                    wages_cents: b.books.wages.cents(),
+                    dividends_cents: b.books.dividends.cents(),
+                    owner_invested_cents: b.books.owner_invested.cents(),
+                    lifetime_profit_cents: b.books.lifetime_profit().cents(),
+                    spoiled_units: b.books.spoiled_units,
+                    inventory_value_cents,
+                    assets_cents: b.cash.cents() + inventory_value_cents,
+                };
                 BusinessRow {
                     id: b.id.0,
                     name: b.name.clone(),
@@ -298,6 +345,7 @@ impl WorldSnapshot {
                     last_window_profit_cents: b.last_window_profit.cents(),
                     sold_today: b.sold_today,
                     produced_today: b.produced_today,
+                    books,
                 }
             })
             .collect();
@@ -381,6 +429,18 @@ mod tests {
         assert!(
             farm.input_stock.iter().any(|r| r.good == "tools"),
             "tool users report tool stock"
+        );
+        for b in &s.businesses {
+            assert!(b.books.revenue_cents >= 0);
+            assert_eq!(
+                b.books.assets_cents,
+                b.cash_cents + b.books.inventory_value_cents,
+                "balance sheet adds up"
+            );
+        }
+        assert!(
+            s.businesses.iter().any(|b| b.books.revenue_cents > 0),
+            "someone sold something in 20 days"
         );
         assert_eq!(s.price_history.ticks.len(), 20);
         assert!(!s.events.is_empty());

@@ -6,7 +6,7 @@
 //! `docs/ECONOMIC_RULES.md` §World parameters.
 
 use crate::agent::Agent;
-use crate::business::{Business, BusinessKind, Recipe};
+use crate::business::{Books, Business, BusinessKind, Recipe};
 use crate::events::Event;
 use crate::goods::{Good, Qty};
 use crate::hashing;
@@ -240,6 +240,7 @@ pub fn generate(config: WorldConfig) -> World {
                 sells,
                 price: t.price,
                 recipe: t.recipe,
+                books: Books::new(START_BUSINESS_CASH),
                 uses_tools: t.uses_tools,
                 tool_wear: 0,
                 sales_ema_milli: t.sales_ema_milli,

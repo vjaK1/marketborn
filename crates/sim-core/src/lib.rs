@@ -32,7 +32,7 @@ pub mod world;
 pub mod worldgen;
 
 pub use agent::Agent;
-pub use business::{Business, BusinessKind, Recipe};
+pub use business::{Books, Business, BusinessKind, Recipe};
 pub use commands::{PlayerCommand, QueuedCommand};
 pub use events::{Event, EventRecord};
 pub use goods::{Good, Qty};

@@ -111,6 +111,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
         }
         if let Some(b) = state.businesses.get_mut(bid) {
             b.costs_window += paid_total;
+            b.books.wages += paid_total;
             if unpaid.is_empty() {
                 b.missed_payroll_days = 0;
             } else {

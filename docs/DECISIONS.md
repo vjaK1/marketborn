@@ -287,3 +287,33 @@ rebaked) that slightly deepens the wheat/flour markets. Save blobs from
 before this ADR are incompatible (`MetricsDay` gained fields; metrics now
 carry per-business daily series for analysis and the future business
 inspector).
+
+## 016 — Business books: lifetime cash-basis accounting with a reconciliation invariant
+
+**Context.** Phase 1 requires business accounting (P&L, balance sheet,
+cash flow), and Phase 3's bank will score credit from it — so the numbers
+must live in hashed state, not the journal (DECISIONS #003 discipline).
+Deriving statements from the transaction ring fails (it is capped at 10k
+entries), and an unverified side-tally would silently drift from reality.
+
+**Decision.** Each business carries `Books`: starting cash plus cumulative
+revenue, input costs, tool costs, wages, dividends, owner investment, net
+monetary policy, and spoiled units (physical write-down, outside the cash
+identity). Flows are categorized exactly at their existing ledger sites; a
+new `business_books` invariant requires `cash == books.expected_cash()`
+for every business on every sweep, so any cash flow that bypasses
+categorization halts the simulation with that account's transaction
+context. Tools are split from inputs by good (no Phase 1 recipe consumes
+tools; revisit if one ever does). Statements are derived views: the
+snapshot carries the books plus a balance sheet valuing inventory at last
+market prices (fallback: own posted price for the sold good) — valuation
+is presentation, never accounting state. Books influence no decision in
+Phase 1.
+
+**Consequences.** Verified zero behavioral impact: the seed-42 year-one
+trajectory is identical to the cent with and without books. The CLI
+summary and the businesses table now surface lifetime operating profit and
+total assets — which immediately quantified the calibration picture
+(year 1: bakery ≈ $17.7k lifetime profit, mill ≈ $7.4k, farms ≈ $5.4k,
+the industry chain within ±$60 of break-even). Save blobs from before
+this ADR are incompatible; hashes shift (`Business` grew).

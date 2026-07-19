@@ -42,6 +42,9 @@ release tests). Never claim green without running them.
 - decisions: stockout ⇒ price raise; glut ⇒ cut toward floor; idle
   capacity ⇒ cut without glut/stockout; cash crunch fires LIFO; rich
   business pays owner dividend (conserving).
+- business books: cash identity and operating-profit arithmetic;
+  uncategorized business cash flows caught by the business_books invariant
+  even when total money is conserved.
 - invariants: fresh world green; corrupted cash/inventory/employment each
   caught with a contextual report; out-of-band goods creation and pantry
   edits caught by goods_conservation.
@@ -61,7 +64,8 @@ release tests). Never claim green without running them.
   bought by the steelworks, steel by the factory, tools by farms/mine; some
   extraction business held tools and out-produced bare-handed capacity;
   wear destroyed tools (bought > held); per-good reconciliation and money
-  conservation hold to the end.
+  conservation hold to the end; every business's books reconcile with its
+  cash and record real revenue and payroll.
 
 ### Determinism (sim-core/tests/determinism.rs)
 

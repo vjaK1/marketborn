@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage
+## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage, business books
 
 ### Where the project stands
 
@@ -14,10 +14,11 @@ exists end to end behind the same recipe/market machinery as the food
 chain; tools raise extraction productivity and wear out; goods conservation
 is invariant-checked every sweep; the Phase 1 acceptance centerpiece
 (ore→steel→tools→farm-productivity integration test) passes; food spoils
-(DECISIONS #015) and `sim-cli metrics` dumps per-day time series (incl.
-per-business columns) for economy analysis. Still to come in Phase 1:
-construction goods, business accounting (P&L / balance sheet), market view
-v1, and the 100-agent/20-business scale-up.
+(DECISIONS #015); every business carries lifetime cash-basis books
+reconciled against its cash by a dedicated invariant (DECISIONS #016);
+`sim-cli metrics` dumps per-day time series (incl. per-business columns)
+for economy analysis. Still to come in Phase 1: construction goods, market
+view v1, and the 100-agent/20-business scale-up.
 
 ### What was built
 
@@ -56,13 +57,23 @@ v1, and the 100-agent/20-business scale-up.
   `sim-cli metrics <save> --csv` dumps the whole journal — end-state
   snapshots hide limit cycles; this is how the empty-shelf heartbeat and
   the mill's death were actually diagnosed.
+- **Business accounting** (DECISIONS #016): lifetime cash-basis `Books` on
+  every business (revenue, input/tool costs, wages, dividends, owner
+  investment, monetary policy, spoiled units), categorized at the existing
+  ledger sites; new `business_books` invariant — cash must equal the
+  books' implied cash for every business, every sweep. Statements are
+  derived views: snapshot carries the books plus a balance sheet
+  (inventory at last market prices), the CLI summary prints lifetime
+  operating profit, and the businesses table gained an Assets column.
+  Verified zero behavioral impact (year-1 trajectory identical to the
+  cent pre/post books).
 - **Docs**: ECONOMIC_RULES rewritten for Phase 1 (tool rules, comfort rule,
   utilization pricing, new parameter table with the closed-loop audit);
   DECISIONS #012–#014; TEST_PLAN and PERF_RESULTS updated.
 
 ### Actual verification results (all run this session)
 
-- `npm run check`: **exit 0**. 61 sim-core unit + 4 determinism + 1
+- `npm run check`: **exit 0**. 63 sim-core unit + 4 determinism + 1
   industry-integration + 3 sim-cli + 7 persistence tests green; vitest
   11/11; fmt/clippy/tsc clean.
 - `npm run check:full` (release, `--include-ignored`, incl. soak_1500):
@@ -81,10 +92,10 @@ v1, and the 100-agent/20-business scale-up.
   and one farm staffed (10 employed), the surviving farm pricing as a
   monopolist (~4× prices), structural hunger; money conserved at $16,200
   throughout, all invariants green.
-- App launched and inspected (screenshots): live dashboard at Y1·D153 with
-  6-series chart, 7-business table (industry profitable), industry
-  dividends and wage adjustments in the event log. (Pre-spoilage build;
-  spoilage changed no UI surface.)
+- App launched and inspected twice (screenshots): first at Y1·D153 with
+  the 6-series chart and industry dividends in the event log; again after
+  the accounting increment at Y1·D56 with the Assets column live
+  (cash + inventory valuation visibly diverging where stock is held).
 - Perf recorded: 1,000 agents × 3,650 ticks in 0.19 s release
   (PERF_RESULTS.md).
 
@@ -114,14 +125,17 @@ shift. schema_version stays 1; no released saves exist.
 
 ### Exact next task (Phase 1 continuation)
 
-1. **Business accounting**: per-business P&L, balance sheet and cash-flow
-   statement, fed from the existing revenue/cost windows, the transaction
-   journal and inventory valuation — the basis for the Phase 1 "market
-   view v1" and later bank credit scoring (Phase 3). Surface it in the
-   snapshot/business rows.
-2. Then **market view v1** (per-good depth: offers, orders, unmet demand,
-   spoilage) and the construction-goods chain per BRIEF.md.
-3. When touching the economy, verify with the soak checkpoints
+1. **Market view v1**: per-good market depth in the UI — offers, orders,
+   unmet demand, volumes, spoilage — from a new snapshot section (the
+   market phase already computes all of it; capture into the accumulator →
+   snapshot). Read BRIEF.md's market-view sketch first.
+2. Then the **construction chain** (wood, bricks → buildings) per
+   BRIEF.md — new goods + business kinds behind the existing machinery,
+   with a calibration audit like ECONOMIC_RULES §World parameters, and
+   buildings as the first non-tradable asset (design decision needed:
+   what buildings do in Phase 1 — record it in DECISIONS.md).
+3. Then the **100-agent / 20-business scale-up** acceptance run.
+4. When touching the economy, verify with the soak checkpoints
    (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and, on any
    surprise, dump `sim-cli metrics <save> --csv` and read the day-by-day
    series — end states hide limit cycles. Year-1 health bar: all 7

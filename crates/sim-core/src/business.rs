@@ -52,6 +52,68 @@ pub struct Recipe {
     pub batches_per_worker: Qty,
 }
 
+/// Lifetime cash-basis books. Every business cash flow is categorized at
+/// its ledger site (sales and purchases in the goods market, payroll in the
+/// labor phase, dividends and owner investment in decisions, monetary
+/// policy in the money ledger); the `business_books` invariant reconciles
+/// them against the live cash balance every sweep, so a flow that bypasses
+/// the books halts the simulation (DECISIONS.md #016).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Books {
+    /// Cash at founding.
+    pub starting_cash: Money,
+    /// Goods sales received.
+    pub revenue: Money,
+    /// Recipe-input purchases paid.
+    pub input_costs: Money,
+    /// Tool (capital) purchases paid.
+    pub tool_costs: Money,
+    /// Wages paid.
+    pub wages: Money,
+    /// Dividends distributed to the owner.
+    pub dividends: Money,
+    /// Owner recapitalizations received.
+    pub owner_invested: Money,
+    /// Net monetary policy applied directly to this account (mint − burn;
+    /// may be negative).
+    pub policy_net: Money,
+    /// Units lost to spoilage across all goods held — a physical
+    /// write-down, not a cash flow (excluded from the cash identity).
+    pub spoiled_units: Qty,
+}
+
+impl Books {
+    pub fn new(starting_cash: Money) -> Books {
+        Books {
+            starting_cash,
+            revenue: Money::ZERO,
+            input_costs: Money::ZERO,
+            tool_costs: Money::ZERO,
+            wages: Money::ZERO,
+            dividends: Money::ZERO,
+            owner_invested: Money::ZERO,
+            policy_net: Money::ZERO,
+            spoiled_units: 0,
+        }
+    }
+
+    /// The cash balance these books imply. Must equal the live balance.
+    pub fn expected_cash(&self) -> Money {
+        self.starting_cash + self.revenue + self.owner_invested + self.policy_net
+            - self.input_costs
+            - self.tool_costs
+            - self.wages
+            - self.dividends
+    }
+
+    /// Lifetime operating profit: revenue minus all operating outflows.
+    /// Distributions (dividends) and financing (owner investment, policy)
+    /// are excluded.
+    pub fn lifetime_profit(&self) -> Money {
+        self.revenue - self.input_costs - self.tool_costs - self.wages
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Business {
     pub id: BusinessId,
@@ -73,6 +135,9 @@ pub struct Business {
     /// Posted unit sell price for `sells`.
     pub price: Money,
     pub recipe: Recipe,
+    /// Lifetime cash-basis accounting, reconciled against `cash` by the
+    /// `business_books` invariant.
+    pub books: Books,
     /// Extraction businesses (farms, mines) equip workers with tools for a
     /// production bonus. Tools live in `inventory` like any other good.
     pub uses_tools: bool,
@@ -144,5 +209,32 @@ impl Business {
 
     pub fn vacancies(&self) -> u32 {
         (self.target_headcount as usize).saturating_sub(self.workers.len()) as u32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn books_cash_identity_and_profit() {
+        let mut books = Books::new(Money::from_cents(120_000));
+        assert_eq!(books.expected_cash(), Money::from_cents(120_000));
+        books.revenue += Money::from_cents(5_000);
+        books.input_costs += Money::from_cents(2_000);
+        books.tool_costs += Money::from_cents(1_000);
+        books.wages += Money::from_cents(700);
+        books.dividends += Money::from_cents(300);
+        books.owner_invested += Money::from_cents(400);
+        books.policy_net -= Money::from_cents(100);
+        assert_eq!(
+            books.expected_cash(),
+            Money::from_cents(120_000 + 5_000 - 2_000 - 1_000 - 700 - 300 + 400 - 100)
+        );
+        assert_eq!(
+            books.lifetime_profit(),
+            Money::from_cents(5_000 - 2_000 - 1_000 - 700),
+            "profit is operating only: dividends/financing excluded"
+        );
     }
 }

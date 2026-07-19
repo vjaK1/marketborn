@@ -117,7 +117,7 @@ fn print_summary(world: &World) {
     }
     for b in s.businesses.values() {
         println!(
-            "  {} [{}] cash {} workers {}/{} price {} stock {}",
+            "  {} [{}] cash {} workers {}/{} price {} stock {} lifetime profit {}",
             b.name,
             b.kind.label(),
             b.cash,
@@ -125,6 +125,7 @@ fn print_summary(world: &World) {
             b.target_headcount,
             b.price,
             b.stock(b.sells),
+            b.books.lifetime_profit(),
         );
     }
 }

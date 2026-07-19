@@ -278,6 +278,7 @@ fn execute_orders(
                 seller.add_stock(good, -take);
                 seller.sold_today += take;
                 seller.revenue_window += cost;
+                seller.books.revenue += cost;
             }
             match order.buyer {
                 AccountId::Agent(id) => {
@@ -290,6 +291,14 @@ fn execute_orders(
                     if let Some(buyer) = state.businesses.get_mut(&id) {
                         buyer.add_stock(good, take);
                         buyer.costs_window += cost;
+                        // Tools are never a recipe input in Phase 1, so the
+                        // split is by good; revisit if a recipe ever
+                        // consumes tools.
+                        if good == Good::Tools {
+                            buyer.books.tool_costs += cost;
+                        } else {
+                            buyer.books.input_costs += cost;
+                        }
                     }
                 }
             }

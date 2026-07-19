@@ -165,6 +165,11 @@ pub fn mint(
     }
     *cash_mut(state, to)? += amount;
     state.expected_total_money += amount;
+    if let AccountId::Business(id) = to {
+        if let Some(b) = state.businesses.get_mut(&id) {
+            b.books.policy_net += amount;
+        }
+    }
     record(
         journal,
         Transaction {
@@ -204,6 +209,11 @@ pub fn burn(
         *cash_mut(state, from).unwrap() -= amount;
     }
     state.expected_total_money -= amount;
+    if let AccountId::Business(id) = from {
+        if let Some(b) = state.businesses.get_mut(&id) {
+            b.books.policy_net -= amount;
+        }
+    }
     record(
         journal,
         Transaction {
