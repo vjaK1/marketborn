@@ -1,5 +1,6 @@
-//! Tradable goods. Phase 0 carries the minimal food chain; the enum grows in
-//! Phase 1 (ore, steel, tools, wood, bricks, ...).
+//! Tradable goods. Phase 0 carried the minimal food chain; Phase 1 adds the
+//! industry chain (iron ore → steel → tools). Construction goods (wood,
+//! bricks, buildings) arrive later in Phase 1.
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -13,18 +14,34 @@ pub enum Good {
     Wheat,
     Flour,
     Food,
+    IronOre,
+    Steel,
+    /// Capital good: extraction businesses equip workers with tools for a
+    /// production bonus; tools wear out with use (see `business.rs`).
+    Tools,
 }
 
 impl Good {
     /// All goods in canonical market order. Goods markets clear in this order
-    /// every tick (part of the determinism contract).
-    pub const ALL: [Good; 3] = [Good::Wheat, Good::Flour, Good::Food];
+    /// every tick (part of the determinism contract). New goods append; the
+    /// existing order never reshuffles.
+    pub const ALL: [Good; 6] = [
+        Good::Wheat,
+        Good::Flour,
+        Good::Food,
+        Good::IronOre,
+        Good::Steel,
+        Good::Tools,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Good::Wheat => "wheat",
             Good::Flour => "flour",
             Good::Food => "food",
+            Good::IronOre => "iron ore",
+            Good::Steel => "steel",
+            Good::Tools => "tools",
         }
     }
 }

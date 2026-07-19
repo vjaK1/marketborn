@@ -16,10 +16,13 @@
   --warning: #fab219;
   --serious: #ec835a;
   --critical: #d03b3b;
-  /* Chart series (categorical slots 1–3, validated) */
+  /* Chart series (categorical slots 1–6, validated as a set) */
   --series-wheat: #3987e5;
   --series-flour: #199e70;
   --series-food: #c98500;
+  --series-iron-ore: #008300;
+  --series-steel: #9085e9;
+  --series-tools: #e66767;
 }
 
 * {

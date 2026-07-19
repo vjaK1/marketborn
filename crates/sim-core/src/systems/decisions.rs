@@ -33,7 +33,16 @@ const WAGE_CEILING: Money = Money::from_cents(1_000_000);
 const DIVIDEND_BUFFER_PAYROLL_DAYS: i64 = 21;
 const STOCKOUT_RAISE_THRESHOLD: u32 = 2;
 const GLUT_HEAVY_DAYS: Qty = 8;
-const GLUT_LIGHT_DAYS: Qty = 5;
+/// Also read by the goods market's tool-purchase gate (no capital spending
+/// while glutted).
+pub const GLUT_LIGHT_DAYS: Qty = 5;
+/// Idle-capacity pricing: with no scarcity signal and sales below
+/// 1/UTILIZATION_CUT_FACTOR of capacity, cut price to win volume back.
+/// This is the downward corrective a single-seller stage otherwise lacks —
+/// produce-to-target contracts supply alongside shrinking demand, so a
+/// monopolist would ratchet price up forever without ever gluting
+/// (DECISIONS.md #014).
+const UTILIZATION_CUT_FACTOR: Qty = 2;
 
 struct ReviewPlan {
     window_profit: Money,
@@ -140,6 +149,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             let stock = b.stock(b.sells);
             let min_step = Money::from_cents(1);
 
+            let window_profit = b.revenue_window - b.costs_window;
             let mut new_price = None;
             if b.stockout_days >= STOCKOUT_RAISE_THRESHOLD {
                 let raised =
@@ -159,9 +169,24 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 if cut != b.price {
                     new_price = Some((b.price, cut));
                 }
+            } else if !window_profit.is_negative() {
+                // Idle-capacity cut, from strength only: a loss-making
+                // business idles capacity rather than pricing below cost.
+                // Bare-handed capacity only — tools are optional overdrive,
+                // and counting their bonus here would make every equipped
+                // business read its own upgrade as idle capacity and cut
+                // itself to the floor.
+                let capacity_units =
+                    b.workers.len() as Qty * b.recipe.batches_per_worker * b.recipe.output.1.max(1);
+                if capacity_units > 0 && ema_day * UTILIZATION_CUT_FACTOR < capacity_units {
+                    let cut = (b.price - b.price.mul_bp(PRICE_CUT_LIGHT_BP).max(min_step))
+                        .max(PRICE_FLOOR);
+                    if cut != b.price {
+                        new_price = Some((b.price, cut));
+                    }
+                }
             }
 
-            let window_profit = b.revenue_window - b.costs_window;
             let mut new_wage = None;
             // Raise wages to attract labor only from a position of strength:
             // a loss-making business bidding wages up while broke is the
@@ -333,6 +358,28 @@ mod tests {
         run(&mut w.state, &mut w.journal, t).unwrap();
         assert!(w.state.businesses[&bid].price < old, "glut must cut price");
         assert!(w.state.businesses[&bid].price >= PRICE_FLOOR);
+    }
+
+    #[test]
+    fn idle_capacity_cuts_price_without_glut_or_stockout() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let bid = *w.state.businesses.keys().next().unwrap();
+        let t = review_tick_for(bid);
+        let old = {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.stockout_days = 0;
+            b.sales_ema_milli = 1_000; // sells ~1/day
+            let sells = b.sells;
+            b.inventory.clear();
+            b.add_stock(sells, 3); // 3 ≤ 5 × 1: no glut signal
+            b.price
+        };
+        // Farm: 3 workers × 2 batches/worker = capacity 6 ≫ 2 × sales.
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        assert!(
+            w.state.businesses[&bid].price < old,
+            "idle capacity must cut price to chase volume"
+        );
     }
 
     #[test]

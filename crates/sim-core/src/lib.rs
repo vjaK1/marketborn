@@ -16,6 +16,7 @@ pub mod business;
 pub mod commands;
 pub mod events;
 pub mod goods;
+pub mod goods_ledger;
 pub mod hashing;
 pub mod ids;
 pub mod invariants;

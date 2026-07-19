@@ -26,7 +26,7 @@ enum Cmd {
         seed: u64,
         #[arg(long, default_value_t = 365)]
         ticks: u64,
-        #[arg(long, default_value_t = 20)]
+        #[arg(long, default_value_t = 26)]
         population: u32,
         /// Hash cadence in ticks.
         #[arg(long, default_value_t = 50)]

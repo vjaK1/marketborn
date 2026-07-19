@@ -11,6 +11,9 @@ pub enum BusinessKind {
     Farm,
     Mill,
     Bakery,
+    Mine,
+    SteelMill,
+    ToolFactory,
 }
 
 impl BusinessKind {
@@ -19,9 +22,26 @@ impl BusinessKind {
             BusinessKind::Farm => "farm",
             BusinessKind::Mill => "mill",
             BusinessKind::Bakery => "bakery",
+            BusinessKind::Mine => "mine",
+            BusinessKind::SteelMill => "steel mill",
+            BusinessKind::ToolFactory => "tool factory",
         }
     }
 }
+
+/// Extra batches an equipped worker runs, in basis points of
+/// `batches_per_worker` (5000 = +50%). Sized to close the farms' structural
+/// capacity gap without gluting the town's fixed food demand — a larger
+/// bonus floods the wheat market and kills the farms it equips
+/// (DECISIONS.md #013). The fractional-batch remainder rounds toward zero
+/// at the business level and is simply not produced — no party receives it
+/// (ECONOMIC_RULES.md §Production).
+pub const TOOL_BONUS_BP: Qty = 5000;
+/// Worker-days of use before one tool wears out and is destroyed. Short on
+/// purpose: replacement demand is the industry chain's entire market, and
+/// at ~7 equipped workers town-wide this life yields the ~1.2 tools/day the
+/// chain needs to cover its wage bill (ECONOMIC_RULES.md §World parameters).
+pub const TOOL_LIFE_WORKER_DAYS: i64 = 6;
 
 /// A production recipe: consume `inputs` per batch, emit `output` per batch.
 /// Each worker can run `batches_per_worker` batches per day.
@@ -53,6 +73,12 @@ pub struct Business {
     /// Posted unit sell price for `sells`.
     pub price: Money,
     pub recipe: Recipe,
+    /// Extraction businesses (farms, mines) equip workers with tools for a
+    /// production bonus. Tools live in `inventory` like any other good.
+    pub uses_tools: bool,
+    /// Worker-days of tool use accumulated toward the next tool wearing out
+    /// (a tool breaks every `TOOL_LIFE_WORKER_DAYS`).
+    pub tool_wear: i64,
 
     // --- Rolling statistics (integer milli-units; part of hashed state
     // because decisions read them) ---
@@ -91,9 +117,23 @@ impl Business {
         ((self.sales_ema_milli + 999) / 1000).max(1)
     }
 
-    /// Total production batches the current workforce can run today.
+    /// Workers holding a tool today (tool-using businesses only). One tool
+    /// equips one worker; spares sit idle.
+    pub fn equipped_workers(&self) -> Qty {
+        if !self.uses_tools {
+            return 0;
+        }
+        (self.workers.len() as Qty).min(self.stock(Good::Tools))
+    }
+
+    /// Total production batches the current workforce can run today: base
+    /// capacity plus the tool bonus for equipped workers, rounded toward
+    /// zero at the business level (the fraction is not produced).
     pub fn capacity_batches(&self) -> Qty {
-        self.workers.len() as Qty * self.recipe.batches_per_worker
+        let base = self.workers.len() as Qty * self.recipe.batches_per_worker;
+        let bonus =
+            self.equipped_workers() * self.recipe.batches_per_worker * TOOL_BONUS_BP / 10_000;
+        base + bonus
     }
 
     pub fn daily_payroll(&self) -> Money {

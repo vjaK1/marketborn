@@ -10,10 +10,17 @@ import type { PriceHistory } from '../types';
  * text in ink tokens (never series colors).
  */
 
+// Categorical slots 1-6 of the dark-mode reference palette, assigned in
+// Good::ALL order, never cycled. Validated as a set on surface #1e2128
+// (all >= 3:1; worst adjacent CVD pair sits in the floor band, which is
+// legal because every series carries a direct end label plus the legend).
 const SERIES_COLORS: Record<string, string> = {
   wheat: '#3987e5',
   flour: '#199e70',
   food: '#c98500',
+  'iron ore': '#008300',
+  steel: '#9085e9',
+  tools: '#e66767',
 };
 
 const INK_SECONDARY = '#a7adba';

@@ -4,9 +4,9 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 0 (minimal food chain). Sections marked *[activates: Phase N]*
-are reserved slots in the phase order, documented now so later systems slot in
-without reordering anything.
+Status: Phase 1 in progress (food chain + industry chain). Sections marked
+*[activates: Phase N]* are reserved slots in the phase order, documented now
+so later systems slot in without reordering anything.
 
 ## Time
 
@@ -22,12 +22,12 @@ Every tick executes exactly this sequence:
 |---|-------|------------------|
 | 1 | **Apply queued commands** | All pending commands with `tick ≤ now`, in `(tick, seq)` order. Failures become `CommandRejected` events, never halts. |
 | 2 | Scheduled events | *[activates: Phase 4]* |
-| 3 | **Production** | Businesses run recipes (see §Production). |
+| 3 | **Production** | Businesses run recipes; equipped workers add the tool bonus and wear tools down (see §Production). |
 | 4 | **Labor market** | Job matching, then daily payroll (see §Labor). |
-| 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food (see §Markets). |
+| 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools (see §Markets). |
 | 6 | Contract settlement | *[activates: Phase 3]* |
 | 7 | Banking | *[activates: Phase 3]* |
-| 8 | **Consumption** | Each agent eats 1 food or goes hungry (see §Consumption). |
+| 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
 | 10 | Memory & relationships | *[activates: Phase 2]* |
 | 11 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
@@ -73,9 +73,18 @@ current business inventory (equivalent to refreshing standing offers):
      unit prices above `70% × (output price × output per batch) ÷ input units
      per batch` — the marginal-revenue cap that damps cost-push spirals
      (DECISIONS.md #011).
-   - *Households* buy food up to `PANTRY_TARGET (3) + 1 − pantry`. Urgency 0
-     when the pantry is empty, else 1. Households are price-takers (survival
-     good); their cash is the only limit.
+   - *Tool users* order up to one tool per current worker. Gates: no order
+     while sitting on unsold output (`stock of the sold good > 5 ×
+     expected sales` — the light-glut threshold; no capital spending while
+     glutted), and none when the bonus rounds to zero batches. Urgency is
+     always 1 (efficiency good, never survival). Willingness to pay:
+     `TOOL_REVENUE_SHARE_BP (9000) × bonus output per equipped worker-day ×
+     output price × TOOL_LIFE_WORKER_DAYS` — the capital-goods analogue of
+     the input reservation price. Same payroll-reserve budget as inputs.
+   - *Households* buy food up to `PANTRY_TARGET (3) + meals − pantry`,
+     where meals = 2 above the comfort floor (§Consumption), else 1.
+     Urgency 0 when the pantry is empty, else 1. Households are
+     price-takers (survival good); their cash is the only limit.
 3. **Execution**: each order takes the cheapest offer (ties → lower seller
    id), limited by remaining demand, offer quantity, the buyer's reservation
    price, and affordable units at the buyer's live balance/budget; then moves
@@ -92,9 +101,19 @@ current business inventory (equivalent to refreshing standing offers):
 
 Per business, in id order: `desired = expected_daily_sales × (OUTPUT_TARGET_DAYS
 (4) + 1) − current stock`; batches = min(ceil(desired / output-per-batch),
-workers × batches-per-worker, input-limited batches); consume inputs, add
-output. `expected_daily_sales = ceil(sales EMA)`, minimum 1 so a stalled
-business still plans a minimal batch.
+capacity batches, input-limited batches); consume inputs, add output — all
+creation/destruction through the goods ledger. `expected_daily_sales =
+ceil(sales EMA)`, minimum 1 so a stalled business still plans a minimal batch.
+
+**Tools (capital good).** Tool-using businesses (farms, mine) equip
+`min(workers, tool stock)` workers. Capacity = `workers × batches-per-worker
++ equipped × batches-per-worker × TOOL_BONUS_BP (5000) / 10000` — the
+fractional-batch remainder rounds toward zero at the business level and is
+not produced (no party receives it). On any day the business produces,
+each equipped worker adds one worker-day of tool wear; every
+`TOOL_LIFE_WORKER_DAYS (6)` of wear destroys one tool (burned through the
+goods ledger; breakage is capped by tools on hand, leftover wear carries
+over). Idle days cause no wear.
 
 Sales EMA: integer milli-units, `ema += (today·1000 − ema) / 8`, toward zero.
 
@@ -113,8 +132,14 @@ Sales EMA: integer milli-units, `ema += (today·1000 − ema) / 8`, toward zero.
 ## Consumption
 
 Each agent, in id order, eats 1 food from the pantry or increments a hunger
-streak (`AgentHungry` events at streak 1, 7, 14, …). Phase 0 has no mortality
-or welfare; structural unemployment produces visible hunger — by design.
+streak (`AgentHungry` events at streak 1, 7, 14, …). An agent holding cash ≥
+`COMFORT_CASH_FLOOR ($400.00)` takes a **second, comfort meal** — but only
+when a meal would still remain afterward, so comfort never causes hunger.
+This is the channel that returns idle household savings to circulation: in a
+closed loop where consumption is otherwise fixed at 1 food/day, every wage
+surplus accumulates forever and aggregate demand decays into a deflationary
+collapse (DECISIONS.md #014). There is still no mortality or welfare;
+structural unemployment produces visible hunger — by design.
 
 ## Decisions (Phase 0: business owners)
 
@@ -132,7 +157,14 @@ On review day (`(tick + id) % 7 == 0`):
 
 - **Price** for the sold good: ≥ 2 stockout days in the window → raise by
   7% (700 bp, min 1¢). Stock > 8 days of expected sales → cut 5%; > 5 days →
-  cut 2%. Floor 10¢, mechanical ceiling $100,000/unit. Window counters reset.
+  cut 2%. Otherwise, **idle-capacity cut**: if the review window was not
+  loss-making and expected sales × 2 < bare-handed capacity (workers ×
+  batches-per-worker × output-per-batch — tool bonus excluded), cut 2% to
+  chase volume. This is the downward corrective a single-seller stage
+  otherwise lacks: produce-to-target contracts supply alongside shrinking
+  demand, so a monopolist would ratchet upward forever without ever gluting
+  (DECISIONS.md #014). Floor 10¢, mechanical ceiling $100,000/unit. Window
+  counters reset.
 - **Wage**: vacancies unfilled ≥ 7 days **and** a non-negative window profit
   → raise 5% (a loss-making business bidding wages up while broke is the
   death-spiral input, not competition). Fully staffed and the 7-day window
@@ -147,36 +179,51 @@ On review day (`(tick + id) % 7 == 0`):
 All parameters above are initial calibrations; they are expected to be tuned
 in later phases, but changes must be recorded (they shift every hash).
 
-## Phase 0 world parameters
+## World parameters (Phase 1 calibration)
 
 | Entity | Values |
 |--------|--------|
-| Population | 20 (4 owners, 11 staffed jobs, 5 unemployed) — configurable |
+| Population | 26 (7 owners, 16 staffed jobs, 3 unemployed) — configurable |
 | Agent start | $300.00 cash, pantry 3 |
-| Businesses | 2 farms (3 workers each), mill (2), bakery (3), $1,200.00 cash each |
-| Recipes | farm: → 1 wheat, 2 batches/worker·day · mill: 1 wheat → 1 flour, 6/worker · bakery: 1 flour → 2 food, 4/worker |
-| Start prices | wheat $5.50 · flour $7.60 · food $5.40 |
-| Start wages | $9.00/day everywhere |
-| Consumption | 1 food per agent per day |
+| Food chain | 2 farms (3 workers, wage $7.00, wheat $5.50, uses tools) · mill (3 workers, $7.00, flour $7.60) · bakery (4 workers, $7.00, food $5.40) |
+| Industry chain | mine (1 worker, wage $6.00, iron ore $7.50, uses tools) · steelworks (1, $6.00, steel $15.00) · tool factory (1, $6.00, tools $22.00) |
+| Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker |
+| Business start cash | $1,200.00 each |
+| Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
+| Comfort floor | $400.00 cash → second daily meal |
+| Consumption | 1 food per agent per day (2 above the comfort floor) |
 
-Calibration rationale: ~22 food/day capacity against 20/day demand; each chain
-stage roughly breaks even at start prices; wage $9 vs food $5.40 leaves
-workers a surplus while the 5 structurally unemployed burn savings — hunger
-appears after ~2 sim months unless hiring absorbs them. Emergent price
-competition between the two identical farms is expected (staggered reviews
-mean they never move the same day).
+Calibration rationale (every line audited against the closed loop; see
+DECISIONS.md #013/#014 for the failure modes that shaped it):
+
+- **Wage bill vs spending pool.** Full staffing costs 13×$7 + 3×$6 =
+  $109/day; base food demand is 26 × $5.40 ≈ $140/day. The wage bill must
+  sit inside the spending pool or someone runs structural losses from day
+  one. Comfort meals make the pool elastic upward when money concentrates.
+- **Food capacity.** Bare-handed wheat (12/day) runs just under the mill's
+  ~13/day need; tooled farms (18/day) create comfortable surplus. Tools are
+  load-bearing for prosperity, not for survival.
+- **Industry sizing.** Single-worker stages with capacity ≈ demand
+  (~1 unit/day each, matching tool wear of ~1/day from ≈6 equipped
+  workers). Capacity 2× demand self-gluts: the stage cuts its own price
+  below payroll and dies — the mine's original fate.
+- **Chain window.** At steady volume every stage clears its wage at start
+  prices, and each buyer cap (70% input share; 90% tool share) sits above
+  the upstream price with review headroom: ore $7.50 < $10.50, steel
+  $15.00 < $15.40, tools $22.00 < ~$25 (at trough wheat) to $29.70.
 
 ## Conservation invariants (checked continuously)
 
 1. `money_conservation` — Σ cash == expected total.
-2. `non_negative_cash` — no account below zero (structurally impossible via
+2. `goods_conservation` — per good: Σ inventories + pantries == expected
+   total. Only the goods ledger (production mints; consumption and tool
+   wear burn) moves the target; trades are zero-sum. Checked after the
+   specific checks below so a negative stock reports precisely.
+3. `non_negative_cash` — no account below zero (structurally impossible via
    the ledger; the check catches bypasses).
-3. `non_negative_inventory` — business stock and pantries ≥ 0.
-4. `employment_reciprocity` — rosters ↔ employer fields agree; nobody is
+4. `non_negative_inventory` — business stock and pantries ≥ 0.
+5. `employment_reciprocity` — rosters ↔ employer fields agree; nobody is
    employed twice.
-
-Goods conservation (production/consumption ledger reconciliation) arrives
-with Phase 1's multi-chain inventory work, as planned in TEST_PLAN.md.
 
 On violation: the simulation halts (`SimStatus::Halted`), and the report
 carries tick, invariant, expected vs actual, delta, and the last 50

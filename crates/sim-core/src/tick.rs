@@ -187,6 +187,13 @@ mod tests {
         w.run_ticks(30).unwrap();
         assert_eq!(w.state.tick, 30);
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        for good in crate::goods::Good::ALL {
+            assert_eq!(
+                w.state.total_goods(good),
+                w.state.expected_total_goods[&good],
+                "goods reconciliation for {good}"
+            );
+        }
         assert!(!w.journal.metrics.is_empty());
     }
 

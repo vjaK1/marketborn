@@ -1,8 +1,9 @@
 //! Deterministic world generation: config + seed → initial world.
 //!
-//! Phase 0 world: the minimal food chain (two farms → mill → bakery) with a
-//! configurable population. Parameters and their calibration rationale live
-//! in `docs/ECONOMIC_RULES.md` §Phase 0 parameters.
+//! Phase 1 world: the food chain (two farms → mill → bakery) plus the
+//! industry chain (mine → steelworks → tool factory), with a configurable
+//! population. Parameters and their calibration rationale live in
+//! `docs/ECONOMIC_RULES.md` §World parameters.
 
 use crate::agent::Agent;
 use crate::business::{Business, BusinessKind, Recipe};
@@ -32,7 +33,7 @@ impl WorldConfig {
     pub fn default_with_seed(master_seed: u64) -> WorldConfig {
         WorldConfig {
             master_seed,
-            population: 20,
+            population: 26,
             hash_every: 50,
         }
     }
@@ -62,6 +63,7 @@ struct BusinessTemplate {
     price: Money,
     stock: &'static [(Good, Qty)],
     sales_ema_milli: i64,
+    uses_tools: bool,
 }
 
 fn templates() -> Vec<BusinessTemplate> {
@@ -75,10 +77,11 @@ fn templates() -> Vec<BusinessTemplate> {
                 batches_per_worker: 2,
             },
             target_headcount: 3,
-            wage: Money::from_cents(900),
+            wage: Money::from_cents(700),
             price: Money::from_cents(550),
             stock: &[(Good::Wheat, 15)],
             sales_ema_milli: 5_000,
+            uses_tools: true,
         },
         BusinessTemplate {
             name: "Riverside Farm",
@@ -89,10 +92,11 @@ fn templates() -> Vec<BusinessTemplate> {
                 batches_per_worker: 2,
             },
             target_headcount: 3,
-            wage: Money::from_cents(900),
+            wage: Money::from_cents(700),
             price: Money::from_cents(550),
             stock: &[(Good::Wheat, 15)],
             sales_ema_milli: 5_000,
+            uses_tools: true,
         },
         BusinessTemplate {
             name: "Stonebridge Mill",
@@ -102,11 +106,12 @@ fn templates() -> Vec<BusinessTemplate> {
                 output: (Good::Flour, 1),
                 batches_per_worker: 6,
             },
-            target_headcount: 2,
-            wage: Money::from_cents(900),
+            target_headcount: 3,
+            wage: Money::from_cents(700),
             price: Money::from_cents(760),
             stock: &[(Good::Wheat, 10), (Good::Flour, 12)],
-            sales_ema_milli: 10_000,
+            sales_ema_milli: 12_000,
+            uses_tools: false,
         },
         BusinessTemplate {
             name: "Hearth & Crust Bakery",
@@ -116,11 +121,57 @@ fn templates() -> Vec<BusinessTemplate> {
                 output: (Good::Food, 2),
                 batches_per_worker: 4,
             },
-            target_headcount: 3,
-            wage: Money::from_cents(900),
+            target_headcount: 4,
+            wage: Money::from_cents(700),
             price: Money::from_cents(540),
-            stock: &[(Good::Flour, 12), (Good::Food, 30)],
-            sales_ema_milli: 20_000,
+            stock: &[(Good::Flour, 12), (Good::Food, 36)],
+            sales_ema_milli: 24_000,
+            uses_tools: false,
+        },
+        BusinessTemplate {
+            name: "Ironvein Mine",
+            kind: BusinessKind::Mine,
+            recipe: Recipe {
+                inputs: vec![],
+                output: (Good::IronOre, 1),
+                batches_per_worker: 1,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(750),
+            stock: &[(Good::IronOre, 3)],
+            sales_ema_milli: 1_000,
+            uses_tools: true,
+        },
+        BusinessTemplate {
+            name: "Forgeheart Steelworks",
+            kind: BusinessKind::SteelMill,
+            recipe: Recipe {
+                inputs: vec![(Good::IronOre, 1)],
+                output: (Good::Steel, 1),
+                batches_per_worker: 1,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(1_500),
+            stock: &[(Good::IronOre, 6), (Good::Steel, 4)],
+            sales_ema_milli: 1_000,
+            uses_tools: false,
+        },
+        BusinessTemplate {
+            name: "Anvil & Edge Toolworks",
+            kind: BusinessKind::ToolFactory,
+            recipe: Recipe {
+                inputs: vec![(Good::Steel, 1)],
+                output: (Good::Tools, 1),
+                batches_per_worker: 1,
+            },
+            target_headcount: 1,
+            wage: Money::from_cents(600),
+            price: Money::from_cents(2_200),
+            stock: &[(Good::Steel, 4), (Good::Tools, 6)],
+            sales_ema_milli: 1_000,
+            uses_tools: false,
         },
     ]
 }
@@ -189,6 +240,8 @@ pub fn generate(config: WorldConfig) -> World {
                 sells,
                 price: t.price,
                 recipe: t.recipe,
+                uses_tools: t.uses_tools,
+                tool_wear: 0,
                 sales_ema_milli: t.sales_ema_milli,
                 stockout_days: 0,
                 vacancy_days: 0,
@@ -207,12 +260,17 @@ pub fn generate(config: WorldConfig) -> World {
         tick: 0,
         config,
         expected_total_money: Money::ZERO,
+        expected_total_goods: BTreeMap::new(),
         agents,
         businesses,
         market: MarketState::default(),
         status: SimStatus::Running,
     };
     state.expected_total_money = state.total_cash();
+    for good in Good::ALL {
+        let total = state.total_goods(good);
+        state.expected_total_goods.insert(good, total);
+    }
 
     let mut world = World {
         state,
@@ -253,18 +311,27 @@ mod tests {
     #[test]
     fn default_town_shape() {
         let w = generate(WorldConfig::default_with_seed(42));
-        assert_eq!(w.state.agents.len(), 20);
-        assert_eq!(w.state.businesses.len(), 4);
+        assert_eq!(w.state.agents.len(), 26);
+        assert_eq!(w.state.businesses.len(), 7);
         let owners = w.state.agents.values().filter(|a| a.owns.is_some()).count();
-        assert_eq!(owners, 4);
+        assert_eq!(owners, 7);
         let employed = w
             .state
             .agents
             .values()
             .filter(|a| a.employer.is_some())
             .count();
-        assert_eq!(employed, 11, "3 + 3 + 2 + 3 staffing plan");
+        assert_eq!(employed, 16, "3 + 3 + 3 + 4 + 1 + 1 + 1 staffing plan");
+        let tool_users = w.state.businesses.values().filter(|b| b.uses_tools).count();
+        assert_eq!(tool_users, 3, "two farms and the mine");
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        for good in Good::ALL {
+            assert_eq!(
+                w.state.expected_total_goods[&good],
+                w.state.total_goods(good),
+                "conservation target seeded for {good}"
+            );
+        }
         assert_eq!(w.journal.manifest.len(), 1, "hash at tick 0");
     }
 
@@ -275,9 +342,9 @@ mod tests {
             population: 0,
             hash_every: 50,
         });
-        assert_eq!(w.state.agents.len(), 5);
-        // All four businesses exist and have owners; staffing is partial.
-        assert_eq!(w.state.businesses.len(), 4);
+        assert_eq!(w.state.agents.len(), 8);
+        // All seven businesses exist and have owners; staffing is partial.
+        assert_eq!(w.state.businesses.len(), 7);
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
     }
 }

@@ -158,3 +158,90 @@ long-run equilibrium is harsh — one farm died (emergent monopoly) and the
 structurally unemployed stay hungry — which is coherent for a world without
 welfare (Phase 4), business entry (Phase 2), or population dynamics. The
 soak test asserts liveness and invariants, not comfort.
+
+## 012 — Goods ledger with expected-total conservation targets
+
+**Context.** Phase 1 adds the goods-conservation invariant reserved in
+TEST_PLAN.md. The money invariant works by comparing actual balances to an
+`expected_total_money` that only explicit policy may move; goods needed the
+same doorway discipline, but production/consumption volumes are too high to
+journal per-unit transactions.
+
+**Decision.** `goods_ledger` is the only path that creates or destroys
+goods: `produce` mints into a business inventory, `consume_stock` burns
+(recipe inputs, worn-out tools), `consume_pantry` burns household food. Each
+adjusts `SimState.expected_total_goods[good]`. Trades move goods between
+holders and never touch the targets. The `goods_conservation` invariant
+compares per-good world totals (business inventories + pantries) to the
+targets every check; it runs after the specific non-negativity checks so a
+negative stock reports precisely. No transactions are journaled for pure
+goods operations — flows stay visible via `produced_today` and metrics.
+
+**Consequences.** Any inventory mutation outside the doorway (or a trade
+that loses a side) halts with a per-good expected/actual/delta report.
+Worldgen seeds the targets from generated stock. `expected_total_goods` is
+hashed state, so all Phase 0 hashes shift (pre-1.0 policy; no released
+saves).
+
+## 013 — Tool economy: +50% bonus, 6-day life, 90% value cap, sized to the demand gap
+
+**Context.** Phase 1's industry chain (mine → steelworks → tool factory)
+must be financed entirely by what tools add at the extraction businesses.
+Soak-testing exposed hard constraints: (a) the chain's financeable revenue
+equals `equipped workers × value share × bonus output × output price` —
+tool *life* cancels out of it (longer life = fewer, dearer tools); (b) a
+bonus large enough to be valuable can flood the town's fixed demand — at
++100% farm supply gluts, wheat crashes, and the farms the tools equip die;
+(c) a stage whose capacity is 2× its steady demand self-gluts, cuts price
+below its own payroll, and dies (the mine equipped itself into
+overproduction); (d) tool prices above the buyers' value cap freeze demand
+through output-price troughs, starving the chain for months.
+
+**Decision.** Tools give +50% batches per equipped worker
+(`TOOL_BONUS_BP = 5000`) — sized to close the farms' structural capacity
+gap (bare-handed wheat ≈ 12/day vs ~13 needed; tooled ≈ 18) without
+flooding it. Life is 6 worker-days, wear only on production days, breakage
+through the goods ledger. Buyers pay up to 90% of a tool's lifetime
+marginal product (`TOOL_REVENUE_SHARE_BP` — capital, not a per-batch
+input), and never invest while sitting on unsold output (light-glut gate).
+Industry stages are single-worker with `batches_per_worker = 1` (capacity ≈
+steady demand) at $6.00 wages; chain start prices ($7.50 / $15.00 / $22.00)
+sit at the audited steady-state books so no stage starts underwater.
+
+**Consequences.** The full economy — both chains — runs healthy through
+year one (16 employed, industry solvent, tools trading). The chain's
+long-run persistence is a known limitation: multi-month wheat troughs still
+pause tool demand below the three shops' cash runway, and once their
+owners' savings are spent nothing restarts a dead business until Phase 2
+(entry) / Phase 3 (credit bridges illiquidity) / Phase 4 (demand
+stabilizers). Flagged in PROGRESS.md rather than papered over with
+scripted revival.
+
+## 014 — Demand-side stabilizers: comfort consumption and idle-capacity pricing
+
+**Context.** Phase 1's larger town exposed two absorbing failure modes that
+Phase 0's stabilizers (#011) do not cover. First, a hoarding leak: with
+consumption fixed at one meal a day, every agent running a wage surplus
+saves forever, circulation drains into idle balances, and aggregate demand
+decays until no wage bill is payable — total collapse with money conserved
+($16,200 stranded with households). Second, a monopoly ratchet:
+produce-to-target contracts supply in lockstep with shrinking demand, so a
+single-seller stage (the mill) never gluts; its stockout-raises compound
+one-way, food reached ~5× wages, and the town starved while the mill
+profited.
+
+**Decision.** Two mechanics. (1) *Comfort consumption*: an agent holding
+cash ≥ $400.00 (`COMFORT_CASH_FLOOR`, above starting cash so worldgen
+causes no day-one shock) buys and eats a second daily meal, never into
+hunger. Hoards now recycle into demand — the pool businesses sell into is
+elastic in wealth. (2) *Idle-capacity pricing*: on review, a business with
+no scarcity signal, a non-loss window, and expected sales below half its
+bare-handed capacity (tool bonus excluded — else upgrades read as idle
+capacity) cuts price 2% to chase volume. Loss-making businesses idle
+capacity rather than price below cost.
+
+**Consequences.** Seed 42's ten-year run now holds a stable, humane food
+economy: both farms, the mill and the bakery staffed throughout, food back
+near start price, hunger confined to the structurally unemployed. These are
+behavioral rules, not subsidies — a profitable monopolist still charges
+what the market bears; it just also competes with its own idle capacity.

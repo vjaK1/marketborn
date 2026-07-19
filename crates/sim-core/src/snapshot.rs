@@ -265,18 +265,8 @@ impl WorldSnapshot {
         let businesses = state
             .businesses
             .values()
-            .map(|b| BusinessRow {
-                id: b.id.0,
-                name: b.name.clone(),
-                kind: b.kind.label().to_string(),
-                cash_cents: b.cash.cents(),
-                workers: b.workers.len() as u32,
-                target_workers: b.target_headcount,
-                wage_cents: b.wage.cents(),
-                sells: b.sells.name().to_string(),
-                price_cents: b.price.cents(),
-                output_stock: b.stock(b.sells),
-                input_stock: b
+            .map(|b| {
+                let mut input_stock: Vec<InputStockRow> = b
                     .recipe
                     .inputs
                     .iter()
@@ -284,10 +274,31 @@ impl WorldSnapshot {
                         good: g.name().to_string(),
                         qty: b.stock(*g),
                     })
-                    .collect(),
-                last_window_profit_cents: b.last_window_profit.cents(),
-                sold_today: b.sold_today,
-                produced_today: b.produced_today,
+                    .collect();
+                // Tools aren't a recipe input, but tool users hold them on
+                // site the same way — show them alongside inputs.
+                if b.uses_tools {
+                    input_stock.push(InputStockRow {
+                        good: Good::Tools.name().to_string(),
+                        qty: b.stock(Good::Tools),
+                    });
+                }
+                BusinessRow {
+                    id: b.id.0,
+                    name: b.name.clone(),
+                    kind: b.kind.label().to_string(),
+                    cash_cents: b.cash.cents(),
+                    workers: b.workers.len() as u32,
+                    target_workers: b.target_headcount,
+                    wage_cents: b.wage.cents(),
+                    sells: b.sells.name().to_string(),
+                    price_cents: b.price.cents(),
+                    output_stock: b.stock(b.sells),
+                    input_stock,
+                    last_window_profit_cents: b.last_window_profit.cents(),
+                    sold_today: b.sold_today,
+                    produced_today: b.produced_today,
+                }
             })
             .collect();
 
@@ -359,9 +370,18 @@ mod tests {
         assert_eq!(s.tick, 20);
         assert_eq!(s.year, 1);
         assert_eq!(s.day_of_year, 21);
-        assert_eq!(s.stats.population, 20);
-        assert_eq!(s.agents.len(), 20);
-        assert_eq!(s.businesses.len(), 4);
+        assert_eq!(s.stats.population, 26);
+        assert_eq!(s.agents.len(), 26);
+        assert_eq!(s.businesses.len(), 7);
+        let farm = s
+            .businesses
+            .iter()
+            .find(|b| b.kind == "farm")
+            .expect("farms exist");
+        assert!(
+            farm.input_stock.iter().any(|r| r.good == "tools"),
+            "tool users report tool stock"
+        );
         assert_eq!(s.price_history.ticks.len(), 20);
         assert!(!s.events.is_empty());
         assert!(s.status == "running");

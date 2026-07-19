@@ -11,7 +11,7 @@ release tests). Never claim green without running them.
 | `npm run check` | `cargo fmt --check` · frontend build · `clippy --workspace --all-targets -D warnings` · `cargo test --workspace` · `tsc --noEmit` · `vitest run` |
 | `npm run check:full` | `check` + `cargo test --workspace --release -- --include-ignored` (soaks; later: proptest, benches) |
 
-## Current suites (Phase 0)
+## Current suites (Phase 0 + Phase 1 industry slice)
 
 ### Unit (sim-core, in-module)
 
@@ -23,25 +23,43 @@ release tests). Never claim green without running them.
 - ledger: transfer moves money + journals + conserves; insufficient funds
   rejected without mutation; negative/self-transfer rejected; mint/burn
   adjust the expected total.
+- goods_ledger: produce/consume keep expected totals in sync; pantry burns
+  hit the food target.
 - market: cheapest-offer-first with seller-id tie-break; cash-limited
   purchases conserve money; unmet demand marks seller stockouts; urgent
-  buyers ordered by id.
-- production: capacity-bound, input-bound, stops at inventory target.
+  buyers ordered by id; tool users buy one per worker under the value cap;
+  overpriced tools refused (unmet demand recorded); comfortable households
+  shop for the second meal.
+- production: capacity-bound, input-bound, stops at inventory target;
+  equipped workers produce the tool bonus; tools wear out and burn through
+  the goods ledger; no tools ⇒ no bonus, no wear.
 - labor: daily payroll pays every worker; broke business ⇒ missed payroll
   event + workers quit; deterministic vacancy matching.
-- consumption: pantry decrement, hunger streaks + events.
-- decisions: stockout ⇒ price raise; glut ⇒ cut toward floor; cash crunch
-  fires LIFO; rich business pays owner dividend (conserving).
+- consumption: pantry decrement, hunger streaks + events; comfort meal for
+  the wealthy, never into hunger.
+- decisions: stockout ⇒ price raise; glut ⇒ cut toward floor; idle
+  capacity ⇒ cut without glut/stockout; cash crunch fires LIFO; rich
+  business pays owner dividend (conserving).
 - invariants: fresh world green; corrupted cash/inventory/employment each
-  caught with a contextual report.
+  caught with a contextual report; out-of-band goods creation and pantry
+  edits caught by goods_conservation.
 - hashing: equal states hash equal; state change changes hash;
   journal/inputs don't affect hash.
-- worldgen: deterministic; town shape (20/4/11); tiny-population clamp valid.
+- worldgen: deterministic; town shape (26/7/16, three tool users, goods
+  targets seeded); tiny-population clamp valid.
 - tick: conservation over 30 ticks; manifest cadence; commands causal and
   tick-exact; past-tick queue rejected; overdraw command ⇒ event not halt;
   halted world refuses to tick; corruption halts with report.
 - snapshot: reflects a running world; serializes to JSON.
 - sim-cli: manifest diff helpers (divergence, misaligned cadences).
+
+### Integration (sim-core/tests/industry.rs)
+
+- `ore_steel_tools_farm_productivity_chain` (180 days, default world): ore
+  bought by the steelworks, steel by the factory, tools by farms/mine; some
+  extraction business held tools and out-produced bare-handed capacity;
+  wear destroyed tools (bought > held); per-good reconciliation and money
+  conservation hold to the end.
 
 ### Determinism (sim-core/tests/determinism.rs)
 
@@ -78,8 +96,9 @@ smoke tests (`sim-cli run --seed … --ticks 3650`).
 
 ## Growth map (when phases land)
 
-- **Phase 1**: goods-conservation reconciliation; ore→steel→tools→farm
-  productivity integration test; spoilage.
+- **Phase 1**: ~~goods-conservation reconciliation~~ ✅ ·
+  ~~ore→steel→tools→farm productivity integration test~~ ✅ · spoilage
+  (still to come).
 - **Phase 2**: utility scoring units; decision-record storage;
   `probe_reputation`.
 - **Phase 3**: contract lifecycle integration; default→foreclosure;

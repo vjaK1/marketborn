@@ -28,3 +28,18 @@ Notes:
   Re-measure then.
 - No profiling done — nothing is close to a target; per plan, profile before
   optimizing.
+
+## Phase 1 industry slice — 2026-07-19
+
+Same method and machine. Now 6 goods, 7 businesses, goods-conservation
+invariant in the sweep, default population 26.
+
+| Measurement | Result | v1.0 target |
+|-------------|--------|-------------|
+| 26 agents, 3,650 ticks | 0.02 s (~150k–290k ticks/s across runs) | — |
+| 1,000 agents, 3,650 ticks | **0.19 s** (~19k ticks/s) | ≤ 60 s ✅ (~300× headroom) |
+
+The 1,000-agent figure remains a worldgen-scaling proxy (7 businesses, mass
+unemployment). The extra cost vs Phase 0 (0.08 s → 0.19 s) is the larger
+per-tick sweep (more goods, goods reconciliation, comfort demand pass) —
+nothing near a target; still no profiling warranted.

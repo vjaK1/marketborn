@@ -4,7 +4,7 @@ use crate::agent::Agent;
 use crate::business::Business;
 use crate::commands::{CommandError, PlayerCommand, QueuedCommand};
 use crate::events::{Event, EventRecord};
-use crate::goods::Good;
+use crate::goods::{Good, Qty};
 use crate::ids::{AgentId, BusinessId};
 use crate::ledger::Transaction;
 use crate::metrics::MetricsDay;
@@ -46,6 +46,11 @@ pub struct SimState {
     /// Conservation target: sum of all account balances must equal this.
     /// Only explicit monetary policy may change it.
     pub expected_total_money: Money,
+    /// Conservation targets per good: total on-hand quantity across business
+    /// inventories and household pantries must equal these. Only the goods
+    /// ledger (production mints, consumption/wear burns) may change them —
+    /// trades are zero-sum.
+    pub expected_total_goods: BTreeMap<Good, Qty>,
     pub agents: BTreeMap<AgentId, Agent>,
     pub businesses: BTreeMap<BusinessId, Business>,
     pub market: MarketState,
@@ -57,6 +62,18 @@ impl SimState {
         let agents: Money = self.agents.values().map(|a| a.cash).sum();
         let businesses: Money = self.businesses.values().map(|b| b.cash).sum();
         agents + businesses
+    }
+
+    /// Total on-hand quantity of one good across the whole world: business
+    /// inventories plus household pantries (pantries hold food).
+    pub fn total_goods(&self, good: Good) -> Qty {
+        let in_businesses: Qty = self.businesses.values().map(|b| b.stock(good)).sum();
+        let in_pantries: Qty = if good == Good::Food {
+            self.agents.values().map(|a| a.pantry).sum()
+        } else {
+            0
+        };
+        in_businesses + in_pantries
     }
 }
 

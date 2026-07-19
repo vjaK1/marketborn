@@ -103,6 +103,9 @@ pub fn check_all(state: &SimState, journal: &Journal) -> Result<(), Box<Invarian
     non_negative_cash(state, journal)?;
     non_negative_inventory(state, journal)?;
     employment_reciprocity(state, journal)?;
+    // Aggregate reconciliation runs after the specific checks so a negative
+    // stock reports as non_negative_inventory, not as a totals mismatch.
+    goods_conservation(state, journal)?;
     Ok(())
 }
 
@@ -121,6 +124,30 @@ fn money_conservation(state: &SimState, journal: &Journal) -> Result<(), Box<Inv
             actual - expected,
             None,
         ));
+    }
+    Ok(())
+}
+
+/// Per-good reconciliation: total on-hand quantity (business inventories +
+/// pantries) equals the expected total, which only the goods ledger
+/// (production mints, consumption/wear burns) may move. Trades are zero-sum;
+/// a mismatch means some inventory was touched outside the doorway or a
+/// trade lost a side.
+fn goods_conservation(state: &SimState, journal: &Journal) -> Result<(), Box<InvariantViolation>> {
+    for good in Good::ALL {
+        let actual = state.total_goods(good);
+        let expected = state.expected_total_goods.get(&good).copied().unwrap_or(0);
+        if actual != expected {
+            return Err(violation(
+                state,
+                journal,
+                "goods_conservation",
+                format!("{expected} {good}"),
+                format!("{actual} {good}"),
+                actual - expected,
+                None,
+            ));
+        }
     }
     Ok(())
 }
@@ -299,6 +326,33 @@ mod tests {
             .add_stock(Good::Wheat, -1_000_000);
         let v = check_all(&w.state, &w.journal).unwrap_err();
         assert_eq!(v.invariant, "non_negative_inventory");
+    }
+
+    #[test]
+    fn goods_created_outside_the_ledger_are_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        let id = *w.state.businesses.keys().next().unwrap();
+        // Positive out-of-band stock: no negative anywhere, so only the
+        // per-good reconciliation can see it.
+        w.state
+            .businesses
+            .get_mut(&id)
+            .unwrap()
+            .add_stock(Good::Steel, 5);
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "goods_conservation");
+        assert!(v.summary().contains("steel"));
+        assert!(v.delta.contains('5'));
+    }
+
+    #[test]
+    fn pantry_edits_outside_the_ledger_are_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        let id = *w.state.agents.keys().next().unwrap();
+        w.state.agents.get_mut(&id).unwrap().pantry += 2;
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "goods_conservation");
+        assert!(v.summary().contains("food"));
     }
 
     #[test]

@@ -46,6 +46,7 @@ describe('tickToDate', () => {
 describe('goodLabel', () => {
   it('capitalizes good names', () => {
     expect(goodLabel('wheat')).toBe('Wheat');
+    expect(goodLabel('iron ore')).toBe('Iron ore');
     expect(goodLabel('')).toBe('');
   });
 });

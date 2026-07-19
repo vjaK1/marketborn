@@ -7,7 +7,7 @@
 //! each taking the cheapest available offer (ties broken by lower seller id),
 //! subject to available funds. Specified in `docs/ECONOMIC_RULES.md` §Markets.
 
-use crate::business::Business;
+use crate::business::{Business, TOOL_BONUS_BP, TOOL_LIFE_WORKER_DAYS};
 use crate::goods::{Good, Qty};
 use crate::ids::{AccountId, BusinessId};
 use crate::ledger::{self, LedgerError, TxKind};
@@ -48,6 +48,11 @@ struct Order {
 /// marginal-revenue cap that damps cost-push spirals: an upstream price
 /// above what the output resells for finds no buyer, gluts, and falls.
 const INPUT_REVENUE_SHARE_BP: i64 = 7000;
+/// Share of a tool's marginal product a buyer will pay for it. Higher than
+/// the input share: a tool is capital whose cost is sunk once against many
+/// days of bonus output, and the industry chain's cost floor must fit
+/// under this cap across the output-price cycle (DECISIONS.md #013).
+const TOOL_REVENUE_SHARE_BP: i64 = 9000;
 
 /// Units of input good consumed per day at the expected production rate.
 pub fn daily_input_need(business: &Business, good: Good) -> Qty {
@@ -81,6 +86,15 @@ fn build_offers(state: &SimState, good: Good) -> Vec<Offer> {
     offers
 }
 
+/// Cash a business may spend at market after protecting a payroll reserve.
+fn market_budget(b: &Business) -> Money {
+    let reserve = b
+        .wage
+        .checked_mul_qty(b.workers.len() as i64 * PAYROLL_RESERVE_DAYS)
+        .unwrap_or(Money::MAX);
+    (b.cash - reserve).max(Money::ZERO)
+}
+
 fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
     let mut orders: Vec<Order> = Vec::new();
 
@@ -96,11 +110,7 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
         if want <= 0 {
             continue;
         }
-        let reserve = b
-            .wage
-            .checked_mul_qty(b.workers.len() as i64 * PAYROLL_RESERVE_DAYS)
-            .unwrap_or(Money::MAX);
-        let budget = (b.cash - reserve).max(Money::ZERO);
+        let budget = market_budget(b);
         if budget == Money::ZERO {
             continue;
         }
@@ -129,10 +139,66 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
         });
     }
 
-    // Households buy food up to a pantry target plus today's meal.
+    // Tool users equip one tool per current worker, replacing wear as it
+    // happens. Tools are an efficiency good, never survival: urgency stays
+    // routine, and the willingness to pay is capped at TOOL_REVENUE_SHARE_BP
+    // of the marginal revenue one tool earns over its life (bonus output per
+    // equipped worker-day × output price × TOOL_LIFE_WORKER_DAYS). A tool
+    // priced above what it returns finds no buyer, gluts, and falls
+    // (DECISIONS.md #013).
+    if good == Good::Tools {
+        for b in state.businesses.values() {
+            if !b.uses_tools {
+                continue;
+            }
+            // No capital spending while sitting on unsold output: a glutted
+            // producer must not buy capacity it cannot sell (the mine
+            // self-glut lesson, DECISIONS.md #013). Same threshold as the
+            // price review's light-glut signal.
+            if b.stock(b.sells)
+                > crate::systems::decisions::GLUT_LIGHT_DAYS * b.expected_daily_sales()
+            {
+                continue;
+            }
+            let want = b.workers.len() as Qty - b.stock(Good::Tools);
+            if want <= 0 {
+                continue;
+            }
+            let bonus_units_per_day =
+                b.recipe.batches_per_worker * b.recipe.output.1.max(1) * TOOL_BONUS_BP / 10_000;
+            if bonus_units_per_day == 0 {
+                continue; // the bonus rounds to nothing: tools are worthless here
+            }
+            let life_value = b
+                .price
+                .checked_mul_qty(bonus_units_per_day * TOOL_LIFE_WORKER_DAYS)
+                .unwrap_or(Money::MAX);
+            let cap = life_value.mul_bp(TOOL_REVENUE_SHARE_BP);
+            let budget = market_budget(b);
+            if budget == Money::ZERO {
+                continue;
+            }
+            orders.push(Order {
+                buyer: AccountId::Business(b.id),
+                urgency: 1,
+                qty: want,
+                max_spend: Some(budget),
+                max_unit_price: Some(cap),
+            });
+        }
+    }
+
+    // Households buy food up to a pantry target plus today's meal(s):
+    // comfortable households (cash above the comfort floor) shop for their
+    // second daily meal too (DECISIONS.md #014).
     if good == Good::Food {
         for a in state.agents.values() {
-            let want = (PANTRY_TARGET + 1) - a.pantry;
+            let meals_today: i64 = if a.cash >= crate::systems::consumption::COMFORT_CASH_FLOOR {
+                2
+            } else {
+                1
+            };
+            let want = (PANTRY_TARGET + meals_today) - a.pantry;
             if want <= 0 {
                 continue;
             }
@@ -352,6 +418,75 @@ mod tests {
         assert_eq!(a.pantry, 2);
         assert_eq!(a.cash, Money::from_cents(50));
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+    }
+
+    #[test]
+    fn tool_users_buy_one_tool_per_worker_under_the_value_cap() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        // ids[0] is a farm (uses tools); staff it with two warm bodies. The
+        // market only reads roster length, so no employer backlink is needed.
+        let staff: Vec<_> = w.state.agents.keys().copied().take(2).collect();
+        {
+            let farm = w.state.businesses.get_mut(&ids[0]).unwrap();
+            assert!(farm.uses_tools);
+            farm.workers = staff;
+            farm.cash = Money::from_cents(100_000);
+        }
+        // ids[6] is the tool factory: stock it below the farm's value cap
+        // (farm: 2 bonus wheat/worker-day × $5.50 × 6 days × 70% = $46.20).
+        {
+            let factory = w.state.businesses.get_mut(&ids[6]).unwrap();
+            factory.add_stock(Good::Tools, 5);
+            factory.price = Money::from_cents(2_000);
+        }
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.businesses[&ids[0]].stock(Good::Tools), 2);
+        assert_eq!(w.state.businesses[&ids[6]].sold_today, 2);
+    }
+
+    #[test]
+    fn tools_above_the_value_cap_find_no_buyer() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        let staff: Vec<_> = w.state.agents.keys().copied().take(2).collect();
+        {
+            let farm = w.state.businesses.get_mut(&ids[0]).unwrap();
+            farm.workers = staff;
+            farm.cash = Money::from_cents(100_000);
+        }
+        {
+            let factory = w.state.businesses.get_mut(&ids[6]).unwrap();
+            factory.add_stock(Good::Tools, 5);
+            factory.price = Money::from_cents(5_000); // cap is $46.20
+        }
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.businesses[&ids[0]].stock(Good::Tools), 0);
+        assert_eq!(w.state.businesses[&ids[6]].sold_today, 0);
+        assert_eq!(acc.unmet_demand[&Good::Tools], 2, "refused, not absent");
+    }
+
+    #[test]
+    fn comfortable_households_shop_for_the_second_meal() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        {
+            let bakery = w.state.businesses.get_mut(&ids[3]).unwrap();
+            bakery.add_stock(Good::Food, 50);
+            bakery.price = Money::from_cents(500);
+        }
+        // bare_world tops every pantry to PANTRY_TARGET + 1: no ordinary
+        // demand. A comfortable agent still shops for one more.
+        let rich = *w.state.agents.keys().next().unwrap();
+        w.state.agents.get_mut(&rich).unwrap().cash =
+            crate::systems::consumption::COMFORT_CASH_FLOOR;
+        w.state.expected_total_money = w.state.total_cash();
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.agents[&rich].pantry, PANTRY_TARGET + 2);
+        assert_eq!(w.state.businesses[&ids[3]].sold_today, 1);
     }
 
     #[test]
