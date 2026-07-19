@@ -44,6 +44,7 @@ pub const GLUT_LIGHT_DAYS: Qty = 6;
 
 struct ReviewPlan {
     window_profit: Money,
+    dry_windows: u32,
     new_price: Option<(Money, Money)>,
     new_wage: Option<(Money, Money)>,
     dividend: Option<(AgentId, Money)>,
@@ -299,12 +300,19 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 .unwrap_or(Traits::NEUTRAL);
             let capacity_units =
                 b.workers.len() as Qty * b.recipe.batches_per_worker * b.recipe.output.1.max(1);
+            // A zero-revenue window extends the dry run; any sale resets it.
+            let dry_windows = if b.revenue_window == Money::ZERO {
+                b.dry_windows + 1
+            } else {
+                0
+            };
             let inputs = decision::price_inputs(
                 b.stockout_days,
                 stock,
                 ema_day,
                 capacity_units,
                 !window_profit.is_negative(),
+                dry_windows,
                 owner_traits,
             );
             let (action, considered) = decision::choose_price_action(&inputs);
@@ -397,6 +405,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
 
             ReviewPlan {
                 window_profit,
+                dry_windows,
                 new_price,
                 new_wage,
                 dividend,
@@ -406,6 +415,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
         let sells = state.businesses.get(&bid).map(|b| b.sells);
         if let Some(b) = state.businesses.get_mut(&bid) {
             b.last_window_profit = plan.window_profit;
+            b.dry_windows = plan.dry_windows;
             b.revenue_window = Money::ZERO;
             b.costs_window = Money::ZERO;
             b.stockout_days = 0;

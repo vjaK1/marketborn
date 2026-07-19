@@ -158,6 +158,10 @@ pub struct Business {
     /// Days within the current review window the business sold out while
     /// demand went unmet.
     pub stockout_days: u32,
+    /// Consecutive completed review windows with zero revenue. Feeds the
+    /// price-deadlock breaker (DECISIONS.md #022): one quiet week is
+    /// normal duopoly alternation; three is a dead price.
+    pub dry_windows: u32,
     /// Days the business has had unfilled vacancies since the last review.
     pub vacancy_days: u32,
     /// Consecutive days payroll could not be fully met.

@@ -364,6 +364,7 @@ pub fn generate(config: WorldConfig) -> World {
                 tool_wear: 0,
                 sales_ema_milli: t.sales_ema_milli,
                 stockout_days: 0,
+                dry_windows: 0,
                 vacancy_days: 0,
                 missed_payroll_days: 0,
                 revenue_window: Money::ZERO,

@@ -264,7 +264,7 @@ fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
     for bid in &biz_ids {
         let b = bid.0;
         out.push_str(&format!(
-            ",b{b}_cash,b{b}_workers,b{b}_price,b{b}_sold,b{b}_produced,b{b}_stock"
+            ",b{b}_owner,b{b}_cash,b{b}_workers,b{b}_wage,b{b}_price,b{b}_sold,b{b}_produced,b{b}_stock"
         ));
     }
     out.push('\n');
@@ -297,15 +297,17 @@ fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
         for bid in &biz_ids {
             match day.businesses.get(bid) {
                 Some(b) => out.push_str(&format!(
-                    ",{},{},{},{},{},{}",
+                    ",{},{},{},{},{},{},{},{}",
+                    b.owner,
                     b.cash.cents(),
                     b.workers,
+                    b.wage.cents(),
                     b.price.cents(),
                     b.sold,
                     b.produced,
                     b.stock
                 )),
-                None => out.push_str(",,,,,,"),
+                None => out.push_str(",,,,,,,,"),
             }
         }
         out.push('\n');

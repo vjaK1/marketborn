@@ -43,8 +43,10 @@ pub struct MetricsDay {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BizDay {
+    pub owner: u32,
     pub cash: Money,
     pub workers: u32,
+    pub wage: Money,
     pub price: Money,
     pub sold: Qty,
     pub produced: Qty,
@@ -92,8 +94,10 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
             (
                 b.id,
                 BizDay {
+                    owner: b.owner.0,
                     cash: b.cash,
                     workers: b.workers.len() as u32,
+                    wage: b.wage,
                     price: b.price,
                     sold: b.sold_today,
                     produced: b.produced_today,

@@ -201,9 +201,14 @@ On review day (`(tick + id) % 7 == 0`):
   below ~50% bare-handed utilization (the anti-monopolist corrective —
   #014; tool bonus excluded). Greed shifts the raise threshold ±0.4 days
   and weights it; aggression shifts the idle-cut threshold between 42% and
-  58% utilization — narrow bands by design (#019). Every review journals a
+  58% utilization — narrow bands by design (#019). **Deadlock breaker**
+  (#022): three consecutive zero-revenue windows while holding stock or
+  staffing capacity force the heavy cut regardless of profitability (a
+  price earning nothing cannot lose by falling; one dry week is normal
+  duopoly alternation and is ignored). Every review journals a
   `DecisionRecord` with all scores and inputs. Steps stay integer with
-  explicit floors/ceilings (10¢ / $100,000). Window counters reset.
+  explicit floors/ceilings (10¢ / $100,000). Window counters reset;
+  `dry_windows` extends on a zero-revenue window and resets on any sale.
 - **Wage**: vacancies unfilled ≥ 7 days **and** a non-negative window profit
   → raise 5% (a loss-making business bidding wages up while broke is the
   death-spiral input, not competition). Fully staffed and the 7-day window

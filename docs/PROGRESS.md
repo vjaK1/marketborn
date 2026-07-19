@@ -71,17 +71,40 @@ Living state of the project. Updated at the end of every session
   keeps the gate open and frequent ownership rotation destabilizes
   production. Year-one scale acceptance is unaffected (scale.rs green).
 
+### The zero-revenue price deadlock (fourth increment, this session — DECISIONS #022)
+
+- Ownership telemetry (new `BizDay` owner/wage columns in the metrics CSV)
+  overturned the churn hypothesis: only ~20 sales a decade at 100 scale.
+  The real disease: after the year-one price spike, businesses froze at
+  unaffordable prices with zero sales forever — every corrective signal
+  structurally silent (stockout needs sales, glut needs stock, idle cut is
+  profit-gated). A mill held flour at $42.45 for six years.
+- Fix: `dry_windows` on Business + a deadlock breaker in the heavy-cut
+  score — three consecutive zero-revenue windows with stock or staff force
+  the cut regardless of profitability. Run length is load-bearing: firing
+  on one quiet week turned duopoly alternation into town-razing price
+  wars (recorded in #022).
+- **Best full matrix to date**: seed 42 at its healthiest ending ever
+  (13 employed / 13 hungry / food $3.93); seeds 7/123 hold; the 100-town
+  un-freezes to ~13–15 employed across the decade with food repricing
+  $23 → $9.73. The 100-town's ~94 hungry is Phase 4's welfare problem by
+  design.
+
 ### Exact next task (Phase 2 continuation)
 
-1. **Diagnose 100-town takeover churn** with telemetry: add an ownership
-   column (owner id) to `BizDay`/metrics CSV, count `BusinessSold` events
-   per decade, and read the day-by-day series; then design the damper
-   (likely a per-business takeover cooldown, a wealth bar scaled to
-   restart cost × target headcount, or a scale-aware gate) and record it
-   in DECISIONS #021's follow-up.
-2. Then memory, relationships, reputation, and the agent inspector
-   (surfacing DecisionRecords is the inspector's first job).
-3. Soak checkpoints after every economy change: seeds 42/7/123 at
+1. **Memory** (AGENT_DESIGN §Memory): bounded per-agent store with
+   importance-weighted eviction, decay, reinforcement, and deterministic
+   confidence degradation — then wire one real consumer (e.g., job/em-
+   ployer memories feeding the switch premium, or price memories feeding
+   reservation wages) so memory is load-bearing from day one, not
+   decorative.
+2. Then relationships (seven private dimensions) and reputation (public +
+   propagation, `probe_reputation`).
+3. Then the **agent inspector** (detail-query protocol + UI): identity,
+   traits, books-of-life, and DecisionRecord explanations verbatim —
+   Phase 2's acceptance requires a real decision's explanation visible in
+   the inspector.
+4. Soak checkpoints after every economy change: seeds 42/7/123 at
    365/1500/3650 plus `--population 100`; on surprises dump
    `sim-cli metrics <save> --csv`.
 

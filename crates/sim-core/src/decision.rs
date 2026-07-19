@@ -58,10 +58,17 @@ pub struct PriceInputs {
     /// selling exactly capacity). 0 when the business has no workers.
     pub utilization_pct: Qty,
     pub window_profitable: bool,
+    /// Consecutive completed review windows (including this one) with zero
+    /// revenue. One is normal duopoly alternation; a run of them means the
+    /// posted price earns nothing.
+    pub dry_windows: u32,
     /// The deciding owner's weighting traits.
     pub greed: u8,
     pub aggression: u8,
 }
+
+/// Zero-revenue windows tolerated before the deadlock breaker fires.
+pub const DRY_WINDOWS_BREAKER: u32 = 3;
 
 /// Utility scores for the price review. Neutral traits (50) reproduce the
 /// Phase 0/1 rule family: raise on ≥2 stockout days; cut hard above 8 days
@@ -84,7 +91,25 @@ pub fn score_price_action(action: PriceAction, i: &PriceInputs) -> f64 {
             let threshold = 1.5 - (f64::from(i.greed) - 50.0) / 125.0;
             (f64::from(i.stockout_days) - threshold) * 3.0 * greed_w
         }
-        PriceAction::CutHeavy => i.stock_days as f64 - 8.0,
+        PriceAction::CutHeavy => {
+            let glut = i.stock_days as f64 - 8.0;
+            // Price-deadlock breaker: a RUN of zero-revenue windows while
+            // holding stock (or staffed to produce) means the posted price
+            // earns exactly nothing — cutting cannot reduce revenue below
+            // zero, so the profit gate does not apply. Without it,
+            // post-spike towns froze at unaffordable prices forever while
+            // every corrective signal stayed silent. The run length
+            // matters: firing on a single quiet week turned normal duopoly
+            // alternation into leapfrogging price wars that razed every
+            // town (DECISIONS.md #022).
+            let dead_market =
+                i.dry_windows >= DRY_WINDOWS_BREAKER && (i.stock_days > 0 || i.utilization_pct > 0);
+            if dead_market {
+                glut.max(2.0)
+            } else {
+                glut
+            }
+        }
         PriceAction::CutLight => {
             // Capped so a deepening glut escalates to the heavy cut
             // instead of scoring the light one ever higher.
@@ -126,6 +151,7 @@ pub fn price_inputs(
     ema_day: Qty,
     base_capacity_units: Qty,
     window_profitable: bool,
+    dry_windows: u32,
     traits: Traits,
 ) -> PriceInputs {
     let ema = ema_day.max(1);
@@ -138,6 +164,7 @@ pub fn price_inputs(
             0
         },
         window_profitable,
+        dry_windows,
         greed: traits.greed,
         aggression: traits.aggression,
     }
@@ -322,6 +349,7 @@ mod tests {
             stock_days,
             utilization_pct,
             window_profitable: true,
+            dry_windows: 0,
             greed: 50,
             aggression: 50,
         }
@@ -352,6 +380,30 @@ mod tests {
         i.window_profitable = false;
         let (a, _) = choose_price_action(&i);
         assert_eq!(a, PriceAction::Hold, "no pricing below cost from weakness");
+    }
+
+    #[test]
+    fn a_run_of_dry_windows_breaks_the_price_deadlock() {
+        // Three straight zero-revenue windows with stock to sell: every
+        // other corrective is silent (no stockouts, no glut, idle cut
+        // profit-gated) — but a price earning nothing for weeks must fall.
+        let mut i = neutral(0, 2, 30);
+        i.window_profitable = false;
+        i.dry_windows = DRY_WINDOWS_BREAKER;
+        let (a, _) = choose_price_action(&i);
+        assert_eq!(a, PriceAction::CutHeavy, "weeks of zero revenue: cut");
+        // One quiet week is normal duopoly alternation: hold.
+        let mut quiet = neutral(0, 2, 30);
+        quiet.window_profitable = false;
+        quiet.dry_windows = 1;
+        let (a, _) = choose_price_action(&quiet);
+        assert_eq!(a, PriceAction::Hold, "one dry week is not a signal");
+        // With nothing to sell and nobody to make it, hold.
+        let mut empty = neutral(0, 0, 0);
+        empty.window_profitable = false;
+        empty.dry_windows = DRY_WINDOWS_BREAKER;
+        let (a, _) = choose_price_action(&empty);
+        assert_eq!(a, PriceAction::Hold);
     }
 
     #[test]

@@ -466,9 +466,40 @@ competition. The shipped gate is standing demand > 0 for the firm's good.
 **Consequences.** The best small-town matrix observed: all three seeds
 hold 13-employed year-ten cores — including seed 42, whose
 mobility-induced farm death is cured by revival restoring duopoly
-competition. **Open item**: the 100-agent town regresses at decade scale
-(≈16 → ≈6 employed by year ten) under takeover churn — chronic shortage
-keeps the gate open and frequent owner rotation appears to destabilize
-production; year-one scale acceptance is unaffected. Next session:
-per-business ownership telemetry, then likely a takeover cooldown or a
-scale-aware gate.
+competition. The 100-town's decade-scale regression initially blamed on
+takeover churn turned out to be the price deadlock diagnosed and fixed in
+#022 (ownership telemetry showed only ~20 sales a decade, concentrated on
+firms that kept dying for a different reason).
+
+## 022 — The zero-revenue price deadlock and its breaker
+
+**Context.** Ownership telemetry (BizDay owner/wage columns in the metrics
+CSV) revealed the 100-town's real decade-scale disease: the year-one
+demand surge spikes food to ~4× wages, pricing out most households — and
+then prices FREEZE. Every corrective is structurally silent at zero sales:
+stockout raises need sales, glut cuts need stock, and the idle-capacity
+cut is profit-gated (#014's "cut from strength only") while a zero-revenue
+window is never profitable. A mill held flour at $42.45 for six simulated
+years while the whole town starved; takeovers merely recycled corpses
+through the frozen market.
+
+**Decision.** A price-deadlock breaker in the engine's heavy-cut score: a
+**run of `DRY_WINDOWS_BREAKER (3)` consecutive zero-revenue review
+windows** while holding stock or staffing capacity forces a heavy cut
+regardless of profitability — a price earning exactly nothing cannot lose
+revenue by falling, so the profit gate does not apply. `Business` tracks
+`dry_windows` (hashed state), extended at each review with zero window
+revenue and reset by any sale.
+
+The run length is load-bearing and was learned the hard way: firing on a
+single quiet week turned normal duopoly alternation (one batch-buyer
+served by whichever farm is cheapest) into leapfrogging price wars that
+razed every town in the matrix. One dry week is noise; three is a dead
+price.
+
+**Consequences.** Best full matrix to date. Seed 42 reaches its healthiest
+ending yet (13 employed, 13 hungry, food $3.93); seeds 7/123 hold their
+cores; the 100-town un-freezes — employment ~13–15 through the decade
+(from 0–8) with food repricing from $23 toward $9.73 as the market grinds
+back toward affordability. The 100-town stays harsh (≈94 hungry): ~80%
+structural unemployment without welfare is Phase 4's problem by design.

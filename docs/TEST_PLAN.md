@@ -56,7 +56,8 @@ release tests). Never claim green without running them.
   ⇒ different choices; records render explanations with their inputs;
   reservation wages scale with ambition, decay to zero over the patience
   horizon, and yield to desperation; switch premiums widen with loyalty
-  (a 16% raise moves the disloyal, not the loyal).
+  (a 16% raise moves the disloyal, not the loyal); a run of dry windows
+  breaks the price deadlock while a single quiet week does not.
 - worldgen traits: same seed ⇒ same person; traits vary across the town;
   different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each
