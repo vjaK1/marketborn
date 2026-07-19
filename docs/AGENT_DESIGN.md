@@ -17,6 +17,18 @@ markets before psychology arrives:
 
 Everything here is deterministic, id-ordered, and float-free.
 
+## Phase 2 status
+
+Implemented so far (session 2, DECISIONS #019): the nine personality
+traits (integer 0–100, per-agent `"traits"` substream, field order = roll
+order); the utility engine core (`decision.rs`) with float scoring,
+enum-order tie-breaks and journaled `DecisionRecord`s that render their own
+explanations; the business **price review** runs through it, with greed and
+aggression acting in narrow threshold bands. Seeds now produce economically
+distinct histories. Still to come: remaining owner reviews on the engine,
+household actions (job switching, reservation wages), business entry/exit,
+memory, relationships, reputation, the agent inspector.
+
 ## Phase 2 target (per BRIEF.md — design direction)
 
 ### Identity & traits

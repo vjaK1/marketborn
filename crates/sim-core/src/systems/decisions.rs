@@ -1,10 +1,13 @@
-//! Decisions phase (Phase 0 scope: business owners).
+//! Decisions phase: business owners.
 //!
-//! Daily: emergency downsizing when cash cannot cover a two-day payroll.
-//! Every seven days, staggered by business id: price review (stockouts push
-//! prices up, gluts push them down, bounded steps), wage review, dividend.
-//! The full utility-scored agent decision engine arrives in project Phase 2.
+//! Daily: owner capital injections and emergency downsizing. Every seven
+//! days, staggered by business id: price review (utility-scored through
+//! the Phase 2 decision engine — the owner's traits weight the choice and
+//! the record is journaled), wage review, dividend. Remaining reviews move
+//! onto the engine incrementally (AGENT_DESIGN.md).
 
+use crate::agent::Traits;
+use crate::decision::{self, PriceAction};
 use crate::events::Event;
 use crate::goods::Qty;
 use crate::ids::{AccountId, AgentId, BusinessId};
@@ -31,20 +34,13 @@ const PRICE_CEILING: Money = Money::from_cents(10_000_000);
 const WAGE_FLOOR: Money = Money::from_cents(300);
 const WAGE_CEILING: Money = Money::from_cents(1_000_000);
 const DIVIDEND_BUFFER_PAYROLL_DAYS: i64 = 21;
-const STOCKOUT_RAISE_THRESHOLD: u32 = 2;
-const GLUT_HEAVY_DAYS: Qty = 8;
 /// Strictly above the full production buffer (OUTPUT_TARGET_DAYS + 1 = 5
 /// days), so a producer at its normal buffer never reads as glutted
-/// (DECISIONS.md #015). Also read by the goods market's tool-purchase gate
-/// (no capital spending while glutted).
+/// (DECISIONS.md #015). Read by the goods market's tool-purchase gate (no
+/// capital spending while glutted); the price review's glut/stockout/idle
+/// thresholds now live in the decision engine's scoring
+/// (`decision::score_price_action`).
 pub const GLUT_LIGHT_DAYS: Qty = 6;
-/// Idle-capacity pricing: with no scarcity signal and sales below
-/// 1/UTILIZATION_CUT_FACTOR of capacity, cut price to win volume back.
-/// This is the downward corrective a single-seller stage otherwise lacks —
-/// produce-to-target contracts supply alongside shrinking demand, so a
-/// monopolist would ratchet price up forever without ever gluting
-/// (DECISIONS.md #014).
-const UTILIZATION_CUT_FACTOR: Qty = 2;
 
 struct ReviewPlan {
     window_profit: Money,
@@ -155,40 +151,52 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             let min_step = Money::from_cents(1);
 
             let window_profit = b.revenue_window - b.costs_window;
+            // Phase 2: the price review is utility-scored. The owner's
+            // traits weight the choice; the scored record is journaled for
+            // the inspector. Capacity is bare-handed — tools are optional
+            // overdrive, and counting their bonus would make every
+            // equipped business read its upgrade as idle capacity.
+            let owner_traits = state
+                .agents
+                .get(&b.owner)
+                .map(|a| a.traits)
+                .unwrap_or(Traits::NEUTRAL);
+            let capacity_units =
+                b.workers.len() as Qty * b.recipe.batches_per_worker * b.recipe.output.1.max(1);
+            let inputs = decision::price_inputs(
+                b.stockout_days,
+                stock,
+                ema_day,
+                capacity_units,
+                !window_profit.is_negative(),
+                owner_traits,
+            );
+            let (action, considered) = decision::choose_price_action(&inputs);
+            journal.push_decision(decision::DecisionRecord {
+                seq: 0, // assigned by the journal
+                tick,
+                actor: b.owner,
+                business: bid,
+                inputs,
+                considered,
+                chosen: action,
+            });
             let mut new_price = None;
-            if b.stockout_days >= STOCKOUT_RAISE_THRESHOLD {
-                let raised =
-                    (b.price + b.price.mul_bp(PRICE_RAISE_BP).max(min_step)).min(PRICE_CEILING);
-                if raised != b.price {
-                    new_price = Some((b.price, raised));
-                }
-            } else if stock > ema_day * GLUT_HEAVY_DAYS {
-                let cut =
-                    (b.price - b.price.mul_bp(PRICE_CUT_HEAVY_BP).max(min_step)).max(PRICE_FLOOR);
-                if cut != b.price {
-                    new_price = Some((b.price, cut));
-                }
-            } else if stock > ema_day * GLUT_LIGHT_DAYS {
-                let cut =
-                    (b.price - b.price.mul_bp(PRICE_CUT_LIGHT_BP).max(min_step)).max(PRICE_FLOOR);
-                if cut != b.price {
-                    new_price = Some((b.price, cut));
-                }
-            } else if !window_profit.is_negative() {
-                // Idle-capacity cut, from strength only: a loss-making
-                // business idles capacity rather than pricing below cost.
-                // Bare-handed capacity only — tools are optional overdrive,
-                // and counting their bonus here would make every equipped
-                // business read its own upgrade as idle capacity and cut
-                // itself to the floor.
-                let capacity_units =
-                    b.workers.len() as Qty * b.recipe.batches_per_worker * b.recipe.output.1.max(1);
-                if capacity_units > 0 && ema_day * UTILIZATION_CUT_FACTOR < capacity_units {
-                    let cut = (b.price - b.price.mul_bp(PRICE_CUT_LIGHT_BP).max(min_step))
-                        .max(PRICE_FLOOR);
-                    if cut != b.price {
-                        new_price = Some((b.price, cut));
-                    }
+            let repriced = match action {
+                PriceAction::Raise => Some(
+                    (b.price + b.price.mul_bp(PRICE_RAISE_BP).max(min_step)).min(PRICE_CEILING),
+                ),
+                PriceAction::CutHeavy => Some(
+                    (b.price - b.price.mul_bp(PRICE_CUT_HEAVY_BP).max(min_step)).max(PRICE_FLOOR),
+                ),
+                PriceAction::CutLight => Some(
+                    (b.price - b.price.mul_bp(PRICE_CUT_LIGHT_BP).max(min_step)).max(PRICE_FLOOR),
+                ),
+                PriceAction::Hold => None,
+            };
+            if let Some(p) = repriced {
+                if p != b.price {
+                    new_price = Some((b.price, p));
                 }
             }
 

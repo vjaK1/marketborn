@@ -46,6 +46,11 @@ release tests). Never claim green without running them.
 - business books: cash identity and operating-profit arithmetic;
   uncategorized business cash flows caught by the business_books invariant
   even when total money is conserved.
+- decision engine: neutral traits reproduce the rule family; loss-making
+  businesses never cut for volume; identical conditions + different traits
+  ⇒ different choices; records render explanations with their inputs.
+- worldgen traits: same seed ⇒ same person; traits vary across the town;
+  different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each
   caught with a contextual report; out-of-band goods creation and pantry
   edits caught by goods_conservation.
@@ -80,7 +85,7 @@ release tests). Never claim green without running them.
 ### Determinism (sim-core/tests/determinism.rs)
 
 - Twin runs (seed 42, 400 ticks, 2 commands): identical manifests, final
-  hash, event streams, metrics.
+  hash, event streams, metrics, and decision sequences.
 - Different seeds diverge.
 - Commands are causal (with vs without differ).
 - Replay from command log reproduces manifests + hashes + events.

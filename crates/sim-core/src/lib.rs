@@ -14,6 +14,7 @@
 pub mod agent;
 pub mod business;
 pub mod commands;
+pub mod decision;
 pub mod events;
 pub mod goods;
 pub mod goods_ledger;
@@ -31,9 +32,10 @@ pub mod tick;
 pub mod world;
 pub mod worldgen;
 
-pub use agent::Agent;
+pub use agent::{Agent, Traits};
 pub use business::{Books, Business, BusinessKind, Recipe};
 pub use commands::{PlayerCommand, QueuedCommand};
+pub use decision::{DecisionRecord, PriceAction};
 pub use events::{Event, EventRecord};
 pub use goods::{Good, Qty};
 pub use ids::{AccountId, AgentId, BusinessId};

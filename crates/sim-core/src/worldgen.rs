@@ -5,7 +5,7 @@
 //! population. Parameters and their calibration rationale live in
 //! `docs/ECONOMIC_RULES.md` §World parameters.
 
-use crate::agent::Agent;
+use crate::agent::{Agent, Traits};
 use crate::business::{Books, Business, BusinessKind, Recipe};
 use crate::events::Event;
 use crate::goods::{Good, Qty};
@@ -278,6 +278,22 @@ pub fn generate(config: WorldConfig) -> World {
         let first = FIRST_NAMES[rng.gen_range(0..FIRST_NAMES.len())];
         let last = LAST_NAMES[rng.gen_range(0..LAST_NAMES.len())];
         let id = AgentId(i);
+        // Personality from a dedicated per-agent substream: rolls in Traits
+        // field order; adding features elsewhere never reshuffles who
+        // someone is (DECISIONS.md #002 discipline).
+        let mut trng = substream(config.master_seed, "traits", u64::from(i), 0);
+        let mut roll = || trng.gen_range(0..=100u8);
+        let traits = Traits {
+            risk_tolerance: roll(),
+            time_preference: roll(),
+            loyalty: roll(),
+            honesty: roll(),
+            ambition: roll(),
+            aggression: roll(),
+            patience: roll(),
+            empathy: roll(),
+            greed: roll(),
+        };
         agents.insert(
             id,
             Agent {
@@ -288,6 +304,7 @@ pub fn generate(config: WorldConfig) -> World {
                 employer: None,
                 owns: None,
                 owns_home: false,
+                traits,
                 hungry_streak: 0,
                 days_unemployed: 0,
                 total_earned: Money::ZERO,
@@ -452,6 +469,25 @@ mod tests {
         assert_eq!(w.state.agents.len(), 10);
         assert_eq!(w.state.businesses.len(), 9);
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn traits_are_deterministic_and_vary_across_agents() {
+        let a = generate(WorldConfig::default_with_seed(42));
+        let b = generate(WorldConfig::default_with_seed(42));
+        let first = *a.state.agents.keys().next().unwrap();
+        assert_eq!(
+            a.state.agents[&first].traits, b.state.agents[&first].traits,
+            "same seed, same person"
+        );
+        let distinct: std::collections::BTreeSet<u8> =
+            a.state.agents.values().map(|ag| ag.traits.greed).collect();
+        assert!(distinct.len() > 3, "greed must vary across the town");
+        let c = generate(WorldConfig::default_with_seed(43));
+        assert_ne!(
+            a.state.agents[&first].traits, c.state.agents[&first].traits,
+            "different seed, different person (overwhelmingly likely)"
+        );
     }
 
     #[test]

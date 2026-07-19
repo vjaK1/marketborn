@@ -60,6 +60,18 @@ fn twin_runs_produce_identical_hashes_and_events() {
     );
     assert_eq!(event_stream(&a), event_stream(&b), "event sequences");
     assert_eq!(a.journal.metrics, b.journal.metrics, "metrics series");
+    assert!(
+        !a.journal.decisions.is_empty(),
+        "price reviews must journal decision records"
+    );
+    let decisions = |w: &sim_core::World| -> Vec<(u64, u32, sim_core::PriceAction)> {
+        w.journal
+            .decisions
+            .iter()
+            .map(|d| (d.tick, d.business.0, d.chosen))
+            .collect()
+    };
+    assert_eq!(decisions(&a), decisions(&b), "decision sequences");
 }
 
 #[test]

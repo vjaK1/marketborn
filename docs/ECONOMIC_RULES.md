@@ -170,17 +170,18 @@ Daily:
 
 On review day (`(tick + id) % 7 == 0`):
 
-- **Price** for the sold good: ≥ 2 stockout days in the window → raise by
-  7% (700 bp, min 1¢). Stock > 8 days of expected sales → cut 5%; > 6 days →
-  cut 2% (strictly above the 5-day production buffer, so a normal full
-  buffer never reads as glut — DECISIONS.md #015). Otherwise, **idle-capacity cut**: if the review window was not
-  loss-making and expected sales × 2 < bare-handed capacity (workers ×
-  batches-per-worker × output-per-batch — tool bonus excluded), cut 2% to
-  chase volume. This is the downward corrective a single-seller stage
-  otherwise lacks: produce-to-target contracts supply alongside shrinking
-  demand, so a monopolist would ratchet upward forever without ever gluting
-  (DECISIONS.md #014). Floor 10¢, mechanical ceiling $100,000/unit. Window
-  counters reset.
+- **Price** for the sold good (Phase 2: utility-scored through the
+  decision engine — DECISIONS.md #019): the owner scores
+  {raise 7%, cut 5%, cut 2%, hold} and takes the maximum (ties break in
+  that order). Neutral traits reproduce the rule family: raise on ≥ 2
+  stockout days; heavy cut above 8 days of stock; light cut above 6 days
+  (strictly above the 5-day buffer — #015) or, from a profitable window,
+  below ~50% bare-handed utilization (the anti-monopolist corrective —
+  #014; tool bonus excluded). Greed shifts the raise threshold ±0.4 days
+  and weights it; aggression shifts the idle-cut threshold between 42% and
+  58% utilization — narrow bands by design (#019). Every review journals a
+  `DecisionRecord` with all scores and inputs. Steps stay integer with
+  explicit floors/ceilings (10¢ / $100,000). Window counters reset.
 - **Wage**: vacancies unfilled ≥ 7 days **and** a non-negative window profit
   → raise 5% (a loss-making business bidding wages up while broke is the
   death-spiral input, not competition). Fully staffed and the 7-day window

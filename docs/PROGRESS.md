@@ -5,6 +5,60 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits + scored price review)
+
+### What was built
+
+- **Traits** (AGENT_DESIGN.md): nine personality dimensions per agent,
+  integer 0–100, rolled from a dedicated per-agent `"traits"` substream in
+  fixed field order (adding features elsewhere never reshuffles who
+  someone is).
+- **Decision engine core** (`decision.rs`, DECISIONS #019): utility scores
+  (the one sanctioned float zone) over {raise, cut hard, cut, hold};
+  enum-order tie-breaks encode the old cascade priority; neutral traits
+  reproduce the Phase 1 rule family exactly. Greed and aggression act in
+  **narrow threshold bands** (raise ±0.4 stockout-days; idle-cut between
+  42–58% utilization) — traits decide ambiguous calls, never clear ones.
+- **The price review runs through the engine**; every review journals a
+  `DecisionRecord` (inputs, all scores, choice) that renders its own
+  explanation for the future agent inspector. Records are outputs: saved,
+  never hashed, never read back; ring-capped at 10k.
+- Twin-run determinism now asserts decision-sequence equality.
+
+### Verification (all run this session)
+
+- All suites green: 71 sim-core unit (5 engine + traits tests new) +
+  determinism + industry/construction/scale integration + persistence;
+  `npm run check` and `check:full` exit 0.
+- **Seeds are economically distinct for the first time** (RNG previously
+  only named agents). Three-seed soaks (42/7/123) all hold the year-10
+  food core (13 employed each) with genuinely different histories — food
+  $6.49 / $6.92 / $4.56, different year-1 staffing paths.
+- Calibration lesson recorded in #019: wide trait bands (idle-cut at ±20
+  points of utilization) let timid owners cut at healthy mill utilization
+  and deflated two of three towns to collapse; the shipped bands are
+  deliberately narrow.
+
+### Exact next task (Phase 2 continuation)
+
+1. **Household job decisions on the engine**: job switching with
+   reservation wages (quit for better pay; traits weight loyalty vs
+   ambition), replacing take-first-offer matching — the labor-mobility
+   mechanic that lets wages equilibrate (workers currently starve on $7
+   while food costs more, with no pressure on employers).
+2. Then **business entry/exit** (the fix for all three flagged
+   limitations: dead industry/construction restart, farm-monopoly
+   competition) — a wealthy agent founds or revives a business where
+   standing unmet demand persists; design against AGENT_DESIGN.md and
+   record the ADR.
+3. Then memory, relationships, reputation, and the agent inspector
+   (surfacing DecisionRecords is the inspector's first job).
+4. Soak checkpoints after every economy change: seeds 42/7/123 at
+   365/1500/3650 plus `--population 100`; on surprises dump
+   `sim-cli metrics <save> --csv`.
+
+---
+
 ## Session 2 — 2026-07-19 — Phase 1: COMPLETE
 
 ### Where the project stands

@@ -374,3 +374,33 @@ with every-tick invariant sweeps. At 100 agents the first year shows real
 multi-firm competition (a bakery fails while three thrive; the lone tool
 factory prices as a monopolist). The 1,000-agent perf world now builds
 ~190 businesses and still runs ten sim years in 0.82 s release.
+
+## 019 — Decision engine v1: utility-scored price review, traits in narrow threshold bands
+
+**Context.** Phase 2 requires a deterministic utility-based decision engine
+with stored, explainable records (AGENT_DESIGN.md). Rather than build it in
+the abstract, it takes over one real decision first — the weekly price
+review — so the engine wraps verified behavior before new actions arrive.
+
+**Decision.** Agents carry nine personality traits (integer 0–100, rolled
+from a dedicated per-agent `"traits"` substream in fixed field order).
+`decision::score_price_action` scores {Raise, CutHeavy, CutLight, Hold} —
+floats, the one sanctioned float zone; ties break by enum order, which
+encodes the old cascade's priority. Neutral traits (50) reproduce the
+Phase 1 rule family exactly. Traits act two ways: multiplicative weights
+settle conflicts between competing signals, and **narrow threshold bands**
+make personality matter on ordinary days — greed slides the stockout-raise
+threshold ±0.4 days, aggression slides the idle-capacity cut threshold
+between 42% and 58% utilization. Every review journals a `DecisionRecord`
+(inputs, all scores, choice) with an `explanation()` renderer for the
+inspector; records are outputs — saved, never hashed, never read back.
+Twin-run determinism now asserts decision-sequence equality.
+
+**Consequences.** Seeds are economically distinct for the first time (RNG
+previously only named people): three seeds soak to year ten with the food
+core staffed and food prices ranging $4.56–$6.92. Band width is a hard
+lesson recorded here: at ±20 points of utilization, timid owners cut at
+healthy mill utilization and two of three towns deflated to collapse —
+traits must decide the ambiguous calls, never the clear ones. Wage and
+dividend reviews stay rule-based, moving onto the engine in later
+increments alongside new actions (job switching, entry/exit).

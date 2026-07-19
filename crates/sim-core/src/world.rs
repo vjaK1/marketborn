@@ -3,6 +3,7 @@
 use crate::agent::Agent;
 use crate::business::Business;
 use crate::commands::{CommandError, PlayerCommand, QueuedCommand};
+use crate::decision::DecisionRecord;
 use crate::events::{Event, EventRecord};
 use crate::goods::{Good, Qty};
 use crate::ids::{AgentId, BusinessId};
@@ -18,6 +19,7 @@ use std::collections::{BTreeMap, VecDeque};
 pub const MAX_EVENTS_IN_MEMORY: usize = 50_000;
 pub const MAX_TX_IN_MEMORY: usize = 10_000;
 pub const MAX_METRICS_IN_MEMORY: usize = 4_000;
+pub const MAX_DECISIONS_IN_MEMORY: usize = 10_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SimStatus {
@@ -98,6 +100,11 @@ pub struct Journal {
     pub transactions: VecDeque<Transaction>,
     pub next_tx_seq: u64,
     pub metrics: VecDeque<MetricsDay>,
+    /// Utility-engine decision records (Phase 2): why each scored choice
+    /// was made. Outputs — saved, surfaced in the inspector, never hashed,
+    /// never read back by simulation logic.
+    pub decisions: VecDeque<DecisionRecord>,
+    pub next_decision_seq: u64,
     /// `(tick, blake3 hex)` pairs on the hash cadence.
     pub manifest: Vec<(u64, String)>,
 }
@@ -120,6 +127,16 @@ impl Journal {
         self.metrics.push_back(day);
         if self.metrics.len() > MAX_METRICS_IN_MEMORY {
             self.metrics.pop_front();
+        }
+    }
+
+    /// Journal a decision record, assigning its sequence number.
+    pub fn push_decision(&mut self, mut record: DecisionRecord) {
+        record.seq = self.next_decision_seq;
+        self.next_decision_seq += 1;
+        self.decisions.push_back(record);
+        if self.decisions.len() > MAX_DECISIONS_IN_MEMORY {
+            self.decisions.pop_front();
         }
     }
 }
