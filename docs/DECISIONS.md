@@ -245,3 +245,45 @@ economy: both farms, the mill and the bakery staffed throughout, food back
 near start price, hunger confined to the structurally unemployed. These are
 behavioral rules, not subsidies — a profitable monopolist still charges
 what the market bears; it just also competes with its own idle capacity.
+
+## 015 — Food spoilage: proportional per-holder decay, perishable buffers, and the glut-boundary bug
+
+**Context.** Phase 1's inventory work requires food spoilage. Cohort (FIFO
+age) tracking would blow up the scalar inventory model, complicate market
+execution, and bloat hashes for little Phase 1 value. And spoilage
+interacts hard with two existing rules: the produce-to-target buffer and
+the glut price signal.
+
+**Decision.** Per-good daily decay in basis points (`Good::spoilage_bp` —
+food 400, everything else durable), applied per holder at the end of the
+consumption phase, rounding toward zero: **the sub-unit remainder stays
+fresh**, so pantry-scale stocks never rot. Burns go through the goods
+ledger (conservation targets stay exact) and are journaled per good in
+metrics. Producers of perishables target `PERISHABLE_TARGET_DAYS (2) + 1`
+days of stock instead of the durable 4 + 1.
+
+Two calibration findings are locked in with this ADR, both discovered by
+time-series analysis (`sim-cli metrics`, added for this purpose):
+
+1. *The glut-boundary bug*: the durable production buffer (5 days) equalled
+   the light-glut threshold (> 5 days), so every fully-buffered producer
+   flirted with weekly 2% cuts and — once spoilage tightened demand flows —
+   deflated wheat to the floor over years. `GLUT_LIGHT_DAYS` is now 6: the
+   signal sits strictly above the normal buffer.
+2. *The larder rule*: a 1-day perishable buffer is thinner than the supply
+   chain's own oscillation (the mill's 3-day input-batch buying), producing
+   a recurring town-wide empty-shelf day; when two outage beats landed
+   close together the mill — the thinnest-margin stage — bled out and the
+   chain unzipped. The perishable buffer must cover the upstream
+   oscillation period: 2 + 1 days, whose ~2-3 units/day of rot is a minor
+   cost at bakery margins.
+
+**Consequences.** Year one is fully healthy and year four shows both farms
+alive with real larders everywhere; the ten-year equilibrium is the
+familiar harsh one (one farm dead, the survivor pricing as a monopolist,
+structural hunger) — the Phase 2 entry/mobility work is what upgrades that
+ending. Spoilage adds a steady replacement-demand flow (rot must be
+rebaked) that slightly deepens the wheat/flour markets. Save blobs from
+before this ADR are incompatible (`MetricsDay` gained fields; metrics now
+carry per-business daily series for analysis and the future business
+inspector).

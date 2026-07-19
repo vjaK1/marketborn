@@ -56,6 +56,14 @@ enum Cmd {
         #[arg(long, default_value_t = 3)]
         context: u64,
     },
+    /// Dump the per-day metrics journal of a save as CSV (aggregates plus
+    /// per-business series) for offline time-series analysis.
+    Metrics {
+        save: PathBuf,
+        /// Output CSV path. Defaults to stdout.
+        #[arg(long)]
+        csv: Option<PathBuf>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -72,6 +80,7 @@ fn main() -> ExitCode {
         Cmd::Replay { save } => cmd_replay(&save),
         Cmd::Hash { save, at } => cmd_hash(&save, at),
         Cmd::Diff { a, b, context } => cmd_diff(&a, &b, context),
+        Cmd::Metrics { save, csv } => cmd_metrics(&save, csv.as_deref()),
     };
     match result {
         Ok(code) => code,
@@ -234,6 +243,83 @@ fn cmd_hash(save: &Path, at: Option<u64>) -> Result<ExitCode, String> {
             let hash = world.state_hash().map_err(|e| e.to_string())?;
             println!("tick {:>6}  {hash}", world.state.tick);
         }
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
+    let world = sim_persist::load(save).map_err(|e| e.to_string())?;
+    let mut biz_ids: Vec<_> = world.state.businesses.keys().copied().collect();
+    biz_ids.sort();
+
+    let mut out = String::new();
+    out.push_str(
+        "tick,employed,unemployed,hungry,household_cash,business_cash,food_consumed,food_produced",
+    );
+    for good in Good::ALL {
+        let g = good.name().replace(' ', "_");
+        out.push_str(&format!(",{g}_price,{g}_volume,{g}_unmet,{g}_spoiled"));
+    }
+    for bid in &biz_ids {
+        let b = bid.0;
+        out.push_str(&format!(
+            ",b{b}_cash,b{b}_workers,b{b}_price,b{b}_sold,b{b}_produced,b{b}_stock"
+        ));
+    }
+    out.push('\n');
+
+    for day in &world.journal.metrics {
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{},{}",
+            day.tick,
+            day.employed,
+            day.unemployed,
+            day.hungry,
+            day.household_cash.cents(),
+            day.business_cash.cents(),
+            day.food_consumed,
+            day.food_produced
+        ));
+        for good in Good::ALL {
+            let price = day
+                .avg_price
+                .get(&good)
+                .copied()
+                .flatten()
+                .map(|p| p.cents().to_string())
+                .unwrap_or_default();
+            let volume = day.volume.get(&good).copied().unwrap_or(0);
+            let unmet = day.unmet_demand.get(&good).copied().unwrap_or(0);
+            let spoiled = day.spoiled.get(&good).copied().unwrap_or(0);
+            out.push_str(&format!(",{price},{volume},{unmet},{spoiled}"));
+        }
+        for bid in &biz_ids {
+            match day.businesses.get(bid) {
+                Some(b) => out.push_str(&format!(
+                    ",{},{},{},{},{},{}",
+                    b.cash.cents(),
+                    b.workers,
+                    b.price.cents(),
+                    b.sold,
+                    b.produced,
+                    b.stock
+                )),
+                None => out.push_str(",,,,,,"),
+            }
+        }
+        out.push('\n');
+    }
+
+    match csv {
+        Some(path) => {
+            std::fs::write(path, &out).map_err(|e| e.to_string())?;
+            println!(
+                "wrote {} metric days to {}",
+                world.journal.metrics.len(),
+                path.display()
+            );
+        }
+        None => print!("{out}"),
     }
     Ok(ExitCode::SUCCESS)
 }

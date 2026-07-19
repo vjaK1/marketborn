@@ -31,12 +31,14 @@ release tests). Never claim green without running them.
   overpriced tools refused (unmet demand recorded); comfortable households
   shop for the second meal.
 - production: capacity-bound, input-bound, stops at inventory target;
-  equipped workers produce the tool bonus; tools wear out and burn through
-  the goods ledger; no tools ⇒ no bonus, no wear.
+  perishable output targets the smaller larder buffer; equipped workers
+  produce the tool bonus; tools wear out and burn through the goods
+  ledger; no tools ⇒ no bonus, no wear.
 - labor: daily payroll pays every worker; broke business ⇒ missed payroll
   event + workers quit; deterministic vacancy matching.
 - consumption: pantry decrement, hunger streaks + events; comfort meal for
-  the wealthy, never into hunger.
+  the wealthy, never into hunger; perishables spoil toward zero through the
+  goods ledger; durable goods and small stocks untouched.
 - decisions: stockout ⇒ price raise; glut ⇒ cut toward floor; idle
   capacity ⇒ cut without glut/stockout; cash crunch fires LIFO; rich
   business pays owner dividend (conserving).
@@ -92,13 +94,15 @@ release tests). Never claim green without running them.
 
 Every session that touches the UI or shell: launch the app (or E2E path) and
 watch real behavior before claiming it works. CLI runs double as headless
-smoke tests (`sim-cli run --seed … --ticks 3650`).
+smoke tests (`sim-cli run --seed … --ticks 3650`). Economy changes get
+soak checkpoints (years 1/4/10) plus `sim-cli metrics <save> --csv` for
+day-by-day time-series analysis — end-state snapshots hide limit cycles.
 
 ## Growth map (when phases land)
 
 - **Phase 1**: ~~goods-conservation reconciliation~~ ✅ ·
-  ~~ore→steel→tools→farm productivity integration test~~ ✅ · spoilage
-  (still to come).
+  ~~ore→steel→tools→farm productivity integration test~~ ✅ ·
+  ~~spoilage~~ ✅.
 - **Phase 2**: utility scoring units; decision-record storage;
   `probe_reputation`.
 - **Phase 3**: contract lifecycle integration; default→foreclosure;

@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity
+## Session 2 — 2026-07-19 — Phase 1: industry chain, goods conservation, tools→productivity, spoilage
 
 ### Where the project stands
 
@@ -13,9 +13,11 @@ Phase 1 is underway. The industry chain (mine → steelworks → tool factory)
 exists end to end behind the same recipe/market machinery as the food
 chain; tools raise extraction productivity and wear out; goods conservation
 is invariant-checked every sweep; the Phase 1 acceptance centerpiece
-(ore→steel→tools→farm-productivity integration test) passes. Still to come
-in Phase 1: spoilage, construction goods, business accounting (P&L /
-balance sheet), market view v1, and the 100-agent/20-business scale-up.
+(ore→steel→tools→farm-productivity integration test) passes; food spoils
+(DECISIONS #015) and `sim-cli metrics` dumps per-day time series (incl.
+per-business columns) for economy analysis. Still to come in Phase 1:
+construction goods, business accounting (P&L / balance sheet), market view
+v1, and the 100-agent/20-business scale-up.
 
 ### What was built
 
@@ -44,33 +46,49 @@ balance sheet), market view v1, and the 100-agent/20-business scale-up.
   the reference palette, validated as a set on this surface; series carry
   direct end labels + legend as the CVD floor-band mitigation); tool stock
   shows in the business rows.
+- **Spoilage + telemetry** (DECISIONS #015): food decays 4%/day per holder
+  toward zero (remainder stays fresh — pantries never rot), burned through
+  the goods ledger, tracked per good in metrics; perishable producers hold
+  a 2+1-day larder (covers the mill's 3-day supply oscillation); the
+  glut-boundary bug fixed (`GLUT_LIGHT_DAYS` 6 — strictly above the normal
+  5-day buffer, which previously made every healthy producer bleed weekly
+  price cuts). `MetricsDay` gained per-business daily series and
+  `sim-cli metrics <save> --csv` dumps the whole journal — end-state
+  snapshots hide limit cycles; this is how the empty-shelf heartbeat and
+  the mill's death were actually diagnosed.
 - **Docs**: ECONOMIC_RULES rewritten for Phase 1 (tool rules, comfort rule,
   utilization pricing, new parameter table with the closed-loop audit);
   DECISIONS #012–#014; TEST_PLAN and PERF_RESULTS updated.
 
 ### Actual verification results (all run this session)
 
-- `npm run check`: **exit 0**. 58 sim-core unit + 4 determinism + 1
+- `npm run check`: **exit 0**. 61 sim-core unit + 4 determinism + 1
   industry-integration + 3 sim-cli + 7 persistence tests green; vitest
   11/11; fmt/clippy/tsc clean.
 - `npm run check:full` (release, `--include-ignored`, incl. soak_1500):
-  **exit 0**.
+  **exit 0**. (One earlier run hit a transient Windows link-lock on the
+  shell's test binary — same AV behavior as session 1's zero-byte save;
+  identical target built clean on immediate retry.)
 - Integration centerpiece green in debug (invariants every tick, 180 days):
   ore/steel/tool purchases at every stage, bonus production observed, wear
   destroys tools, per-good + money conservation exact.
-- Headless soaks (release, seed 42 — runtime economics are currently
-  seed-invariant, RNG only names agents): **year 1** fully healthy — 16
-  employed, 9 hungry, all seven businesses staffed and solvent, tools
-  trading at $22. **Year 10** — food chain fully staffed (both farms, no
-  monopoly die-off), food $5.24 ≈ start price, 13 employed, hunger confined
-  to the structurally unemployed; money conserved at $16,200 throughout.
+- Headless soaks with final calibration (release, seed 42 — runtime
+  economics are currently seed-invariant, RNG only names agents):
+  **year 1** fully healthy — 16 employed, 11 hungry, all seven businesses
+  staffed and solvent, tools trading at $22, bakery holding a 27-food
+  larder. **Year 4** — 13 employed, both farms alive, food $5.49 ≈ start
+  price. **Year 10** — chain alive in the harsh equilibrium: mill, bakery
+  and one farm staffed (10 employed), the surviving farm pricing as a
+  monopolist (~4× prices), structural hunger; money conserved at $16,200
+  throughout, all invariants green.
 - App launched and inspected (screenshots): live dashboard at Y1·D153 with
   6-series chart, 7-business table (industry profitable), industry
-  dividends and wage adjustments in the event log.
+  dividends and wage adjustments in the event log. (Pre-spoilage build;
+  spoilage changed no UI surface.)
 - Perf recorded: 1,000 agents × 3,650 ticks in 0.19 s release
   (PERF_RESULTS.md).
 
-### Flagged limitation (deliberate, recorded — not silent scope reduction)
+### Flagged limitations (deliberate, recorded — not silent scope reduction)
 
 **Industry-chain long-run persistence.** The chain is healthy through year
 one but dies during multi-month wheat-price troughs (tool demand pauses
@@ -78,9 +96,15 @@ below the three shops' cash runway; dead businesses have no restart path).
 Root causes and fix paths are analyzed in DECISIONS #013: business entry
 (Phase 2), credit bridging illiquidity (Phase 3), demand stabilizers
 (Phase 4). Phase 1's remaining work does not depend on decade-scale
-industry persistence; revisit when those mechanics land. Eight calibration
-collapses were diagnosed to first causes on the way to the current
-parameter set — the audit trail lives in #013/#014.
+industry persistence; revisit when those mechanics land.
+
+**Late-game farm monopoly.** One farm dies somewhere in years 4–8 (a
+knife-edge cash event during a demand trough) and the survivor prices at
+~4× — alive and stable, but harsh. Same fix family: entry restores
+competition. Roughly ten calibration collapses were diagnosed to first
+causes across this session — the audit trail lives in DECISIONS
+#013/#014/#015, and the `sim-cli metrics` CSV workflow is the tool for the
+next round.
 
 ### Breaking-save-change note (pre-1.0 policy)
 
@@ -90,16 +114,18 @@ shift. schema_version stays 1; no released saves exist.
 
 ### Exact next task (Phase 1 continuation)
 
-1. Food **spoilage** (TEST_PLAN reserves it): perishable pantry/inventory
-   food with deterministic decay through the goods ledger (burn with an
-   explicit reason), invariant-covered; calibrate so pantries/backstock
-   can't hoard indefinitely.
-2. Then **business accounting** (P&L, balance sheet, cash flow statements
-   per business, fed from the existing revenue/cost windows + ledger) — the
-   basis for the Phase 1 "market view v1" and later bank credit scoring.
-3. When touching the economy, use the soak checkpoints
-   (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and watch the
-   year-1 health bar: all 7 staffed, hungry < 10, prices near start.
+1. **Business accounting**: per-business P&L, balance sheet and cash-flow
+   statement, fed from the existing revenue/cost windows, the transaction
+   journal and inventory valuation — the basis for the Phase 1 "market
+   view v1" and later bank credit scoring (Phase 3). Surface it in the
+   snapshot/business rows.
+2. Then **market view v1** (per-good depth: offers, orders, unmet demand,
+   spoilage) and the construction-goods chain per BRIEF.md.
+3. When touching the economy, verify with the soak checkpoints
+   (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and, on any
+   surprise, dump `sim-cli metrics <save> --csv` and read the day-by-day
+   series — end states hide limit cycles. Year-1 health bar: all 7
+   staffed, hungry ≤ ~11, prices near start.
 
 Session protocol reminder: `npm run check` first — green at this commit on
 `main`.

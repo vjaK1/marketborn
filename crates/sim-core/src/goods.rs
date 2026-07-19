@@ -44,6 +44,21 @@ impl Good {
             Good::Tools => "tools",
         }
     }
+
+    /// Daily spoilage rate in basis points of each holder's stock, rounded
+    /// toward zero per holder per day (the sub-unit remainder stays fresh —
+    /// small stocks like pantries never rot). 0 = durable. Grains keep;
+    /// prepared food does not (ECONOMIC_RULES.md §Consumption).
+    pub fn spoilage_bp(self) -> i64 {
+        match self {
+            Good::Food => 400,
+            Good::Wheat | Good::Flour | Good::IronOre | Good::Steel | Good::Tools => 0,
+        }
+    }
+
+    pub fn is_perishable(self) -> bool {
+        self.spoilage_bp() > 0
+    }
 }
 
 impl fmt::Display for Good {

@@ -27,7 +27,7 @@ Every tick executes exactly this sequence:
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools (see §Markets). |
 | 6 | Contract settlement | *[activates: Phase 3]* |
 | 7 | Banking | *[activates: Phase 3]* |
-| 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal (see §Consumption). |
+| 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
 | 10 | Memory & relationships | *[activates: Phase 2]* |
 | 11 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
@@ -74,9 +74,9 @@ current business inventory (equivalent to refreshing standing offers):
      per batch` — the marginal-revenue cap that damps cost-push spirals
      (DECISIONS.md #011).
    - *Tool users* order up to one tool per current worker. Gates: no order
-     while sitting on unsold output (`stock of the sold good > 5 ×
-     expected sales` — the light-glut threshold; no capital spending while
-     glutted), and none when the bonus rounds to zero batches. Urgency is
+     while sitting on unsold output (stock of the sold good above the
+     light-glut threshold — no capital spending while glutted), and none
+     when the bonus rounds to zero batches. Urgency is
      always 1 (efficiency good, never survival). Willingness to pay:
      `TOOL_REVENUE_SHARE_BP (9000) × bonus output per equipped worker-day ×
      output price × TOOL_LIFE_WORKER_DAYS` — the capital-goods analogue of
@@ -141,6 +141,17 @@ surplus accumulates forever and aggregate demand decays into a deflationary
 collapse (DECISIONS.md #014). There is still no mortality or welfare;
 structural unemployment produces visible hunger — by design.
 
+**Spoilage** (end of the consumption phase). Every holder loses
+`spoilage_bp` of each perishable stock per day — food: 400 bp (4%) — with
+the per-holder amount rounding toward zero; the sub-unit remainder
+**explicitly stays fresh** (small stocks like pantries never rot). Burns go
+through the goods ledger (conservation targets stay exact) and are recorded
+per good in metrics. All other goods are durable. Consequences are priced
+into production: perishable output targets `PERISHABLE_TARGET_DAYS (2) + 1`
+days instead of the durable `OUTPUT_TARGET_DAYS (4) + 1` — big enough to
+bridge the upstream 3-day input-batch supply oscillation, small enough that
+daily rot stays a minor cost (DECISIONS.md #015).
+
 ## Decisions (Phase 0: business owners)
 
 Daily:
@@ -156,8 +167,9 @@ Daily:
 On review day (`(tick + id) % 7 == 0`):
 
 - **Price** for the sold good: ≥ 2 stockout days in the window → raise by
-  7% (700 bp, min 1¢). Stock > 8 days of expected sales → cut 5%; > 5 days →
-  cut 2%. Otherwise, **idle-capacity cut**: if the review window was not
+  7% (700 bp, min 1¢). Stock > 8 days of expected sales → cut 5%; > 6 days →
+  cut 2% (strictly above the 5-day production buffer, so a normal full
+  buffer never reads as glut — DECISIONS.md #015). Otherwise, **idle-capacity cut**: if the review window was not
   loss-making and expected sales × 2 < bare-handed capacity (workers ×
   batches-per-worker × output-per-batch — tool bonus excluded), cut 2% to
   chase volume. This is the downward corrective a single-seller stage
@@ -192,6 +204,8 @@ in later phases, but changes must be recorded (they shift every hash).
 | Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
 | Comfort floor | $400.00 cash → second daily meal |
 | Consumption | 1 food per agent per day (2 above the comfort floor) |
+| Spoilage | food 4%/day per holder, toward zero (remainder stays fresh); all other goods durable |
+| Output buffers | durable 4+1 days · perishable 2+1 days · light-glut signal strictly above at >6 days |
 
 Calibration rationale (every line audited against the closed loop; see
 DECISIONS.md #013/#014 for the failure modes that shaped it):

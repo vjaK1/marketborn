@@ -2,10 +2,12 @@
 //! day (burned through the goods ledger), or goes hungry (tracked and
 //! reported). Wealthy agents take a second, comfort meal — the channel that
 //! returns idle household savings to circulation (DECISIONS.md #014).
+//! After everyone has eaten, perishable stocks spoil (DECISIONS.md #015).
 
 use crate::events::Event;
+use crate::goods::Good;
 use crate::goods_ledger;
-use crate::ids::AgentId;
+use crate::ids::{AgentId, BusinessId};
 use crate::metrics::DayAccumulator;
 use crate::money::Money;
 use crate::world::{Journal, SimState};
@@ -51,6 +53,44 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64, acc: &mut Day
         }
         if a.is_job_seeker() {
             a.days_unemployed += 1;
+        }
+    }
+    spoil(state, acc);
+}
+
+/// End-of-day spoilage: each holder loses `spoilage_bp` of every perishable
+/// stock, rounded toward zero per holder per day — the sub-unit remainder
+/// explicitly stays fresh, so small stocks (pantries) never rot. Burns go
+/// through the goods ledger, keeping the conservation targets exact.
+fn spoil(state: &mut SimState, acc: &mut DayAccumulator) {
+    let perishables: Vec<Good> = Good::ALL
+        .into_iter()
+        .filter(|g| g.is_perishable())
+        .collect();
+    let business_ids: Vec<BusinessId> = state.businesses.keys().copied().collect();
+    for bid in business_ids {
+        for good in &perishables {
+            let stock = match state.businesses.get(&bid) {
+                Some(b) => b.stock(*good),
+                None => continue,
+            };
+            let spoiled = stock * good.spoilage_bp() / 10_000;
+            if spoiled > 0 {
+                goods_ledger::consume_stock(state, bid, *good, spoiled);
+                *acc.spoiled.entry(*good).or_insert(0) += spoiled;
+            }
+        }
+    }
+    let agent_ids: Vec<AgentId> = state.agents.keys().copied().collect();
+    for aid in agent_ids {
+        let pantry = match state.agents.get(&aid) {
+            Some(a) => a.pantry,
+            None => continue,
+        };
+        let spoiled = pantry * Good::Food.spoilage_bp() / 10_000;
+        if spoiled > 0 {
+            goods_ledger::consume_pantry(state, aid, spoiled);
+            *acc.spoiled.entry(Good::Food).or_insert(0) += spoiled;
         }
     }
 }
@@ -116,6 +156,64 @@ mod tests {
         assert_eq!(w.state.agents[&ids[1]].pantry, 0, "one meal, no hunger");
         assert_eq!(w.state.agents[&ids[1]].hungry_streak, 0);
         assert_eq!(w.state.agents[&ids[2]].pantry, 2, "poor eat once");
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    fn resync_goods_targets(w: &mut World) {
+        for good in Good::ALL {
+            let total = w.state.total_goods(good);
+            w.state.expected_total_goods.insert(good, total);
+        }
+    }
+
+    #[test]
+    fn perishable_stocks_spoil_toward_zero_through_the_ledger() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(2));
+        let bakery = w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Food)
+            .map(|b| b.id)
+            .unwrap();
+        {
+            let b = w.state.businesses.get_mut(&bakery).unwrap();
+            b.inventory.clear();
+            b.add_stock(Good::Food, 100);
+            b.add_stock(Good::Flour, 100);
+        }
+        resync_goods_targets(&mut w);
+        let mut acc = DayAccumulator::default();
+        run(&mut w.state, &mut w.journal, 1, &mut acc);
+        let b = &w.state.businesses[&bakery];
+        assert_eq!(b.stock(Good::Food), 96, "4% of 100 spoils");
+        assert_eq!(b.stock(Good::Flour), 100, "flour is durable");
+        assert_eq!(acc.spoiled[&Good::Food], 4);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn small_perishable_stocks_stay_fresh() {
+        // 24 × 4% = 0.96 rounds toward zero: the remainder stays fresh, so
+        // pantry-scale stocks never rot.
+        let mut w = World::from_config(WorldConfig::default_with_seed(2));
+        let bakery = w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Food)
+            .map(|b| b.id)
+            .unwrap();
+        {
+            let b = w.state.businesses.get_mut(&bakery).unwrap();
+            b.inventory.clear();
+            b.add_stock(Good::Food, 24);
+        }
+        resync_goods_targets(&mut w);
+        let mut acc = DayAccumulator::default();
+        run(&mut w.state, &mut w.journal, 1, &mut acc);
+        assert_eq!(w.state.businesses[&bakery].stock(Good::Food), 24);
+        assert!(acc.spoiled.get(&Good::Food).copied().unwrap_or(0) == 0);
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
     }
 }

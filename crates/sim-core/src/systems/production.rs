@@ -9,8 +9,21 @@ use crate::goods_ledger;
 use crate::ids::BusinessId;
 use crate::world::SimState;
 
-/// Producers aim to hold this many days of expected sales in finished goods.
+/// Producers aim to hold this many days of expected sales in finished
+/// goods (the produced buffer is this plus today's sales). The total
+/// buffer (5 days) must sit strictly inside the light-glut threshold
+/// (6 days) — a buffer equal to the glut line makes every healthy
+/// producer flirt with weekly price cuts and slowly deflate itself to
+/// the floor (DECISIONS.md #015).
 pub const OUTPUT_TARGET_DAYS: Qty = 4;
+/// Perishable producers hold a smaller buffer — a warehouse of bread is a
+/// warehouse of rot. With 4%/day spoilage, a durable-sized buffer
+/// equilibrates at a stock whose daily rot eats the whole margin. But the
+/// buffer must still cover the upstream supply oscillation (~3 days from
+/// input-batch buying): a 1-day larder gave the town a recurring
+/// empty-shelf heartbeat that eventually killed the mill
+/// (DECISIONS.md #015).
+pub const PERISHABLE_TARGET_DAYS: Qty = 2;
 
 fn ceil_div(a: Qty, b: Qty) -> Qty {
     (a + b - 1) / b
@@ -34,8 +47,14 @@ pub fn run(state: &mut SimState) {
             let expected = b.expected_daily_sales();
             let out_good = b.recipe.output.0;
             let out_per_batch = b.recipe.output.1.max(1);
-            // Cover today's expected sales and refill toward the target buffer.
-            let target = expected * OUTPUT_TARGET_DAYS + expected;
+            // Cover today's expected sales and refill toward the target
+            // buffer (smaller for perishables).
+            let buffer_days = if out_good.is_perishable() {
+                PERISHABLE_TARGET_DAYS
+            } else {
+                OUTPUT_TARGET_DAYS
+            };
+            let target = expected * buffer_days + expected;
             let current = b.stock(out_good);
             if current >= target {
                 None
@@ -167,6 +186,41 @@ mod tests {
         }
         run(&mut w.state);
         assert_eq!(w.state.businesses[&farm_id].produced_today, 0);
+    }
+
+    #[test]
+    fn perishable_output_targets_a_one_day_buffer() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(5));
+        let bakery_id = *w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Food)
+            .map(|b| &b.id)
+            .unwrap();
+        // Expects 10/day: perishable target = 10 × (2 + 1) = 30, far below
+        // the durable formula's 50.
+        {
+            let b = w.state.businesses.get_mut(&bakery_id).unwrap();
+            b.sales_ema_milli = 10_000;
+            b.inventory.clear();
+            b.add_stock(Good::Food, 30);
+            b.add_stock(Good::Flour, 100);
+        }
+        run(&mut w.state);
+        assert_eq!(
+            w.state.businesses[&bakery_id].produced_today, 0,
+            "at the perishable target: no production"
+        );
+        {
+            let b = w.state.businesses.get_mut(&bakery_id).unwrap();
+            b.add_stock(Good::Food, -30);
+        }
+        run(&mut w.state);
+        assert_eq!(
+            w.state.businesses[&bakery_id].produced_today, 30,
+            "refills exactly to the perishable buffer plus today's sales"
+        );
     }
 
     #[test]

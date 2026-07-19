@@ -33,9 +33,11 @@ const WAGE_CEILING: Money = Money::from_cents(1_000_000);
 const DIVIDEND_BUFFER_PAYROLL_DAYS: i64 = 21;
 const STOCKOUT_RAISE_THRESHOLD: u32 = 2;
 const GLUT_HEAVY_DAYS: Qty = 8;
-/// Also read by the goods market's tool-purchase gate (no capital spending
-/// while glutted).
-pub const GLUT_LIGHT_DAYS: Qty = 5;
+/// Strictly above the full production buffer (OUTPUT_TARGET_DAYS + 1 = 5
+/// days), so a producer at its normal buffer never reads as glutted
+/// (DECISIONS.md #015). Also read by the goods market's tool-purchase gate
+/// (no capital spending while glutted).
+pub const GLUT_LIGHT_DAYS: Qty = 6;
 /// Idle-capacity pricing: with no scarcity signal and sales below
 /// 1/UTILIZATION_CUT_FACTOR of capacity, cut price to win volume back.
 /// This is the downward corrective a single-seller stage otherwise lacks —
