@@ -27,10 +27,12 @@ explanations; the business **price review** runs through it (greed and
 aggression in narrow threshold bands); **labor mobility** — weekly job
 reviews with loyalty-widened switch premiums, ambition-scaled reservation
 wages decaying over a patience-scaled unemployment horizon, desperation
-override. Seeds produce economically distinct histories. Still to come:
-remaining owner reviews on the engine, business entry/exit (next — the
-counterweight to labor flight from failing firms), memory, relationships,
-reputation, the agent inspector.
+override; **entry/exit v1** — demand-gated takeover-revival of moribund
+businesses by wealthy entrepreneurs (ambition + risk tolerance), with
+equity sales through the ledger and same-tick recapitalization. Seeds
+produce economically distinct histories. Still to come: remaining owner
+reviews on the engine, founding genuinely new firms, memory,
+relationships, reputation, the agent inspector.
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

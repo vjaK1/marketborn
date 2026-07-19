@@ -44,7 +44,10 @@ release tests). Never claim green without running them.
   goods ledger; durable goods and small stocks untouched.
 - decisions: stockout ⇒ price raise; glut ⇒ cut toward floor; idle
   capacity ⇒ cut without glut/stockout; cash crunch fires LIFO; rich
-  business pays owner dividend (conserving).
+  business pays owner dividend (conserving); a wealthy entrepreneur takes
+  over a moribund business (ownership swaps, seller paid, same-tick
+  recapitalization, books reconcile through the sale); healthy firms and
+  timid money stay put.
 - business books: cash identity and operating-profit arithmetic;
   uncategorized business cash flows caught by the business_books invariant
   even when total money is conserved.

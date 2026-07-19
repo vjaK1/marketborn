@@ -22,6 +22,9 @@ pub enum TxKind {
     Dividend,
     /// Owner recapitalizes their own business from personal savings.
     OwnerInvestment,
+    /// Equity changes hands: a buyer pays a broke owner for a moribund
+    /// business (agent → agent; the business's own cash is untouched).
+    BusinessSale,
     /// Explicit money creation/destruction via player command.
     MonetaryPolicy {
         memo: String,

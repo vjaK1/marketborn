@@ -216,6 +216,26 @@ impl Business {
     pub fn vacancies(&self) -> u32 {
         (self.target_headcount as usize).saturating_sub(self.workers.len()) as u32
     }
+
+    /// Inventory valued at last market execution prices, falling back to
+    /// this business's own posted price for its sold good, else zero.
+    /// Integer and deterministic — used by takeover pricing (state logic)
+    /// and the balance-sheet view.
+    pub fn inventory_value(&self, last_prices: &BTreeMap<Good, Money>) -> Money {
+        let mut total = Money::ZERO;
+        for (good, qty) in &self.inventory {
+            let unit = last_prices
+                .get(good)
+                .copied()
+                .unwrap_or(if *good == self.sells {
+                    self.price
+                } else {
+                    Money::ZERO
+                });
+            total += unit.checked_mul_qty(*qty).unwrap_or(Money::MAX);
+        }
+        total
+    }
 }
 
 #[cfg(test)]

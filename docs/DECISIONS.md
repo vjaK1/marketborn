@@ -434,3 +434,41 @@ their year-ten cores). Labor flight from failing firms is real economics;
 the missing counterweight is business entry/exit — the next increment —
 which turns dead firms from absorbing states into vacancies for the next
 founder.
+
+## 021 — Entry/exit v1: takeover-revival of moribund businesses, demand-gated
+
+**Context.** Dead businesses were absorbing states — the root of every
+long-run degeneracy (industry-chain death, construction's post-boom idle,
+farm monopolies, and mobility's labor-flight deaths). AGENT_DESIGN's
+action space includes start/close/acquire.
+
+**Decision.** Exit is dormancy, not deletion: firms persist as buyable
+assets. Weekly, on the agent stagger, a wealthy non-owner with
+entrepreneurial appetite (ambition + risk tolerance > 120 — personality
+picks WHO founds; wealth rations) may buy the highest-asset-value
+**moribund** business — no staff, and even the sitting owner's savings
+cannot fund one hire (the owner has daily first refusal via the injection
+rule). Price is asset value (cash + inventory at market), paid owner to
+owner through the ledger (`TxKind::BusinessSale`, `BusinessSold` event,
+`Takeover` decision record); business books are untouched because the
+firm's own cash never moves. The buyer leaves any wage job, needs price +
+two hires of restart capital + a personal reserve, and the ordinary
+injection/hiring machinery restarts the firm the same tick. The seller
+becomes a job seeker — social circulation both ways.
+
+Two gate lessons are locked in. *No gate*: buyers serially acquired firms
+whose markets had no demand (dead tool factories), quitting productive
+jobs to burn savings on zombies — whole towns collapsed. *Too strict*
+(standing demand > standing offers): a dead firm's own leftover stock
+masks the coming shortage and blocks the exact revival that restores
+competition. The shipped gate is standing demand > 0 for the firm's good.
+
+**Consequences.** The best small-town matrix observed: all three seeds
+hold 13-employed year-ten cores — including seed 42, whose
+mobility-induced farm death is cured by revival restoring duopoly
+competition. **Open item**: the 100-agent town regresses at decade scale
+(≈16 → ≈6 employed by year ten) under takeover churn — chronic shortage
+keeps the gate open and frequent owner rotation appears to destabilize
+production; year-one scale acceptance is unaffected. Next session:
+per-business ownership telemetry, then likely a takeover cooldown or a
+scale-aware gate.

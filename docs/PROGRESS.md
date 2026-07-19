@@ -5,7 +5,7 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits, scored price review, labor mobility)
+## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits, scored price review, labor mobility, entry/exit)
 
 ### What was built
 
@@ -53,16 +53,32 @@ Living state of the project. Updated at the end of every session
   from failing firms is real economics; the counterweight is entry/exit,
   which is the next increment — re-evaluate all seeds after it lands.
 
+### Entry/exit v1 (third engine increment, this session — DECISIONS #021)
+
+- Takeover-revival of moribund businesses: wealthy entrepreneurs
+  (ambition + risk tolerance > 120) buy dead firms at asset value through
+  the ledger (`BusinessSale`/`BusinessSold`/`Takeover` record), quit their
+  jobs, and the injection machinery restarts the firm the same tick; the
+  broke seller is paid and becomes a job seeker. Demand-gated after two
+  recorded failures (zombie entrepreneurship with no gate; blocked
+  revivals with a too-strict shortage gate).
+- **Best small-town matrix yet: seeds 42/7/123 all hold 13-employed
+  year-ten cores** — seed 42's mobility-induced farm death is cured by
+  revival restoring competition. All 29-town flagged limitations now have
+  their counterweight mechanic in place.
+- **Open item (flagged)**: the 100-town regresses at decade scale
+  (≈16 → ≈6 employed by year 10) under takeover churn — chronic shortage
+  keeps the gate open and frequent ownership rotation destabilizes
+  production. Year-one scale acceptance is unaffected (scale.rs green).
+
 ### Exact next task (Phase 2 continuation)
 
-1. **Business entry/exit** (the fix for the three Phase 1 limitations AND
-   mobility's absorbing states): formal exit for long-dead businesses;
-   founding/revival — a wealthy, ambitious agent takes over or restarts a
-   business where standing unmet demand persists, seeding it with personal
-   capital through the ledger/books doorways. Design against
-   AGENT_DESIGN.md ("start/expand/close business"), record the ADR, then
-   re-run the three-seed + 100-town soak matrix expecting absorbing states
-   to disappear.
+1. **Diagnose 100-town takeover churn** with telemetry: add an ownership
+   column (owner id) to `BizDay`/metrics CSV, count `BusinessSold` events
+   per decade, and read the day-by-day series; then design the damper
+   (likely a per-business takeover cooldown, a wealth bar scaled to
+   restart cost × target headcount, or a scale-aware gate) and record it
+   in DECISIONS #021's follow-up.
 2. Then memory, relationships, reputation, and the agent inspector
    (surfacing DecisionRecords is the inspector's first job).
 3. Soak checkpoints after every economy change: seeds 42/7/123 at

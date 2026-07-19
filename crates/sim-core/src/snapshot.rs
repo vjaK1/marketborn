@@ -251,6 +251,17 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
             agent_label(state, *owner),
             business_label(state, *business)
         ),
+        Event::BusinessSold {
+            business,
+            from,
+            to,
+            price,
+        } => format!(
+            "{} bought {} from {} for {price}",
+            agent_label(state, *to),
+            business_label(state, *business),
+            agent_label(state, *from)
+        ),
         Event::AgentHungry { agent, streak } => {
             if *streak <= 1 {
                 format!("{} went hungry today", agent_label(state, *agent))
@@ -337,22 +348,8 @@ impl WorldSnapshot {
                         qty: b.stock(Good::Tools),
                     });
                 }
-                let inventory_value_cents: i64 = b
-                    .inventory
-                    .iter()
-                    .map(|(good, qty)| {
-                        let unit = state.market.last_prices.get(good).copied().unwrap_or(
-                            if *good == b.sells {
-                                b.price
-                            } else {
-                                crate::money::Money::ZERO
-                            },
-                        );
-                        unit.checked_mul_qty(*qty)
-                            .unwrap_or(crate::money::Money::MAX)
-                            .cents()
-                    })
-                    .sum();
+                let inventory_value_cents: i64 =
+                    b.inventory_value(&state.market.last_prices).cents();
                 let books = BooksRow {
                     revenue_cents: b.books.revenue.cents(),
                     input_costs_cents: b.books.input_costs.cents(),

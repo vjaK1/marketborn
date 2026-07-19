@@ -167,7 +167,18 @@ days instead of the durable `OUTPUT_TARGET_DAYS (4) + 1` — big enough to
 bridge the upstream 3-day input-batch supply oscillation, small enough that
 daily rot stays a minor cost (DECISIONS.md #015).
 
-## Decisions (Phase 0: business owners)
+## Decisions (business owners + capital decisions)
+
+Weekly, on the agent stagger, before owner reviews (DECISIONS.md #021):
+
+- **Takeover**: a non-owner with ambition + risk tolerance > 120 and
+  sufficient cash (price + two hires of restart capital + $100 reserve)
+  buys the highest-asset-value moribund business — no staff, and even the
+  sitting owner's savings cannot fund one hire — provided standing demand
+  for its good is nonzero. Price = cash + inventory at market prices, paid
+  seller-to-buyer through the ledger; ownership swaps; the buyer quits any
+  job; the seller becomes a job seeker; the ordinary injection/hiring
+  machinery restarts the firm the same tick.
 
 Daily:
 

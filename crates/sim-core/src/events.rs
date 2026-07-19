@@ -66,6 +66,14 @@ pub enum Event {
         owner: AgentId,
         amount: Money,
     },
+    /// A moribund business changed hands: a wealthy agent bought it from
+    /// its broke owner to restart it (DECISIONS.md #021).
+    BusinessSold {
+        business: BusinessId,
+        from: AgentId,
+        to: AgentId,
+        price: Money,
+    },
     AgentHungry {
         agent: AgentId,
         streak: u32,
@@ -94,6 +102,7 @@ impl Event {
             Event::WageChanged { .. } => "wage_changed",
             Event::DividendPaid { .. } => "dividend_paid",
             Event::OwnerInvested { .. } => "owner_invested",
+            Event::BusinessSold { .. } => "business_sold",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",
             Event::CommandRejected { .. } => "command_rejected",

@@ -49,7 +49,143 @@ struct ReviewPlan {
     dividend: Option<(AgentId, Money)>,
 }
 
+/// Weekly takeover reviews (DECISIONS.md #021): wealthy, entrepreneurial
+/// non-owners buy moribund businesses (no staff, and even the sitting
+/// owner's savings cannot fund one hire) from their broke owners at asset
+/// value, then restart them through the ordinary injection/hiring
+/// machinery — entry/exit's first slice, turning dead firms into
+/// opportunities instead of absorbing states. The seller becomes a job
+/// seeker; the buyer leaves any wage job to run the firm.
+fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(), LedgerError> {
+    let agent_ids: Vec<AgentId> = state.agents.keys().copied().collect();
+    for aid in agent_ids {
+        if !(tick + u64::from(aid.0)).is_multiple_of(REVIEW_PERIOD) {
+            continue;
+        }
+        let deal: Option<(BusinessId, AgentId, Money)> = {
+            let Some(a) = state.agents.get(&aid) else {
+                continue;
+            };
+            if a.owns.is_some()
+                || !decision::takeover_appetite(a.traits.ambition, a.traits.risk_tolerance)
+            {
+                continue;
+            }
+            // Best moribund target by asset value; id order keeps ties on
+            // the lower id.
+            let mut best: Option<(BusinessId, AgentId, Money)> = None;
+            for b in state.businesses.values() {
+                if !b.workers.is_empty() {
+                    continue;
+                }
+                let hire_floor = b
+                    .wage
+                    .checked_mul_qty(crate::systems::labor::HIRING_CASH_DAYS)
+                    .unwrap_or(Money::MAX);
+                if b.cash >= hire_floor {
+                    continue;
+                }
+                // The sitting owner has first refusal daily via the
+                // injection rule; moribund means even their savings can't
+                // fund a hire.
+                let owner_avail = state
+                    .agents
+                    .get(&b.owner)
+                    .map(|o| (o.cash - OWNER_RESERVE).max(Money::ZERO))
+                    .unwrap_or(Money::ZERO);
+                if b.cash + owner_avail >= hire_floor {
+                    continue;
+                }
+                // Only buy where the market wants the product: standing
+                // demand for the good must exist right now. Without this,
+                // serial zombie entrepreneurship (buying firms nobody buys
+                // from) collapsed whole towns. A stricter shortage gate
+                // (demand > offered) was tried and rejected: a dead
+                // business's own leftover stock masks the coming shortage
+                // and blocks the exact revival that restores competition
+                // (DECISIONS.md #021).
+                if crate::market::depth(state, b.sells).demand_qty == 0 {
+                    continue;
+                }
+                // Equity = assets (cash on hand + inventory at market).
+                let price = b.cash + b.inventory_value(&state.market.last_prices);
+                // The buyer must afford the price, two hires of restart
+                // capital, and keep a personal reserve.
+                let restart = hire_floor.checked_mul_qty(2).unwrap_or(Money::MAX);
+                if a.cash < price + restart + OWNER_RESERVE {
+                    continue;
+                }
+                let better = match &best {
+                    None => true,
+                    Some((_, _, p0)) => price > *p0,
+                };
+                if better {
+                    best = Some((b.id, b.owner, price));
+                }
+            }
+            best
+        };
+        let Some((bid, seller, price)) = deal else {
+            continue;
+        };
+        ledger::transfer(
+            state,
+            journal,
+            tick,
+            AccountId::Agent(aid),
+            AccountId::Agent(seller),
+            price,
+            TxKind::BusinessSale,
+        )?;
+        let old_employer = state.agents.get(&aid).and_then(|a| a.employer);
+        if let Some(eb) = old_employer {
+            if let Some(b) = state.businesses.get_mut(&eb) {
+                b.workers.retain(|w| *w != aid);
+            }
+        }
+        if let Some(a) = state.agents.get_mut(&aid) {
+            a.owns = Some(bid);
+            a.employer = None;
+        }
+        if let Some(o) = state.agents.get_mut(&seller) {
+            o.owns = None;
+        }
+        if let Some(b) = state.businesses.get_mut(&bid) {
+            b.owner = aid;
+        }
+        let capital_after = state
+            .agents
+            .get(&aid)
+            .map(|a| a.cash)
+            .unwrap_or(Money::ZERO);
+        journal.push_decision(decision::DecisionRecord {
+            seq: 0,
+            tick,
+            actor: aid,
+            detail: decision::DecisionDetail::Takeover {
+                business: bid,
+                seller,
+                price,
+                capital_after,
+            },
+        });
+        journal.push_event(
+            tick,
+            Event::BusinessSold {
+                business: bid,
+                from: seller,
+                to: aid,
+                price,
+            },
+        );
+    }
+    Ok(())
+}
+
 pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(), LedgerError> {
+    // Takeovers run first, so a freshly bought business gets its new
+    // owner's capital injection in this same pass.
+    takeovers(state, journal, tick)?;
     let business_ids: Vec<BusinessId> = state.businesses.keys().copied().collect();
     for bid in business_ids {
         // --- Daily: owner capital injection. A business too broke to fund a
@@ -441,6 +577,92 @@ mod tests {
             .iter()
             .any(|e| matches!(e.event, Event::OwnerInvested { business, .. } if business == bid)));
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+    }
+
+    #[test]
+    fn wealthy_entrepreneur_takes_over_a_moribund_business_and_recapitalizes() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        // Nobody else bids; only the buyer has the appetite.
+        for a in w.state.agents.values_mut() {
+            a.traits.ambition = 0;
+            a.traits.risk_tolerance = 0;
+        }
+        let bid = *w.state.businesses.keys().next().unwrap();
+        let seller = w.state.businesses[&bid].owner;
+        // Make the farm moribund: no staff, no cash, broke owner.
+        let staff: Vec<AgentId> = w.state.businesses[&bid].workers.clone();
+        for aid in staff {
+            w.state.agents.get_mut(&aid).unwrap().employer = None;
+        }
+        {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.workers.clear();
+            b.cash = Money::from_cents(100);
+            b.books = crate::business::Books::new(Money::from_cents(100));
+        }
+        w.state.agents.get_mut(&seller).unwrap().cash = Money::from_cents(500);
+        // The buyer: an ex-worker with savings and fire in the belly.
+        let buyer = AgentId(12);
+        {
+            let a = w.state.agents.get_mut(&buyer).unwrap();
+            a.traits.ambition = 100;
+            a.traits.risk_tolerance = 100;
+            a.cash = Money::from_cents(100_000);
+        }
+        w.state.expected_total_money = w.state.total_cash();
+        let seller_before = w.state.agents[&seller].cash;
+        // Tick 2 is id 12's review day.
+        run(&mut w.state, &mut w.journal, 2).unwrap();
+        assert_eq!(w.state.businesses[&bid].owner, buyer);
+        assert_eq!(w.state.agents[&buyer].owns, Some(bid));
+        assert_eq!(w.state.agents[&seller].owns, None);
+        assert!(
+            w.state.agents[&seller].cash > seller_before,
+            "the broke seller was paid asset value"
+        );
+        // Same pass: the new owner recapitalized the firm.
+        assert!(w.state.businesses[&bid].cash > Money::from_cents(100));
+        assert!(w.state.businesses[&bid].books.owner_invested > Money::ZERO);
+        assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        assert_eq!(
+            w.state.businesses[&bid].cash,
+            w.state.businesses[&bid].books.expected_cash(),
+            "books reconcile through the sale"
+        );
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, Event::BusinessSold { business, .. } if business == bid)));
+    }
+
+    #[test]
+    fn healthy_businesses_and_timid_money_stay_put() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        for a in w.state.agents.values_mut() {
+            a.traits.ambition = 0;
+            a.traits.risk_tolerance = 0;
+        }
+        let bid = *w.state.businesses.keys().next().unwrap();
+        let old_owner = w.state.businesses[&bid].owner;
+        // Rich but timid: appetite gate fails even against a moribund firm.
+        let staff: Vec<AgentId> = w.state.businesses[&bid].workers.clone();
+        for aid in staff {
+            w.state.agents.get_mut(&aid).unwrap().employer = None;
+        }
+        {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.workers.clear();
+            b.cash = Money::from_cents(100);
+        }
+        w.state.agents.get_mut(&old_owner).unwrap().cash = Money::from_cents(500);
+        w.state.agents.get_mut(&AgentId(12)).unwrap().cash = Money::from_cents(100_000);
+        w.state.expected_total_money = w.state.total_cash();
+        run(&mut w.state, &mut w.journal, 2).unwrap();
+        assert_eq!(
+            w.state.businesses[&bid].owner, old_owner,
+            "no appetite, no deal"
+        );
     }
 
     #[test]

@@ -197,6 +197,14 @@ pub fn switch_premium_bp(loyalty: u8) -> i64 {
     1_000 + i64::from(loyalty) * 10
 }
 
+/// Whether an agent has the entrepreneurial appetite to take over a
+/// moribund business: ambition plus risk tolerance must clear 120 —
+/// roughly a third of people. Wealth does the real rationing; this gate
+/// makes WHO founds things a matter of personality.
+pub fn takeover_appetite(ambition: u8, risk_tolerance: u8) -> bool {
+    u32::from(ambition) + u32::from(risk_tolerance) > 120
+}
+
 /// One journaled decision: who chose what, every score considered, and the
 /// inputs that mattered.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -221,6 +229,15 @@ pub enum DecisionDetail {
         reservation: Money,
         premium_bp: i64,
         chosen: JobAction,
+    },
+    /// A wealthy agent acquired a moribund business from its broke owner
+    /// (DECISIONS.md #021). Recorded only when it happens — passing on a
+    /// dead business is the default, not a decision worth journaling.
+    Takeover {
+        business: BusinessId,
+        seller: AgentId,
+        price: Money,
+        capital_after: Money,
     },
 }
 
@@ -283,6 +300,14 @@ impl DecisionRecord {
                     }
                 }
             }
+            DecisionDetail::Takeover {
+                business,
+                seller,
+                price,
+                capital_after,
+            } => format!(
+                "Bought the moribund {business} from {seller} for {price}, keeping {capital_after} to restart it."
+            ),
         }
     }
 }
