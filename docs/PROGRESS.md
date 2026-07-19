@@ -5,22 +5,23 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 2 — 2026-07-19 — Phase 1: industry chain, conservation, tools, spoilage, books, market view, construction
+## Session 2 — 2026-07-19 — Phase 1: COMPLETE
 
 ### Where the project stands
 
-Phase 1 is underway. The industry chain (mine → steelworks → tool factory)
-exists end to end behind the same recipe/market machinery as the food
-chain; tools raise extraction productivity and wear out; goods conservation
-is invariant-checked every sweep; the Phase 1 acceptance centerpiece
-(ore→steel→tools→farm-productivity integration test) passes; food spoils
-(DECISIONS #015); every business carries lifetime cash-basis books
-reconciled against its cash by a dedicated invariant (DECISIONS #016);
-`sim-cli metrics` dumps per-day time series (incl. per-business columns)
-for economy analysis; the UI carries a market view v1 (per-good standing
-depth + shortages); the construction chain builds homes the wealthy buy
-(9 goods, 10 businesses, population 29 — DECISIONS #017). Still to come
-in Phase 1: the 100-agent/20-business scale-up acceptance run.
+**Phase 1 is complete** (all acceptance criteria met, `check:full` green,
+no placeholders). Three chains behind one recipe/market machinery: food
+(farms → mill → bakery), industry (mine → steelworks → tool factory →
+tools as wearing capital), construction (lumber camp + brickworks →
+construction co → homes the wealthy buy once). 9 goods; goods conservation
+(incl. owned homes) and lifetime business books each guarded by their own
+invariant; food spoilage with perishable larders; comfort meals and home
+purchases as demand-side hoard recyclers; market view v1 in the UI;
+`sim-cli metrics` time-series telemetry; population-scaled worldgen
+(DECISIONS #018): 29 agents ⇒ the audited 10-business town, 100 ⇒ exactly
+20 businesses, 1,000 ⇒ a ~190-business economy. The Phase 1 acceptance
+test (`tests/scale.rs`: 100 agents / 20 businesses / one year / every
+invariant green) runs in the regular suite. Next: Phase 2 — agent society.
 
 ### What was built
 
@@ -149,24 +150,34 @@ Session 1 saves are incompatible: `SimState` gained `expected_total_goods`,
 `Business` gained fields, `Good`/`BusinessKind`/recipes changed. All hashes
 shift. schema_version stays 1; no released saves exist.
 
-### Exact next task (Phase 1 completion)
+### Scale-up results (the Phase 1 acceptance, run this session)
 
-1. The **100-agent / 20-business scale-up** — the last open Phase 1
-   acceptance criterion. Worldgen needs a business-multiplicity rule
-   (instances per N population with distinct names, calibrated so
-   population 100 yields ~20 businesses and the demand/supply audit still
-   balances — extend the ECONOMIC_RULES rationale). Then the acceptance
-   run: 100 agents, one sim year headless, all invariants green, plus
-   soaks and a fresh PERF_RESULTS row.
-2. After that, declare Phase 1 complete in PLAN/PROGRESS (`check:full`
-   green required) and start Phase 2 (agent society — decision engine,
-   memory, relationships; also unlocks entry/exit, the fix for all three
-   flagged limitations).
+- `tests/scale.rs` green in debug (every-tick invariants) and release.
+- 100-town year 1 (release soak): 39 employed across 20 businesses, real
+  multi-firm competition (Cinder & Crumb Bakery fails while three bakeries
+  thrive; the lone tool factory prices as a monopolist, $4.5k lifetime
+  profit), housing boom completes; money conserved at $54,000. Year 10
+  contracts to a 16-employed core — the small-town harsh equilibrium,
+  magnified; all invariants green throughout.
+- Perf (PERF_RESULTS.md): 1,000 agents / ~190 businesses × 10 sim years =
+  0.82 s release (~73× inside the ≤60 s target).
+
+### Exact next task (Phase 2 start — agent society)
+
+1. Read PLAN.md Phase 2 and docs/AGENT_DESIGN.md first. Session protocol:
+   `npm run check` before building (green at this commit).
+2. First increment suggestion: the utility-based decision engine skeleton —
+   action set, deterministic utility scoring (floats allowed in scoring
+   only, never accounting), stored decision records with explanations —
+   applied first to one existing decision (e.g., the price review) so the
+   engine wraps real behavior before new actions (job switching, business
+   entry/exit) arrive. Entry/exit is the fix for all three flagged
+   limitations; design it against AGENT_DESIGN.md.
 3. When touching the economy, verify with the soak checkpoints
-   (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`) and, on any
-   surprise, dump `sim-cli metrics <save> --csv` and read the day-by-day
-   series — end states hide limit cycles. Year-1 health bar: food+industry
-   staffed, hungry ≤ ~18 during the boom year, prices near start.
+   (`sim-cli run --seed 42 --ticks 365/1500/3650 --quiet`, plus
+   `--population 100`) and, on any surprise, dump
+   `sim-cli metrics <save> --csv` and read the day-by-day series — end
+   states hide limit cycles.
 
 Session protocol reminder: `npm run check` first — green at this commit on
 `main`.

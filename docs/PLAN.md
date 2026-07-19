@@ -4,7 +4,7 @@ The authoritative scope is `BRIEF.md`; this file tracks the build order and
 what "done" means per phase. A phase is complete only when its acceptance
 tests pass, `npm run check:full` is green, and nothing in it is a placeholder.
 
-## Phase 0 — Foundations and vertical slice  **[in progress]**
+## Phase 0 — Foundations and vertical slice  **[complete — session 1]**
 
 Workspace per CLAUDE.md; `npm run check` / `check:full`; the docs set;
 simulation kernel (clock, ChaCha substreams, command queue + log, canonical
@@ -18,7 +18,7 @@ Tauri UI: overview stats, agent table, business table, price chart, event log.
 *Done when:* all slice tests pass, the app launches and shows a living
 economy, and PROGRESS.md reflects it.
 
-## Phase 1 — Full economy
+## Phase 1 — Full economy  **[complete — session 2]**
 
 All three chains (food, industry, construction); 8–12 goods; generalized
 production; inventory with food spoilage; construction producing buildings;
@@ -28,6 +28,17 @@ goods-conservation invariants; market view v1.
 *Done when:* ore→steel→tools→farm-productivity integration test passes;
 inventory/goods reconciliation tests pass; a 100-agent, 20-business world
 runs one sim year headless with all invariants green.
+
+*Delivered:* 9 goods across three chains; tools as wearing capital;
+spoilage; comfort/home demand stabilizers; lifetime business books with a
+reconciliation invariant; goods conservation incl. owned homes; market
+view v1; population-scaled worldgen (100 agents ⇒ exactly 20 businesses;
+acceptance test `scale.rs` in the regular suite). The Phase 1 "households
+and needs" slice is comfort meals + home ownership — the full needs model
+ships with Phase 2's utility engine. Known limitations (industry-chain
+persistence, construction post-boom idle, occasional farm monopoly) are
+recorded in PROGRESS.md and DECISIONS #013–#017; the fixes are Phase 2/3/4
+mechanics.
 
 ## Phase 2 — Agent society
 

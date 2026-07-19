@@ -350,3 +350,27 @@ the sector idles and sheds workers; without business exit/entry
 for the material producers. Same flagged-limitation family as the
 industry chain. The year-ten food core is unharmed — best equilibrium
 observed (both farms staffed, food below start price).
+
+## 018 — Worldgen scales businesses with population
+
+**Context.** Phase 1's acceptance requires a 100-agent, 20-business world;
+worldgen previously built a fixed business set regardless of population,
+so large runs were mass-unemployment proxies rather than economies.
+
+**Decision.** Each business template carries `per_population`: one
+instance per that many agents (ceiling division, minimum one), expanded
+in template order with sequential ids, per-instance names from a pool
+(` No.k` suffix when a pool wraps), and one owner-agent per instance.
+Population clamps to the fixed point covering all owners plus one worker.
+Divisors — farms 15, mills 35, bakeries 30, each specialist shop 100 —
+are calibrated so the audited 29-person default reproduces **exactly**
+(2 farms, 1 mill, 1 bakery, 6 shops) and 100 agents yield exactly 20
+businesses (7 farms, 3 mills, 4 bakeries, 6 shops) with a wage bill
+($358/day) comfortably inside the base spending pool ($540/day).
+
+**Consequences.** The Phase 1 acceptance test
+(`hundred_agent_twenty_business_year_is_green`) runs in the regular suite
+with every-tick invariant sweeps. At 100 agents the first year shows real
+multi-firm competition (a bakery fails while three thrive; the lone tool
+factory prices as a monopolist). The 1,000-agent perf world now builds
+~190 businesses and still runs ten sim years in 0.82 s release.

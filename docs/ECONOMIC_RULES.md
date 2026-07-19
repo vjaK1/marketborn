@@ -200,6 +200,7 @@ in later phases, but changes must be recorded (they shift every hash).
 | Entity | Values |
 |--------|--------|
 | Population | 29 (10 owners, 19 staffed jobs, 0 unemployed at start) — configurable |
+| Business scaling | one instance per N agents (ceil, min 1): farms /15 · mills /35 · bakeries /30 · each specialist shop /100 — 29 agents ⇒ 10 businesses, 100 ⇒ exactly 20 (DECISIONS.md #018) |
 | Agent start | $300.00 cash, pantry 3, no home |
 | Food chain | 2 farms (3 workers, wage $7.00, wheat $5.50, uses tools) · mill (3 workers, $7.00, flour $7.60) · bakery (4 workers, $7.00, food $5.40) |
 | Industry chain | mine (1 worker, wage $6.00, iron ore $7.50, uses tools) · steelworks (1, $6.00, steel $15.00) · tool factory (1, $6.00, tools $22.00) |

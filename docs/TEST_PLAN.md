@@ -52,7 +52,8 @@ release tests). Never claim green without running them.
 - hashing: equal states hash equal; state change changes hash;
   journal/inputs don't affect hash.
 - worldgen: deterministic; town shape (29/10/19, five tool users, goods
-  targets seeded); tiny-population clamp valid.
+  targets seeded); tiny-population clamp valid; 100 agents ⇒ exactly 20
+  distinctly-named businesses.
 - tick: conservation over 30 ticks; manifest cadence; commands causal and
   tick-exact; past-tick queue rejected; overdraw command ⇒ event not halt;
   halted world refuses to tick; corruption halts with report.
@@ -71,6 +72,10 @@ release tests). Never claim green without running them.
 - `wood_bricks_homes_reach_wealthy_households` (construction.rs, 450
   days): materials sold at every stage, homes sold, at least one household
   owns a home; conservation (including owned homes) holds to the end.
+- `hundred_agent_twenty_business_year_is_green` (scale.rs) — **the Phase 1
+  acceptance run**: 100 agents / 20 businesses, one sim year with
+  every-tick invariant sweeps (debug), liveness (employment, meals in
+  month twelve), full money/goods/books reconciliation at the end.
 
 ### Determinism (sim-core/tests/determinism.rs)
 

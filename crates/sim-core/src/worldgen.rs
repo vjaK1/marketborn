@@ -55,7 +55,9 @@ const LAST_NAMES: [&str; 24] = [
 ];
 
 struct BusinessTemplate {
-    name: &'static str,
+    /// Name pool for instances of this kind. Instance `i` takes
+    /// `names[i % len]`, with a ` No.k` suffix once the pool wraps.
+    names: &'static [&'static str],
     kind: BusinessKind,
     recipe: Recipe,
     target_headcount: u32,
@@ -64,12 +66,42 @@ struct BusinessTemplate {
     stock: &'static [(Good, Qty)],
     sales_ema_milli: i64,
     uses_tools: bool,
+    /// One instance per this many agents (ceiling division, minimum one).
+    /// Calibrated so the default 29-person town gets exactly the audited
+    /// business set and 100 agents get a ~20-business economy
+    /// (ECONOMIC_RULES.md §World parameters, DECISIONS.md #018).
+    per_population: u32,
+}
+
+impl BusinessTemplate {
+    fn instances(&self, population: u32) -> u32 {
+        population.div_ceil(self.per_population).max(1)
+    }
+
+    fn instance_name(&self, i: u32) -> String {
+        let base = self.names[i as usize % self.names.len()];
+        let round = i as usize / self.names.len();
+        if round == 0 {
+            base.to_string()
+        } else {
+            format!("{base} No.{}", round + 1)
+        }
+    }
 }
 
 fn templates() -> Vec<BusinessTemplate> {
     vec![
         BusinessTemplate {
-            name: "Northfield Farm",
+            names: &[
+                "Northfield Farm",
+                "Riverside Farm",
+                "Southacre Farm",
+                "Millbrook Farm",
+                "Hollowdale Farm",
+                "Greenridge Farm",
+                "Stonefall Farm",
+                "Eastmoor Farm",
+            ],
             kind: BusinessKind::Farm,
             recipe: Recipe {
                 inputs: vec![],
@@ -82,24 +114,15 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Wheat, 15)],
             sales_ema_milli: 5_000,
             uses_tools: true,
+            per_population: 15,
         },
         BusinessTemplate {
-            name: "Riverside Farm",
-            kind: BusinessKind::Farm,
-            recipe: Recipe {
-                inputs: vec![],
-                output: (Good::Wheat, 1),
-                batches_per_worker: 2,
-            },
-            target_headcount: 3,
-            wage: Money::from_cents(700),
-            price: Money::from_cents(550),
-            stock: &[(Good::Wheat, 15)],
-            sales_ema_milli: 5_000,
-            uses_tools: true,
-        },
-        BusinessTemplate {
-            name: "Stonebridge Mill",
+            names: &[
+                "Stonebridge Mill",
+                "Old Wheel Mill",
+                "Graincrest Mill",
+                "Twinstone Mill",
+            ],
             kind: BusinessKind::Mill,
             recipe: Recipe {
                 inputs: vec![(Good::Wheat, 1)],
@@ -112,9 +135,15 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Wheat, 10), (Good::Flour, 12)],
             sales_ema_milli: 12_000,
             uses_tools: false,
+            per_population: 35,
         },
         BusinessTemplate {
-            name: "Hearth & Crust Bakery",
+            names: &[
+                "Hearth & Crust Bakery",
+                "Morning Loaf Bakery",
+                "Golden Oven Bakery",
+                "Cinder & Crumb Bakery",
+            ],
             kind: BusinessKind::Bakery,
             recipe: Recipe {
                 inputs: vec![(Good::Flour, 1)],
@@ -127,9 +156,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Flour, 12), (Good::Food, 36)],
             sales_ema_milli: 24_000,
             uses_tools: false,
+            per_population: 30,
         },
         BusinessTemplate {
-            name: "Ironvein Mine",
+            names: &["Ironvein Mine", "Deepshaft Mine", "Greyrock Mine"],
             kind: BusinessKind::Mine,
             recipe: Recipe {
                 inputs: vec![],
@@ -142,9 +172,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::IronOre, 3)],
             sales_ema_milli: 1_000,
             uses_tools: true,
+            per_population: 100,
         },
         BusinessTemplate {
-            name: "Forgeheart Steelworks",
+            names: &["Forgeheart Steelworks", "Emberline Steelworks"],
             kind: BusinessKind::SteelMill,
             recipe: Recipe {
                 inputs: vec![(Good::IronOre, 1)],
@@ -157,9 +188,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::IronOre, 6), (Good::Steel, 4)],
             sales_ema_milli: 1_000,
             uses_tools: false,
+            per_population: 100,
         },
         BusinessTemplate {
-            name: "Anvil & Edge Toolworks",
+            names: &["Anvil & Edge Toolworks", "Keenblade Toolworks"],
             kind: BusinessKind::ToolFactory,
             recipe: Recipe {
                 inputs: vec![(Good::Steel, 1)],
@@ -172,9 +204,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Steel, 4), (Good::Tools, 6)],
             sales_ema_milli: 1_000,
             uses_tools: false,
+            per_population: 100,
         },
         BusinessTemplate {
-            name: "Tallpine Lumber Camp",
+            names: &["Tallpine Lumber Camp", "Foxwood Lumber Camp"],
             kind: BusinessKind::LumberCamp,
             recipe: Recipe {
                 inputs: vec![],
@@ -187,9 +220,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Wood, 6)],
             sales_ema_milli: 1_000,
             uses_tools: true,
+            per_population: 100,
         },
         BusinessTemplate {
-            name: "Redclay Brickworks",
+            names: &["Redclay Brickworks", "Kilnford Brickworks"],
             kind: BusinessKind::Brickworks,
             recipe: Recipe {
                 inputs: vec![],
@@ -202,9 +236,10 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Bricks, 6)],
             sales_ema_milli: 1_000,
             uses_tools: true,
+            per_population: 100,
         },
         BusinessTemplate {
-            name: "Keystone Construction",
+            names: &["Keystone Construction", "Archline Construction"],
             kind: BusinessKind::ConstructionCo,
             recipe: Recipe {
                 inputs: vec![(Good::Wood, 6), (Good::Bricks, 6)],
@@ -217,6 +252,7 @@ fn templates() -> Vec<BusinessTemplate> {
             stock: &[(Good::Wood, 6), (Good::Bricks, 6), (Good::Home, 1)],
             sales_ema_milli: 100,
             uses_tools: false,
+            per_population: 100,
         },
     ]
 }
@@ -224,7 +260,18 @@ fn templates() -> Vec<BusinessTemplate> {
 pub fn generate(config: WorldConfig) -> World {
     let mut rng = substream(config.master_seed, "worldgen", 0, 0);
     let templates = templates();
-    let population = config.population.max(templates.len() as u32 + 1);
+    // Population must cover one owner per business instance plus at least
+    // one worker; instance counts themselves scale with population, so
+    // clamp to the fixed point (instance counts grow far slower than
+    // population, so this converges immediately).
+    let mut population = config.population.max(2);
+    loop {
+        let business_count: u32 = templates.iter().map(|t| t.instances(population)).sum();
+        if population > business_count {
+            break;
+        }
+        population = business_count + 1;
+    }
 
     let mut agents: BTreeMap<AgentId, Agent> = BTreeMap::new();
     for i in 0..population {
@@ -250,10 +297,19 @@ pub fn generate(config: WorldConfig) -> World {
     }
 
     let mut businesses: BTreeMap<BusinessId, Business> = BTreeMap::new();
-    let mut next_worker = templates.len() as u32; // agents after the owners
-    for (i, t) in templates.into_iter().enumerate() {
-        let bid = BusinessId(i as u32);
-        let owner = AgentId(i as u32);
+    // Expand templates into instances in template order — ids, owners and
+    // worker assignment stay deterministic and reproduce the audited
+    // 29-person town exactly at the default population.
+    let expanded: Vec<(usize, u32)> = templates
+        .iter()
+        .enumerate()
+        .flat_map(|(ti, t)| (0..t.instances(population)).map(move |i| (ti, i)))
+        .collect();
+    let mut next_worker = expanded.len() as u32; // agents after the owners
+    for (bi, (ti, inst)) in expanded.iter().enumerate() {
+        let t = &templates[*ti];
+        let bid = BusinessId(bi as u32);
+        let owner = AgentId(bi as u32);
         if let Some(a) = agents.get_mut(&owner) {
             a.owns = Some(bid);
         }
@@ -275,7 +331,7 @@ pub fn generate(config: WorldConfig) -> World {
             bid,
             Business {
                 id: bid,
-                name: t.name.to_string(),
+                name: t.instance_name(*inst),
                 kind: t.kind,
                 owner,
                 cash: START_BUSINESS_CASH,
@@ -285,7 +341,7 @@ pub fn generate(config: WorldConfig) -> World {
                 inventory,
                 sells,
                 price: t.price,
-                recipe: t.recipe,
+                recipe: t.recipe.clone(),
                 books: Books::new(START_BUSINESS_CASH),
                 uses_tools: t.uses_tools,
                 tool_wear: 0,
@@ -392,9 +448,39 @@ mod tests {
             population: 0,
             hash_every: 50,
         });
-        assert_eq!(w.state.agents.len(), 11);
-        // All ten businesses exist and have owners; staffing is partial.
-        assert_eq!(w.state.businesses.len(), 10);
+        // Clamped to one owner per minimum business set plus one worker.
+        assert_eq!(w.state.agents.len(), 10);
+        assert_eq!(w.state.businesses.len(), 9);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn scaling_yields_a_twenty_business_town_at_one_hundred() {
+        let w = generate(WorldConfig {
+            master_seed: 42,
+            population: 100,
+            hash_every: 50,
+        });
+        assert_eq!(w.state.agents.len(), 100);
+        assert_eq!(
+            w.state.businesses.len(),
+            20,
+            "7 farms + 3 mills + 4 bakeries + 6 single shops"
+        );
+        let farms = w
+            .state
+            .businesses
+            .values()
+            .filter(|b| b.kind == BusinessKind::Farm)
+            .count();
+        assert_eq!(farms, 7);
+        let names: std::collections::BTreeSet<String> = w
+            .state
+            .businesses
+            .values()
+            .map(|b| b.name.clone())
+            .collect();
+        assert_eq!(names.len(), 20, "every instance gets a distinct name");
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
     }
 }

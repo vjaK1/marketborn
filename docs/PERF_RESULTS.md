@@ -43,3 +43,18 @@ The 1,000-agent figure remains a worldgen-scaling proxy (7 businesses, mass
 unemployment). The extra cost vs Phase 0 (0.08 s → 0.19 s) is the larger
 per-tick sweep (more goods, goods reconciliation, comfort demand pass) —
 nothing near a target; still no profiling warranted.
+
+## Phase 1 complete (three chains, scaled worldgen) — 2026-07-19
+
+Now 9 goods, business books, spoilage, market depth, and population-scaled
+worldgen (DECISIONS #018) — the 1,000-agent world is a real ~190-business
+economy, not an unemployment proxy.
+
+| Measurement | Result | v1.0 target |
+|-------------|--------|-------------|
+| 29 agents / 10 businesses, 3,650 ticks | 0.03 s (~125k–265k ticks/s) | — |
+| 100 agents / 20 businesses, 3,650 ticks | 0.06 s (~63k ticks/s) | — |
+| 1,000 agents / ~190 businesses, 3,650 ticks | **0.82 s** (~4.5k ticks/s) | ≤ 60 s ✅ (~73× headroom) |
+
+Cost grows roughly with business count (market clearing and reviews are
+per-business); still far from any target — no profiling warranted.
