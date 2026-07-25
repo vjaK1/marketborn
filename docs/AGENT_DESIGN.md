@@ -29,10 +29,14 @@ reviews with loyalty-widened switch premiums, ambition-scaled reservation
 wages decaying over a patience-scaled unemployment horizon, desperation
 override; **entry/exit v1** — demand-gated takeover-revival of moribund
 businesses by wealthy entrepreneurs (ambition + risk tolerance), with
-equity sales through the ledger and same-tick recapitalization. Seeds
-produce economically distinct histories. Still to come: remaining owner
-reviews on the engine, founding genuinely new firms, memory,
-relationships, reputation, the agent inspector.
+equity sales through the ledger and same-tick recapitalization;
+**memory v1** (#023) — the bounded, decaying, reinforced grievance store
+with weakest-first eviction, consumed by hiring/switch targeting
+(non-desperate agents refuse employers they remember being stiffed or
+fired by). Seeds produce economically distinct histories. Still to come:
+remaining owner reviews on the engine, founding genuinely new firms,
+relationships (which extend Memory with the impact fields), reputation,
+the agent inspector.
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

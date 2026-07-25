@@ -305,6 +305,7 @@ pub fn generate(config: WorldConfig) -> World {
                 owns: None,
                 owns_home: false,
                 traits,
+                memories: Vec::new(),
                 hungry_streak: 0,
                 days_unemployed: 0,
                 total_earned: Money::ZERO,

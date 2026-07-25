@@ -264,6 +264,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             }
             if let Some(a) = state.agents.get_mut(&aid) {
                 a.employer = None;
+                crate::memory::remember(a, crate::memory::MemoryKind::FiredBy(bid), tick, 70);
             }
             journal.push_event(
                 tick,

@@ -38,13 +38,22 @@ fn going_food_price(state: &SimState) -> Money {
         .unwrap_or(FALLBACK_FOOD_PRICE)
 }
 
-/// The best open job right now: a vacancy whose business passes the same
-/// marginal cash gate hiring uses. Highest wage wins; ties go to the lower
-/// business id.
-fn best_open_job(state: &SimState, exclude: Option<BusinessId>) -> Option<JobRef> {
+/// The best open job right now as one agent sees it: a vacancy whose
+/// business passes the same marginal cash gate hiring uses, and that the
+/// viewer holds no fresh grievance against (desperation overrides pride —
+/// DECISIONS.md #023). Highest wage wins; ties go to the lower business id.
+fn best_open_job(
+    state: &SimState,
+    exclude: Option<BusinessId>,
+    viewer: &crate::agent::Agent,
+    desperate: bool,
+) -> Option<JobRef> {
     let mut best: Option<JobRef> = None;
     for b in state.businesses.values() {
         if b.vacancies() == 0 || Some(b.id) == exclude {
+            continue;
+        }
+        if !desperate && crate::memory::holds_grievance(viewer, b.id) {
             continue;
         }
         let five_days_one_worker = b
@@ -94,6 +103,7 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
             if a.owns.is_some() {
                 continue; // owners run their business; they don't job-hunt
             }
+            let desperate = is_desperate(a, food_price);
             match a.employer {
                 Some(current_bid) => {
                     let current_wage = state
@@ -101,7 +111,7 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
                         .get(&current_bid)
                         .map(|b| b.wage)
                         .unwrap_or(Money::ZERO);
-                    let best = best_open_job(state, Some(current_bid));
+                    let best = best_open_job(state, Some(current_bid), a, desperate);
                     let premium_bp = decision::switch_premium_bp(a.traits.loyalty);
                     let bar = current_wage + current_wage.mul_bp(premium_bp);
                     match best {
@@ -135,8 +145,7 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
                     }
                 }
                 None => {
-                    let best = best_open_job(state, None);
-                    let desperate = is_desperate(a, food_price);
+                    let best = best_open_job(state, None, a, desperate);
                     let reservation = decision::reservation_wage(
                         food_price,
                         a.traits.ambition,
@@ -230,12 +239,16 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             .values()
             .filter(|a| a.is_job_seeker())
             .filter(|a| {
+                let desperate = is_desperate(a, food_price);
+                if !desperate && crate::memory::holds_grievance(a, *bid) {
+                    return false; // won't work for them again — yet
+                }
                 let reservation = decision::reservation_wage(
                     food_price,
                     a.traits.ambition,
                     a.traits.patience,
                     a.days_unemployed,
-                    is_desperate(a, food_price),
+                    desperate,
                 );
                 wage >= reservation
             })
@@ -328,6 +341,8 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 }
                 if let Some(a) = state.agents.get_mut(&aid) {
                     a.employer = None;
+                    // Being stiffed is not forgotten quickly.
+                    crate::memory::remember(a, crate::memory::MemoryKind::UnpaidBy(*bid), tick, 90);
                 }
                 journal.push_event(
                     tick,
@@ -464,6 +479,60 @@ mod tests {
                 assert_eq!(now, Some(farm), "20% bar not cleared: stay");
             }
         }
+    }
+
+    #[test]
+    fn grievances_block_rehiring_until_desperation_or_forgetting() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(11));
+        // Freeze switching and holdouts: this test is about grievances.
+        for a in w.state.agents.values_mut() {
+            a.traits.loyalty = 100;
+            a.traits.ambition = 0;
+        }
+        let bakery = crate::ids::BusinessId(3);
+        let staff_before: Vec<AgentId> = w.state.businesses[&bakery].workers.clone();
+        assert!(!staff_before.is_empty());
+        // Payroll fails: everyone quits and remembers.
+        w.state.businesses.get_mut(&bakery).unwrap().cash = Money::ZERO;
+        w.state.expected_total_money = w.state.total_cash();
+        run(&mut w.state, &mut w.journal, 1).unwrap();
+        for aid in &staff_before {
+            assert_eq!(w.state.agents[aid].employer, None);
+            assert!(crate::memory::holds_grievance(&w.state.agents[aid], bakery));
+        }
+        // The bakery recovers its finances — but nobody will come back.
+        w.state.businesses.get_mut(&bakery).unwrap().cash = Money::from_cents(120_000);
+        w.state.expected_total_money = w.state.total_cash();
+        run(&mut w.state, &mut w.journal, 2).unwrap();
+        assert!(
+            w.state.businesses[&bakery].workers.is_empty(),
+            "solvent again, still shunned"
+        );
+        // Desperation overrides pride for one of them.
+        let hungry_one = staff_before[0];
+        w.state.agents.get_mut(&hungry_one).unwrap().cash = Money::from_cents(100);
+        w.state.expected_total_money = w.state.total_cash();
+        run(&mut w.state, &mut w.journal, 3).unwrap();
+        assert_eq!(
+            w.state.agents[&hungry_one].employer,
+            Some(bakery),
+            "an empty pocket forgives"
+        );
+        // Time heals another: the memory fades below the active threshold.
+        let healed = staff_before[1];
+        w.state
+            .agents
+            .get_mut(&healed)
+            .unwrap()
+            .memories
+            .iter_mut()
+            .for_each(|m| m.confidence_milli = 1);
+        run(&mut w.state, &mut w.journal, 4).unwrap();
+        assert_eq!(
+            w.state.agents[&healed].employer,
+            Some(bakery),
+            "a faded grievance no longer blocks"
+        );
     }
 
     #[test]

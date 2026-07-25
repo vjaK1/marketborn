@@ -53,6 +53,9 @@ pub struct Agent {
     pub owns_home: bool,
     /// Personality (Phase 2): weights utility-scored decisions.
     pub traits: Traits,
+    /// Bounded personal memory (Phase 2): formed at event sites, decayed
+    /// each memory phase, read by decisions (see `memory.rs`).
+    pub memories: Vec<crate::memory::Memory>,
     /// Consecutive days the agent failed to eat.
     pub hungry_streak: u32,
     /// Consecutive days without employment (owners excluded from job seeking).

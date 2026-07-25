@@ -503,3 +503,34 @@ cores; the 100-town un-freezes — employment ~13–15 through the decade
 (from 0–8) with food repricing from $23 toward $9.73 as the market grinds
 back toward affordability. The 100-town stays harsh (≈94 hungry): ~80%
 structural unemployment without welfare is Phase 4's problem by design.
+
+## 023 — Agent memory v1: bounded grievance store, decisive only where it should be
+
+**Context.** Phase 2 requires per-agent memory (AGENT_DESIGN §Memory) —
+and PROGRESS's standing rule: memory must be load-bearing from day one,
+not decorative.
+
+**Decision.** `memory.rs`: a bounded store (12 entries) on each agent, in
+hashed state because decisions read it. Memories form **at event sites**
+(never by reading the journal back): being unpaid (importance 90) and
+being fired (importance 70). Repetition reinforces — confidence restored
+to 1000 milli, importance +10 capped at 100 — never duplicates. Phase 10
+of the tick order activates: every memory loses 2 milli-confidence per
+day (full → forgotten in 500 days) and forgotten memories drop; when the
+store is full the weakest (importance × confidence, ties → oldest) is
+evicted. Deterministic inaccuracy exists only as this explicit confidence
+decay. The v1 consumer: **an active grievance (strength ≥ 20) makes a
+non-desperate agent refuse to work for that business** — in matching and
+in switch targeting — until the memory fades or desperation (hunger,
+savings under a month of food) overrides pride. The spec's
+emotional/trust/financial-impact fields and tags arrive with
+relationships, their first consumer; adding them now would be dead
+weight.
+
+**Consequences.** The full soak matrix is unchanged to the cent —
+grievances form and fade without flipping outcomes in healthy runs (at
+100-scale chronic desperation overrides pride; in small towns stiffing
+employers usually die before rehiring), while the end-to-end test proves
+the decisive case: a payroll-failing bakery, solvent again, stays shunned
+by its ex-staff until one goes broke and another forgets. This is
+reputation's precursor: personal, private, and earned.

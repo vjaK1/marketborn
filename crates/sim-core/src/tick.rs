@@ -65,11 +65,13 @@ impl World {
         // Phase 7 — banking: activates in project Phase 3.
         // Phase 8 — consumption.
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
-        // Phase 9 — agent decisions (Phase 0: business pricing/staffing/
-        // dividends; the utility engine arrives in project Phase 2).
+        // Phase 9 — agent decisions (utility engine + owner reviews).
         systems::decisions::run(&mut self.state, &mut self.journal, t).map_err(internal)?;
-        // Phase 10 — memory & relationship updates: activates in project
-        // Phase 2.
+        // Phase 10 — memory updates: every memory fades a little
+        // (relationships join here later in Phase 2).
+        for a in self.state.agents.values_mut() {
+            crate::memory::decay(a);
+        }
         // Phase 11 — bookkeeping: EMAs, metrics, invariants, hashing.
         self.state.tick = t;
         update_sales_emas(self);

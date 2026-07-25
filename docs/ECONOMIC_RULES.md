@@ -29,7 +29,7 @@ Every tick executes exactly this sequence:
 | 7 | Banking | *[activates: Phase 3]* |
 | 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
-| 10 | Memory & relationships | *[activates: Phase 2]* |
+| 10 | **Memory** (& relationships, later) | Every memory fades a little (`memory::decay`); forgotten memories drop. Formation happens at event sites, never by reading the journal back. |
 | 11 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
 
 ## Cadences
@@ -135,10 +135,14 @@ Sales EMA: integer milli-units, `ema += (today·1000 − ema) / 8`, toward zero.
   against a live offer journals a decision record.
 - **Matching** (daily): businesses in id order fill vacancies from
   *willing* job seekers in id order (owners never seek; seekers decline
-  wages below their reservation). Marginal hiring gate: a business
-  staffs up only as far as cash covers `HIRING_CASH_DAYS (5) × wage` per
-  resulting worker — so a downsized business can bootstrap back one hire at
-  a time instead of needing the full target payroll upfront.
+  wages below their reservation, and a non-desperate seeker refuses a
+  business they hold an active grievance against — being stiffed,
+  importance 90, or fired, importance 70 — until it decays below strength
+  20 or desperation overrides pride; DECISIONS.md #023). Marginal hiring
+  gate: a business staffs up only as far as cash covers
+  `HIRING_CASH_DAYS (5) × wage` per resulting worker — so a downsized
+  business can bootstrap back one hire at a time instead of needing the
+  full target payroll upfront.
 - **Payroll** (daily): each worker is paid the posted daily wage in hire
   order. Workers who cannot be paid quit immediately (`QuitUnpaid`), and the
   business logs a public `MissedPayroll` event.

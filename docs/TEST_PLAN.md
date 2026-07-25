@@ -38,7 +38,11 @@ release tests). Never claim green without running them.
 - labor: daily payroll pays every worker; broke business ⇒ missed payroll
   event + workers quit; deterministic vacancy matching; workers switch
   only over the loyalty premium; comfortable ambition holds out and
-  desperation accepts.
+  desperation accepts; grievances block rehiring until desperation or
+  forgetting.
+- memory: repetition reinforces instead of duplicating; decay forgets and
+  grievances fade below the active threshold; eviction removes the
+  weakest first.
 - consumption: pantry decrement, hunger streaks + events; comfort meal for
   the wealthy, never into hunger; perishables spoil toward zero through the
   goods ledger; durable goods and small stocks untouched.

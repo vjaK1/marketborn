@@ -23,6 +23,7 @@ pub mod ids;
 pub mod invariants;
 pub mod ledger;
 pub mod market;
+pub mod memory;
 pub mod metrics;
 pub mod money;
 pub mod rng;

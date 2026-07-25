@@ -5,6 +5,41 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 3 — 2026-07-26 — Phase 2: memory v1
+
+### Memory v1 (DECISIONS #023)
+
+- `memory.rs`: bounded per-agent store (12), hashed state, formed at
+  event sites only (UnpaidBy 90 / FiredBy 70), reinforcement instead of
+  duplication, 2 milli-confidence decay per day in the newly-activated
+  tick phase 10, weakest-first eviction. Consumer: a non-desperate agent
+  refuses to work for a business they hold an active grievance (strength
+  ≥ 20) against — matching and switch targeting — until decay or
+  desperation. End-to-end test: a payroll-failing bakery, solvent again,
+  stays shunned until one ex-worker goes broke and another forgets.
+- Full soak matrix unchanged to the cent (grievances rarely decisive in
+  healthy runs — by design); +4 tests.
+
+### Exact next task (Phase 2 continuation)
+
+1. **Relationships** (AGENT_DESIGN: seven private dyadic dimensions —
+   trust, affection, fear, respect, resentment, dependence, commercial
+   reliability; integer scales, bounded updates from interaction events).
+   Extend `Memory` with the impact fields relationships consume; wire one
+   real consumer (e.g., trust feeding the switch premium or takeover
+   pricing between acquainted parties). Keep phase-10 placement.
+2. Then **reputation** (public dimensions + propagation channels +
+   `probe_reputation` — the Phase 2 acceptance probe).
+3. Then the **agent inspector** (detail-query protocol + UI): identity,
+   traits, memories, relationships, and DecisionRecord explanations
+   verbatim — Phase 2's acceptance requires a real decision's explanation
+   visible in the inspector.
+4. Soak checkpoints after every economy change: seeds 42/7/123 at
+   365/1500/3650 plus `--population 100`; on surprises dump
+   `sim-cli metrics <save> --csv`.
+
+---
+
 ## Session 2b — 2026-07-19 — Phase 2 begun: decision engine v1 (traits, scored price review, labor mobility, entry/exit)
 
 ### What was built
@@ -90,23 +125,6 @@ Living state of the project. Updated at the end of every session
   $23 → $9.73. The 100-town's ~94 hungry is Phase 4's welfare problem by
   design.
 
-### Exact next task (Phase 2 continuation)
-
-1. **Memory** (AGENT_DESIGN §Memory): bounded per-agent store with
-   importance-weighted eviction, decay, reinforcement, and deterministic
-   confidence degradation — then wire one real consumer (e.g., job/em-
-   ployer memories feeding the switch premium, or price memories feeding
-   reservation wages) so memory is load-bearing from day one, not
-   decorative.
-2. Then relationships (seven private dimensions) and reputation (public +
-   propagation, `probe_reputation`).
-3. Then the **agent inspector** (detail-query protocol + UI): identity,
-   traits, books-of-life, and DecisionRecord explanations verbatim —
-   Phase 2's acceptance requires a real decision's explanation visible in
-   the inspector.
-4. Soak checkpoints after every economy change: seeds 42/7/123 at
-   365/1500/3650 plus `--population 100`; on surprises dump
-   `sim-cli metrics <save> --csv`.
 
 ---
 
