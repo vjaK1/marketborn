@@ -534,3 +534,38 @@ employers usually die before rehiring), while the end-to-end test proves
 the decisive case: a payroll-failing bakery, solvent again, stays shunned
 by its ex-staff until one goes broke and another forgets. This is
 reputation's precursor: personal, private, and earned.
+
+## 024 — Relationships v1: seven private dimensions, bond-adjusted retention
+
+**Context.** Phase 2 requires private dyadic relationships (AGENT_DESIGN:
+trust, affection, fear, respect, resentment, dependence, commercial
+reliability), separate from public reputation. The PROGRESS suggestion to
+route them through Memory impact fields was superseded: updating relations
+directly at interaction sites is simpler and leaves Memory unchanged.
+
+**Decision.** `relationships.rs`: sparse per-agent maps (cap 16, hashed
+state; strangers implicitly neutral at 50 on every dimension; the
+most-neutral relation is evicted when full). All seven dimensions have
+live drivers at existing interaction sites: daily wage paid (reliability
++1), unpaid walkout (trust −30, resentment +30, fear +5, reliability
+−40), hire (trust +5, dependence +20), fired (trust −10, resentment +20,
+fear +15, dependence −30), weekly tenure (affection +1, dependence +1),
+wage raise/cut (respect +2 / resentment +5), takeover deal (respect +10,
+trust +5 both ways), leaving a job (dependence −30). Phase 10 drifts
+every dimension one step toward neutral on the agent's weekly stagger day
+(acquaintance fades in about a year) and drops fully-neutral relations.
+The v1 consumer: the job-switch premium becomes
+`loyalty premium + bond_premium_bp` (trust + affection + dependence −
+resentment, ×3 bp, clamped ±500, floor 200) — attachment binds,
+resentment repels, and neutral relations reproduce prior behavior
+exactly.
+
+**Consequences.** Retention is now earned: long-tenured, well-treated
+workers need visibly better offers to leave (test: identical wages and
+loyalty, only the private bond differs — the stranger takes the raise,
+the bonded worker stays), and wage-cutting employers accumulate
+resentment that cheapens poaching them. Seeds 7/123 and the 100-town hold
+their envelopes; knife-edge seed 42 lands on a harsher branch this run
+(10 employed, food ~$21.67 at year ten — same alive-and-trading family it
+has oscillated within across every behavioral increment; per-seed ending
+selection is explicitly not a tuning target).

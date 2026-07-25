@@ -106,13 +106,20 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
             let desperate = is_desperate(a, food_price);
             match a.employer {
                 Some(current_bid) => {
-                    let current_wage = state
+                    let (current_wage, current_owner) = state
                         .businesses
                         .get(&current_bid)
-                        .map(|b| b.wage)
-                        .unwrap_or(Money::ZERO);
+                        .map(|b| (b.wage, Some(b.owner)))
+                        .unwrap_or((Money::ZERO, None));
                     let best = best_open_job(state, Some(current_bid), a, desperate);
-                    let premium_bp = decision::switch_premium_bp(a.traits.loyalty);
+                    // The bar to poach a worker: loyalty premium adjusted
+                    // by the private bond toward the current owner —
+                    // attachment binds, resentment repels (DECISIONS #024).
+                    let bond_bp = current_owner
+                        .map(|o| crate::relationships::relation_toward(a, o).bond_premium_bp())
+                        .unwrap_or(0);
+                    let premium_bp =
+                        (decision::switch_premium_bp(a.traits.loyalty) + bond_bp).max(200);
                     let bar = current_wage + current_wage.mul_bp(premium_bp);
                     match best {
                         Some(offer) if offer.wage >= bar => Some((
@@ -171,6 +178,16 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
                 }
             }
         };
+        // Tenure quietly deepens attachment, decision or not.
+        let tenure_owner = state
+            .agents
+            .get(&aid)
+            .and_then(|a| a.employer)
+            .and_then(|bid| state.businesses.get(&bid))
+            .map(|b| b.owner);
+        if let (Some(owner), Some(a)) = (tenure_owner, state.agents.get_mut(&aid)) {
+            crate::relationships::on_tenure_week(a, owner);
+        }
         let Some((detail, switch)) = plan else {
             continue;
         };
@@ -181,6 +198,8 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
             detail,
         });
         if let Some((from, to, old_wage, new_wage)) = switch {
+            let from_owner = state.businesses.get(&from).map(|b| b.owner);
+            let to_owner = state.businesses.get(&to).map(|b| b.owner);
             if let Some(b) = state.businesses.get_mut(&from) {
                 b.workers.retain(|w| *w != aid);
             }
@@ -189,6 +208,12 @@ fn job_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
             }
             if let Some(a) = state.agents.get_mut(&aid) {
                 a.employer = Some(to);
+                if let Some(o) = from_owner {
+                    crate::relationships::on_left_job(a, o);
+                }
+                if let Some(o) = to_owner {
+                    crate::relationships::on_hired(a, o);
+                }
             }
             journal.push_event(
                 tick,
@@ -211,7 +236,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
 
     // --- Matching ---
     for bid in &business_ids {
-        let (vacancies, wage, affordable_headcount) = {
+        let (vacancies, wage, affordable_headcount, hiring_owner) = {
             let Some(b) = state.businesses.get(bid) else {
                 continue;
             };
@@ -223,7 +248,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 .checked_mul_qty(HIRING_CASH_DAYS)
                 .unwrap_or(Money::MAX);
             let affordable = b.cash.affordable_units(five_days_one_worker);
-            (b.vacancies() as usize, b.wage, affordable)
+            (b.vacancies() as usize, b.wage, affordable, b.owner)
         };
         let current = state
             .businesses
@@ -259,6 +284,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             if let Some(a) = state.agents.get_mut(&aid) {
                 a.employer = Some(*bid);
                 a.days_unemployed = 0;
+                crate::relationships::on_hired(a, hiring_owner);
             }
             if let Some(b) = state.businesses.get_mut(bid) {
                 b.workers.push(aid);
@@ -283,11 +309,11 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
 
     // --- Payroll ---
     for bid in &business_ids {
-        let (workers, wage) = {
+        let (workers, wage, paying_owner) = {
             let Some(b) = state.businesses.get(bid) else {
                 continue;
             };
-            (b.workers.clone(), b.wage)
+            (b.workers.clone(), b.wage, b.owner)
         };
         if workers.is_empty() {
             continue;
@@ -307,6 +333,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 Ok(()) => {
                     if let Some(a) = state.agents.get_mut(&aid) {
                         a.total_earned += wage;
+                        crate::relationships::on_wage_paid(a, paying_owner);
                     }
                     paid_total += wage;
                 }
@@ -341,8 +368,10 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 }
                 if let Some(a) = state.agents.get_mut(&aid) {
                     a.employer = None;
-                    // Being stiffed is not forgotten quickly.
+                    // Being stiffed is not forgotten quickly — and it is
+                    // personal.
                     crate::memory::remember(a, crate::memory::MemoryKind::UnpaidBy(*bid), tick, 90);
+                    crate::relationships::on_unpaid(a, paying_owner);
                 }
                 journal.push_event(
                     tick,
@@ -477,6 +506,44 @@ mod tests {
                 ));
             } else {
                 assert_eq!(now, Some(farm), "20% bar not cleared: stay");
+            }
+        }
+    }
+
+    #[test]
+    fn bonds_hold_workers_that_wages_alone_would_lose() {
+        // Identical wages, identical loyalty — the only difference is the
+        // private relationship with the current owner.
+        for (bonded, expect_switch) in [(false, true), (true, false)] {
+            let mut w = World::from_config(WorldConfig::default_with_seed(11));
+            let farm = *w.state.businesses.keys().next().unwrap();
+            let farm_owner = w.state.businesses[&farm].owner;
+            let bakery = crate::ids::BusinessId(3);
+            let mover = AgentId(10);
+            {
+                let b = w.state.businesses.get_mut(&bakery).unwrap();
+                b.wage = Money::from_cents(800); // clears the bare 10% bar
+                let popped = b.workers.pop().unwrap();
+                w.state.agents.get_mut(&popped).unwrap().employer = None;
+                w.state.agents.get_mut(&popped).unwrap().traits.ambition = 0;
+            }
+            {
+                let a = w.state.agents.get_mut(&mover).unwrap();
+                a.traits.loyalty = 0;
+                if bonded {
+                    crate::relationships::relate(a, farm_owner, |r| {
+                        r.trust = 100;
+                        r.affection = 100;
+                        r.dependence = 100;
+                    });
+                }
+            }
+            run(&mut w.state, &mut w.journal, 4).unwrap();
+            let now = w.state.agents[&mover].employer;
+            if expect_switch {
+                assert_eq!(now, Some(bakery), "a stranger takes the raise");
+            } else {
+                assert_eq!(now, Some(farm), "attachment holds where wages would not");
             }
         }
     }

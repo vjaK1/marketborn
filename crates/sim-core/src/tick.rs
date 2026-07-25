@@ -67,10 +67,14 @@ impl World {
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
         // Phase 9 — agent decisions (utility engine + owner reviews).
         systems::decisions::run(&mut self.state, &mut self.journal, t).map_err(internal)?;
-        // Phase 10 — memory updates: every memory fades a little
-        // (relationships join here later in Phase 2).
+        // Phase 10 — memory & relationships: every memory fades a little
+        // each day; relations drift one step toward neutral on the agent's
+        // weekly stagger day.
         for a in self.state.agents.values_mut() {
             crate::memory::decay(a);
+            if (t + u64::from(a.id.0)).is_multiple_of(7) {
+                crate::relationships::drift(a);
+            }
         }
         // Phase 11 — bookkeeping: EMAs, metrics, invariants, hashing.
         self.state.tick = t;

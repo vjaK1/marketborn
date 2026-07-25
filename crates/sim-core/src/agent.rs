@@ -56,6 +56,9 @@ pub struct Agent {
     /// Bounded personal memory (Phase 2): formed at event sites, decayed
     /// each memory phase, read by decisions (see `memory.rs`).
     pub memories: Vec<crate::memory::Memory>,
+    /// Private dyadic relationships toward known counterparties (Phase 2):
+    /// sparse, bounded, drifting back to neutral (see `relationships.rs`).
+    pub relations: std::collections::BTreeMap<AgentId, crate::relationships::Relationship>,
     /// Consecutive days the agent failed to eat.
     pub hungry_streak: u32,
     /// Consecutive days without employment (owners excluded from job seeking).

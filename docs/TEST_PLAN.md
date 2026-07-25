@@ -43,6 +43,10 @@ release tests). Never claim green without running them.
 - memory: repetition reinforces instead of duplicating; decay forgets and
   grievances fade below the active threshold; eviction removes the
   weakest first.
+- relationships: updates clamp and strangers are neutral; drift fades and
+  drops fully-neutral relations; the map is bounded with most-neutral
+  eviction; bonds bind and resentment repels (clamped); bonded workers
+  stay where identical wages alone would lose them.
 - consumption: pantry decrement, hunger streaks + events; comfort meal for
   the wealthy, never into hunger; perishables spoil toward zero through the
   goods ledger; durable goods and small stocks untouched.

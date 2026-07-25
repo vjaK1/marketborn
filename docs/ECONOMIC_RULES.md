@@ -29,7 +29,7 @@ Every tick executes exactly this sequence:
 | 7 | Banking | *[activates: Phase 3]* |
 | 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
-| 10 | **Memory** (& relationships, later) | Every memory fades a little (`memory::decay`); forgotten memories drop. Formation happens at event sites, never by reading the journal back. |
+| 10 | **Memory & relationships** | Every memory fades a little (`memory::decay`); forgotten memories drop. Relations drift one step toward neutral on the agent's weekly stagger day; fully-neutral relations drop. Formation/updates happen at event sites, never by reading the journal back. |
 | 11 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
 
 ## Cadences
@@ -127,7 +127,12 @@ Sales EMA: integer milli-units, `ema += (today·1000 − ema) / 8`, toward zero.
   id order, executed immediately — DECISIONS.md #020): an employed worker
   switches to the best open job (highest wage, tie → lower business id,
   hiring cash gate applied) whose wage clears a loyalty-widened premium of
-  10–20% over the current wage (`JobSwitched` event + decision record). An
+  10–20% over the current wage, adjusted by the private bond toward the
+  current owner (trust + affection + dependence − resentment, ±5% max,
+  2% floor — attachment binds, resentment repels; DECISIONS.md #024)
+  (`JobSwitched` event + decision record). Tenure drips affection and
+  dependence weekly; the seven relationship dimensions update in bounded
+  steps at every payroll, hire, fire, wage move, and takeover (#024). An
   unemployed agent holds out above a reservation wage — 0.5–1.5× the going
   food price by ambition, decaying linearly to zero over a
   patience-scaled 30–90-day unemployment horizon, zero at once when

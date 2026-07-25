@@ -147,9 +147,11 @@ fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(
         if let Some(a) = state.agents.get_mut(&aid) {
             a.owns = Some(bid);
             a.employer = None;
+            crate::relationships::on_deal(a, seller);
         }
         if let Some(o) = state.agents.get_mut(&seller) {
             o.owns = None;
+            crate::relationships::on_deal(o, aid);
         }
         if let Some(b) = state.businesses.get_mut(&bid) {
             b.owner = aid;
@@ -259,12 +261,16 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             }
         };
         if let Some(aid) = fire {
+            let firing_owner = state.businesses.get(&bid).map(|b| b.owner);
             if let Some(b) = state.businesses.get_mut(&bid) {
                 b.workers.pop();
             }
             if let Some(a) = state.agents.get_mut(&aid) {
                 a.employer = None;
                 crate::memory::remember(a, crate::memory::MemoryKind::FiredBy(bid), tick, 70);
+                if let Some(o) = firing_owner {
+                    crate::relationships::on_fired(a, o);
+                }
             }
             journal.push_event(
                 tick,
@@ -440,6 +446,18 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             );
         }
         if let Some((old, new)) = plan.new_wage {
+            // Workers notice which way their pay moved.
+            let staff_and_owner = state
+                .businesses
+                .get(&bid)
+                .map(|b| (b.workers.clone(), b.owner));
+            if let Some((staff, wage_owner)) = staff_and_owner {
+                for aid in staff {
+                    if let Some(a) = state.agents.get_mut(&aid) {
+                        crate::relationships::on_wage_moved(a, wage_owner, new > old);
+                    }
+                }
+            }
             journal.push_event(
                 tick,
                 Event::WageChanged {

@@ -33,10 +33,12 @@ equity sales through the ledger and same-tick recapitalization;
 **memory v1** (#023) — the bounded, decaying, reinforced grievance store
 with weakest-first eviction, consumed by hiring/switch targeting
 (non-desperate agents refuse employers they remember being stiffed or
-fired by). Seeds produce economically distinct histories. Still to come:
-remaining owner reviews on the engine, founding genuinely new firms,
-relationships (which extend Memory with the impact fields), reputation,
-the agent inspector.
+fired by); **relationships v1** (#024) — all seven private dimensions
+with live drivers at interaction sites, weekly drift toward neutral, and
+the bond-adjusted switch premium (attachment binds, resentment repels).
+Seeds produce economically distinct histories. Still to come: remaining
+owner reviews on the engine, founding genuinely new firms, reputation +
+`probe_reputation`, the agent inspector.
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

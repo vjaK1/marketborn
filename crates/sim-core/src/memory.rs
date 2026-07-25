@@ -135,6 +135,7 @@ mod tests {
             total_earned: Money::ZERO,
             total_spent: Money::ZERO,
             memories: Vec::new(),
+            relations: std::collections::BTreeMap::new(),
         }
     }
 

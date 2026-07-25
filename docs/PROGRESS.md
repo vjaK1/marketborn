@@ -5,7 +5,24 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 3 — 2026-07-26 — Phase 2: memory v1
+## Session 3 — 2026-07-26 — Phase 2: memory v1 + relationships v1
+
+### Relationships v1 (DECISIONS #024)
+
+- `relationships.rs`: all seven private dimensions (trust, affection,
+  fear, respect, resentment, dependence, commercial reliability), sparse
+  per-agent maps (cap 16, most-neutral eviction, strangers implicitly
+  neutral), bounded-step updates at every existing interaction site
+  (payroll paid/unpaid, hire, fire, tenure week, wage moves, takeover
+  deals, leaving a job), weekly drift toward neutral in phase 10.
+- Consumer: the switch premium is bond-adjusted (±5% max, 2% floor) —
+  attachment binds, resentment repels; neutral relations reproduce prior
+  behavior exactly. Test: identical wages and loyalty, only the private
+  bond differs — the stranger takes the raise, the bonded worker stays.
+- Matrix: seeds 7/123 and the 100-town hold their envelopes; knife-edge
+  seed 42 lands on a harsher branch this run (10 employed, food ~$21.67 —
+  the same alive-and-trading family it has oscillated within; per-seed
+  ending selection is explicitly not a tuning target). +5 tests.
 
 ### Memory v1 (DECISIONS #023)
 
@@ -22,19 +39,21 @@ Living state of the project. Updated at the end of every session
 
 ### Exact next task (Phase 2 continuation)
 
-1. **Relationships** (AGENT_DESIGN: seven private dyadic dimensions —
-   trust, affection, fear, respect, resentment, dependence, commercial
-   reliability; integer scales, bounded updates from interaction events).
-   Extend `Memory` with the impact fields relationships consume; wire one
-   real consumer (e.g., trust feeding the switch premium or takeover
-   pricing between acquainted parties). Keep phase-10 placement.
-2. Then **reputation** (public dimensions + propagation channels +
-   `probe_reputation` — the Phase 2 acceptance probe).
-3. Then the **agent inspector** (detail-query protocol + UI): identity,
-   traits, memories, relationships, and DecisionRecord explanations
-   verbatim — Phase 2's acceptance requires a real decision's explanation
-   visible in the inspector.
-4. Soak checkpoints after every economy change: seeds 42/7/123 at
+1. **Reputation** (AGENT_DESIGN: public dimensions — reliable, honest,
+   competent, generous, ruthless, wealthy, dangerous, influential,
+   corrupt — spread through observation, contract performance, business
+   outcomes and rumor channels; distinct from private relations). Design
+   the propagation channel deterministically, wire a real consumer (e.g.,
+   public employer reliability feeding job seeking beyond personal
+   grievance), and land `probe_reputation` — the Phase 2 acceptance probe
+   (propagation channel exists, never a scripted outcome; calibrate once
+   against a pinned seed, then freeze as a regression guard per
+   TEST_PLAN).
+2. Then the **agent inspector** (detail-query protocol + UI): identity,
+   traits, memories, relations, reputation, and DecisionRecord
+   explanations verbatim — Phase 2's acceptance requires a real
+   decision's explanation visible in the inspector.
+3. Soak checkpoints after every economy change: seeds 42/7/123 at
    365/1500/3650 plus `--population 100`; on surprises dump
    `sim-cli metrics <save> --csv`.
 
