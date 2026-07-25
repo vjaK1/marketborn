@@ -35,10 +35,14 @@ with weakest-first eviction, consumed by hiring/switch targeting
 (non-desperate agents refuse employers they remember being stiffed or
 fired by); **relationships v1** (#024) — all seven private dimensions
 with live drivers at interaction sites, weekly drift toward neutral, and
-the bond-adjusted switch premium (attachment binds, resentment repels).
+the bond-adjusted switch premium (attachment binds, resentment repels);
+**reputation v1** (#025) — belief-based, propagated by workplace +
+neighborhood gossip with "neutrality is silence", consumed by hiring
+refusal of publicly-unreliable owners; `probe_reputation` **passes**.
 Seeds produce economically distinct histories. Still to come: remaining
-owner reviews on the engine, founding genuinely new firms, reputation +
-`probe_reputation`, the agent inspector.
+owner reviews on the engine, founding genuinely new firms, the remaining
+reputation dimensions with their Phase 3/4 drivers, the agent inspector
+(the last Phase 2 acceptance item).
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

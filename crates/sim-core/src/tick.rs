@@ -67,13 +67,67 @@ impl World {
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
         // Phase 9 — agent decisions (utility engine + owner reviews).
         systems::decisions::run(&mut self.state, &mut self.journal, t).map_err(internal)?;
-        // Phase 10 — memory & relationships: every memory fades a little
-        // each day; relations drift one step toward neutral on the agent's
-        // weekly stagger day.
+        // Phase 10 — memory, relationships & reputation: every memory
+        // fades a little each day; relations and beliefs drift one step
+        // toward neutral on the agent's weekly stagger day, after that
+        // day's workplace gossip.
+        let gossip_day: Vec<crate::ids::AgentId> = self
+            .state
+            .agents
+            .keys()
+            .copied()
+            .filter(|id| (t + u64::from(id.0)).is_multiple_of(7))
+            .collect();
+        for aid in gossip_day {
+            // Speakers: roster colleagues (in roster order) plus the two
+            // id-neighbors — the workplace and the neighborhood, so even
+            // the unemployed and solo workers have a rumor venue. Each
+            // speaker's beliefs are snapshotted, then the listener alone
+            // updates — deterministic under id-ordered listeners.
+            let mut speakers: Vec<crate::ids::AgentId> = self
+                .state
+                .agents
+                .get(&aid)
+                .and_then(|a| a.employer)
+                .and_then(|bid| self.state.businesses.get(&bid))
+                .map(|b| b.workers.iter().copied().filter(|w| *w != aid).collect())
+                .unwrap_or_default();
+            for n in [aid.0.checked_sub(1), aid.0.checked_add(1)] {
+                if let Some(nid) = n.map(crate::ids::AgentId) {
+                    if self.state.agents.contains_key(&nid) && !speakers.contains(&nid) {
+                        speakers.push(nid);
+                    }
+                }
+            }
+            for c in speakers {
+                // Neutrality is silence: only opinions worth having get
+                // spoken, so ignorant consensus cannot erase firsthand
+                // knowledge — only competing news can.
+                let spoken: Vec<(crate::ids::AgentId, crate::reputation::Belief)> = self
+                    .state
+                    .agents
+                    .get(&c)
+                    .map(|s| {
+                        s.beliefs
+                            .iter()
+                            .filter(|(_, v)| v.intensity() >= 8)
+                            .map(|(k, v)| (*k, *v))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if spoken.is_empty() {
+                    continue;
+                }
+                if let Some(listener) = self.state.agents.get_mut(&aid) {
+                    crate::reputation::gossip(listener, aid, &spoken);
+                }
+            }
+        }
         for a in self.state.agents.values_mut() {
             crate::memory::decay(a);
             if (t + u64::from(a.id.0)).is_multiple_of(7) {
                 crate::relationships::drift(a);
+                crate::reputation::drift(a);
             }
         }
         // Phase 11 — bookkeeping: EMAs, metrics, invariants, hashing.

@@ -270,6 +270,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 crate::memory::remember(a, crate::memory::MemoryKind::FiredBy(bid), tick, 70);
                 if let Some(o) = firing_owner {
                     crate::relationships::on_fired(a, o);
+                    crate::reputation::on_fired_victim(a, o);
                 }
             }
             journal.push_event(
@@ -455,6 +456,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 for aid in staff {
                     if let Some(a) = state.agents.get_mut(&aid) {
                         crate::relationships::on_wage_moved(a, wage_owner, new > old);
+                        crate::reputation::on_wage_moved_witness(a, wage_owner, new > old);
                     }
                 }
             }

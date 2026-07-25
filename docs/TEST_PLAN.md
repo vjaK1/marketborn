@@ -47,6 +47,15 @@ release tests). Never claim green without running them.
   drops fully-neutral relations; the map is bounded with most-neutral
   eviction; bonds bind and resentment repels (clamped); bonded workers
   stay where identical wages alone would lose them.
+- reputation: observation forms beliefs and drift forgets them; gossip
+  moves the listener a quarter of the gap (never about themselves); the
+  belief store is bounded with most-neutral eviction; hearsay blocks
+  hiring of the willing until desperation.
+- `probe_reputation` (tests/probe_reputation.rs, pinned seed 42): a
+  machinery-produced payroll failure → firsthand victim beliefs → gossip
+  carries the news to a non-witness (trajectory-latched; thresholds
+  frozen per the probe calibration policy). **Phase 2 acceptance probe —
+  passing.**
 - consumption: pantry decrement, hunger streaks + events; comfort meal for
   the wealthy, never into hunger; perishables spoil toward zero through the
   goods ledger; durable goods and small stocks untouched.

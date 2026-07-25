@@ -307,6 +307,7 @@ pub fn generate(config: WorldConfig) -> World {
                 traits,
                 memories: Vec::new(),
                 relations: BTreeMap::new(),
+                beliefs: BTreeMap::new(),
                 hungry_streak: 0,
                 days_unemployed: 0,
                 total_earned: Money::ZERO,

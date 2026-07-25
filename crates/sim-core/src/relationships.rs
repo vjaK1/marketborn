@@ -223,6 +223,7 @@ mod tests {
             traits: Traits::NEUTRAL,
             memories: Vec::new(),
             relations: std::collections::BTreeMap::new(),
+            beliefs: std::collections::BTreeMap::new(),
             hungry_streak: 0,
             days_unemployed: 0,
             total_earned: Money::ZERO,

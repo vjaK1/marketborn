@@ -56,6 +56,14 @@ fn best_open_job(
         if !desperate && crate::memory::holds_grievance(viewer, b.id) {
             continue;
         }
+        // Word gets around: a non-desperate seeker also refuses owners
+        // publicly believed unreliable (DECISIONS.md #025).
+        if !desperate
+            && crate::reputation::belief_about(viewer, b.owner).reliable
+                < crate::reputation::RELIABLE_HIRING_FLOOR
+        {
+            continue;
+        }
         let five_days_one_worker = b
             .wage
             .checked_mul_qty(HIRING_CASH_DAYS)
@@ -268,6 +276,12 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 if !desperate && crate::memory::holds_grievance(a, *bid) {
                     return false; // won't work for them again — yet
                 }
+                if !desperate
+                    && crate::reputation::belief_about(a, hiring_owner).reliable
+                        < crate::reputation::RELIABLE_HIRING_FLOOR
+                {
+                    return false; // heard about this one
+                }
                 let reservation = decision::reservation_wage(
                     food_price,
                     a.traits.ambition,
@@ -334,6 +348,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                     if let Some(a) = state.agents.get_mut(&aid) {
                         a.total_earned += wage;
                         crate::relationships::on_wage_paid(a, paying_owner);
+                        crate::reputation::on_payroll_observed(a, paying_owner);
                     }
                     paid_total += wage;
                 }
@@ -372,6 +387,7 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                     // personal.
                     crate::memory::remember(a, crate::memory::MemoryKind::UnpaidBy(*bid), tick, 90);
                     crate::relationships::on_unpaid(a, paying_owner);
+                    crate::reputation::on_missed_payroll_victim(a, paying_owner);
                 }
                 journal.push_event(
                     tick,
@@ -511,6 +527,46 @@ mod tests {
     }
 
     #[test]
+    fn bad_reputation_blocks_hiring_of_strangers_until_desperation() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(11));
+        for a in w.state.agents.values_mut() {
+            a.traits.loyalty = 100;
+            a.traits.ambition = 0;
+        }
+        let farm = *w.state.businesses.keys().next().unwrap();
+        let farm_owner = w.state.businesses[&farm].owner;
+        let seeker = w
+            .state
+            .businesses
+            .get_mut(&farm)
+            .unwrap()
+            .workers
+            .pop()
+            .unwrap();
+        {
+            let a = w.state.agents.get_mut(&seeker).unwrap();
+            a.employer = None;
+            // Never worked there in memory terms — but they've heard.
+            crate::reputation::believe(a, farm_owner, |b| {
+                b.reliable = 20;
+            });
+        }
+        run(&mut w.state, &mut w.journal, 1).unwrap();
+        assert_eq!(
+            w.state.agents[&seeker].employer, None,
+            "hearsay alone blocks the willing"
+        );
+        w.state.agents.get_mut(&seeker).unwrap().cash = Money::from_cents(100);
+        w.state.expected_total_money = w.state.total_cash();
+        run(&mut w.state, &mut w.journal, 2).unwrap();
+        assert_eq!(
+            w.state.agents[&seeker].employer,
+            Some(farm),
+            "desperation outweighs rumor"
+        );
+    }
+
+    #[test]
     fn bonds_hold_workers_that_wages_alone_would_lose() {
         // Identical wages, identical loyalty — the only difference is the
         // private relationship with the current owner.
@@ -585,15 +641,14 @@ mod tests {
             Some(bakery),
             "an empty pocket forgives"
         );
-        // Time heals another: the memory fades below the active threshold.
+        // Time heals another: both the private memory and the public
+        // belief fade (the test fast-forwards what drift would do).
         let healed = staff_before[1];
-        w.state
-            .agents
-            .get_mut(&healed)
-            .unwrap()
-            .memories
-            .iter_mut()
-            .for_each(|m| m.confidence_milli = 1);
+        {
+            let a = w.state.agents.get_mut(&healed).unwrap();
+            a.memories.iter_mut().for_each(|m| m.confidence_milli = 1);
+            a.beliefs.clear();
+        }
         run(&mut w.state, &mut w.journal, 4).unwrap();
         assert_eq!(
             w.state.agents[&healed].employer,

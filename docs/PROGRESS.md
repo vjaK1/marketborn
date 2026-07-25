@@ -5,7 +5,27 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 3 — 2026-07-26 — Phase 2: memory v1 + relationships v1
+## Session 3 — 2026-07-26 — Phase 2: memory, relationships, reputation (probe passing)
+
+### Reputation v1 (DECISIONS #025) — `probe_reputation` PASSES
+
+- `reputation.rs`: per-agent BELIEFS about others (cap 16, hashed state,
+  strangers neutral, weekly drift) — reputation propagates, it isn't a
+  global score. Live dimensions: reliable (payroll observed/missed),
+  generous (wage moves), ruthless (firings); the rest arrive with their
+  Phase 3/4 drivers. Rumor channel: weekly workplace + neighborhood
+  gossip (listener moves ¼-gap per subject; **neutrality is silence** —
+  only intensity ≥ 8 beliefs get spoken, so ignorant consensus can't
+  erase firsthand knowledge). Consumer: non-desperate seekers refuse
+  owners believed unreliable (< 26).
+- `probe_reputation` (pinned seed 42, trajectory-latched): a
+  machinery-produced payroll failure → firsthand victim beliefs → the
+  news reaches a non-witness through gossip. Probe design lessons
+  recorded in #025: victims need a venue (hence the neighborhood
+  channel), and opinions legitimately fade/compete (hence latching, not
+  end-state persistence).
+- Soak matrix unchanged from the relationships run — reputation bites
+  only after public failures. +4 unit tests + the probe.
 
 ### Relationships v1 (DECISIONS #024)
 
@@ -37,22 +57,21 @@ Living state of the project. Updated at the end of every session
 - Full soak matrix unchanged to the cent (grievances rarely decisive in
   healthy runs — by design); +4 tests.
 
-### Exact next task (Phase 2 continuation)
+### Exact next task (Phase 2 completion)
 
-1. **Reputation** (AGENT_DESIGN: public dimensions — reliable, honest,
-   competent, generous, ruthless, wealthy, dangerous, influential,
-   corrupt — spread through observation, contract performance, business
-   outcomes and rumor channels; distinct from private relations). Design
-   the propagation channel deterministically, wire a real consumer (e.g.,
-   public employer reliability feeding job seeking beyond personal
-   grievance), and land `probe_reputation` — the Phase 2 acceptance probe
-   (propagation channel exists, never a scripted outcome; calibrate once
-   against a pinned seed, then freeze as a regression guard per
-   TEST_PLAN).
-2. Then the **agent inspector** (detail-query protocol + UI): identity,
-   traits, memories, relations, reputation, and DecisionRecord
-   explanations verbatim — Phase 2's acceptance requires a real
-   decision's explanation visible in the inspector.
+1. The **agent inspector** — the last open Phase 2 acceptance item ("a
+   real decision's explanation visible in the inspector"). Implement the
+   on-demand detail-query protocol reserved in ARCHITECTURE.md (inspector
+   fetches by entity id — never fatten the 10 Hz snapshot): a
+   `get_agent_detail(id)` Tauri command returning identity, traits, cash/
+   home/pantry, memories (rendered), relations and beliefs (labeled), and
+   the agent's recent DecisionRecords with `explanation()` verbatim.
+   UI: click an agent row → detail panel. Launch-verify by reading a real
+   explanation in the running app.
+2. Then declare Phase 2's acceptance state in PLAN/PROGRESS (utility
+   tests ✓, probe_reputation ✓, inspector explanation ✓, determinism ✓)
+   and assess remaining Phase 2 scope (complete action set, remaining
+   owner reviews on the engine) before moving to Phase 3.
 3. Soak checkpoints after every economy change: seeds 42/7/123 at
    365/1500/3650 plus `--population 100`; on surprises dump
    `sim-cli metrics <save> --csv`.

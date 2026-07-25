@@ -569,3 +569,37 @@ their envelopes; knife-edge seed 42 lands on a harsher branch this run
 (10 employed, food ~$21.67 at year ten — same alive-and-trading family it
 has oscillated within across every behavioral increment; per-seed ending
 selection is explicitly not a tuning target).
+
+## 025 — Reputation as propagated belief; `probe_reputation` guards the channel
+
+**Context.** Phase 2 requires public reputation spread through observation
+and rumor, distinct from private relations, with `probe_reputation` as the
+acceptance probe (TEST_PLAN: probes assert a propagation channel exists,
+never a scripted outcome).
+
+**Decision.** Reputation is not a global score: each agent holds bounded
+BELIEFS about others (`reputation.rs`, cap 16, hashed state, strangers
+neutral, most-neutral eviction, weekly drift toward neutral). Dimensions
+with live drivers ship — **reliable** (payroll observed +1/day, missed
+payroll −25), **generous** (wage raise +5 / cut −5), **ruthless** (fired
++20); honest/competent/wealthy/dangerous/influential/corrupt arrive with
+their drivers (contracts Phase 3, politics Phase 4). Propagation: on each
+agent's weekly stagger day they LISTEN to roster colleagues plus their two
+id-neighbors (the workplace and the neighborhood — the neighborhood venue
+exists because victims stranded jobless or on solo rosters otherwise have
+no audience), moving a quarter of the gap toward each speaker per subject.
+**Neutrality is silence**: speakers only voice beliefs of intensity ≥ 8,
+so ignorant consensus cannot erase firsthand knowledge — only competing
+news can. Consumer: a non-desperate job seeker refuses owners believed
+unreliable (< 26) — grievance generalized socially; desperation overrides.
+
+**Consequences.** `probe_reputation` (pinned seed 42) passes by latching
+the trajectory: the machinery produces a payroll failure, victims hold
+firsthand beliefs, and a non-witness's belief moves below neutral through
+gossip — while opinions still legitimately fade and compete afterward.
+The pinned run's emergent biography is worth recording: the bakery's
+disgraced owner lost the firm in a takeover, was later observed dutifully
+paying wages at a business he briefly revived, and ended the run as a
+mill worker with a mixed public record. The soak matrix is unchanged —
+reputation bites exactly where it should (after public failures) and
+nowhere else.

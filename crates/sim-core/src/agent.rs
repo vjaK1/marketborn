@@ -59,6 +59,9 @@ pub struct Agent {
     /// Private dyadic relationships toward known counterparties (Phase 2):
     /// sparse, bounded, drifting back to neutral (see `relationships.rs`).
     pub relations: std::collections::BTreeMap<AgentId, crate::relationships::Relationship>,
+    /// Public-reputation beliefs about other agents (Phase 2): formed by
+    /// observation, spread by gossip (see `reputation.rs`).
+    pub beliefs: std::collections::BTreeMap<AgentId, crate::reputation::Belief>,
     /// Consecutive days the agent failed to eat.
     pub hungry_streak: u32,
     /// Consecutive days without employment (owners excluded from job seeking).

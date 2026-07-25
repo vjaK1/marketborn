@@ -27,6 +27,7 @@ pub mod memory;
 pub mod metrics;
 pub mod money;
 pub mod relationships;
+pub mod reputation;
 pub mod rng;
 pub mod snapshot;
 pub mod systems;
