@@ -90,6 +90,9 @@ release tests). Never claim green without running them.
   halted world refuses to tick; corruption halts with report.
 - snapshot: reflects a running world; serializes to JSON; market rows
   cover every good with sane standing depth; balance sheets add up.
+- inspect: agent detail carries all nine traits, relations built by
+  payroll, and a real price-review explanation verbatim; unknown ids
+  yield none.
 - sim-cli: manifest diff helpers (divergence, misaligned cadences).
 
 ### Integration (sim-core/tests/)
@@ -148,8 +151,8 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
 - **Phase 1**: ~~goods-conservation reconciliation~~ ✅ ·
   ~~ore→steel→tools→farm productivity integration test~~ ✅ ·
   ~~spoilage~~ ✅.
-- **Phase 2**: utility scoring units; decision-record storage;
-  `probe_reputation`.
+- **Phase 2**: ~~utility scoring units~~ ✅ · ~~decision-record storage~~
+  ✅ · ~~`probe_reputation`~~ ✅ · ~~inspector explanation~~ ✅.
 - **Phase 3**: contract lifecycle integration; default→foreclosure;
   `probe_rate_shock`; debt reconciliation invariants.
 - **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy

@@ -5,7 +5,48 @@ Living state of the project. Updated at the end of every session
 
 ---
 
-## Session 3 — 2026-07-26 — Phase 2: memory, relationships, reputation (probe passing)
+## Session 3 — 2026-07-26 — Phase 2: COMPLETE
+
+### Agent inspector (the final acceptance item)
+
+- `inspect.rs`: `AgentDetail::capture` — identity, all nine traits,
+  memories/relations/beliefs rendered with names, and the agent's last
+  ten `DecisionRecord`s with `explanation()` verbatim. Served over the
+  on-demand detail protocol reserved in ARCHITECTURE.md: a
+  `get_agent_detail(id)` Tauri command through the sim thread's
+  request/reply channel — the 10 Hz snapshot stays lean.
+- UI: agent rows are clickable; the Agents panel swaps to the inspector
+  (1 s refresh while open, back link to the table).
+- **Launch-verified**: clicked Falk Voss (greed 94, aggression 95) and
+  read four real price-review explanations with full scores — including
+  his visible arc from greedy raises while profitable to hard cuts as the
+  glut built. Phase 2's acceptance criterion met on screen.
+- Phase 2 "done when" scorecard: utility-scoring tests ✓ ·
+  `probe_reputation` ✓ · explanation visible in the inspector ✓ ·
+  determinism suite ✓. Deferrals recorded in PLAN/DECISIONS #023–#025
+  (driver-gated reputation dimensions; action-space entries needing
+  Phase 3+ systems; wage/dividend reviews migrate to the engine
+  opportunistically).
+
+### Exact next task (Phase 3 start — contracts and finance)
+
+1. Read PLAN.md Phase 3 and BRIEF.md's contracts/bank sections first.
+   Session protocol: `npm run check` before building.
+2. Suggested first increment: the contract kernel — a `Contract` entity
+   (parties, terms, schedule, state machine) with ONE type end to end
+   (the supply contract: recurring good delivery at an agreed price),
+   deterministic fulfillment in the settlement phase (tick phase 6,
+   reserved), breach detection with penalties through the ledger, and a
+   `contract_reconciliation` invariant. Negotiation can start as
+   take-it-or-leave-it posted terms and grow the offer/counteroffer log
+   next.
+3. Soak checkpoints after every economy change: seeds 42/7/123 at
+   365/1500/3650 plus `--population 100`; on surprises dump
+   `sim-cli metrics <save> --csv`.
+
+---
+
+## Session 3a — 2026-07-26 — Phase 2: memory, relationships, reputation (probe passing)
 
 ### Reputation v1 (DECISIONS #025) — `probe_reputation` PASSES
 

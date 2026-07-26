@@ -105,3 +105,51 @@ export interface EventRow {
   kind: string;
   text: string;
 }
+
+/** On-demand agent inspector payload (crates/sim-core/src/inspect.rs). */
+export interface AgentDetail {
+  id: number;
+  name: string;
+  role: string;
+  workplace: string | null;
+  cash_cents: number;
+  pantry: number;
+  owns_home: boolean;
+  hungry_streak: number;
+  days_unemployed: number;
+  total_earned_cents: number;
+  total_spent_cents: number;
+  traits: NamedValue[];
+  memories: TickText[];
+  relations: RelationRow[];
+  beliefs: BeliefRow[];
+  decisions: TickText[];
+}
+
+export interface NamedValue {
+  name: string;
+  value: number;
+}
+
+export interface TickText {
+  tick: number;
+  text: string;
+}
+
+export interface RelationRow {
+  toward: string;
+  trust: number;
+  affection: number;
+  fear: number;
+  respect: number;
+  resentment: number;
+  dependence: number;
+  commercial_reliability: number;
+}
+
+export interface BeliefRow {
+  about: string;
+  reliable: number;
+  generous: number;
+  ruthless: number;
+}

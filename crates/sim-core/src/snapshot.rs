@@ -139,7 +139,7 @@ pub struct EventRow {
     pub text: String,
 }
 
-fn agent_label(state: &SimState, id: AgentId) -> String {
+pub(crate) fn agent_label(state: &SimState, id: AgentId) -> String {
     state
         .agents
         .get(&id)
@@ -147,7 +147,7 @@ fn agent_label(state: &SimState, id: AgentId) -> String {
         .unwrap_or_else(|| id.to_string())
 }
 
-fn business_label(state: &SimState, id: BusinessId) -> String {
+pub(crate) fn business_label(state: &SimState, id: BusinessId) -> String {
     state
         .businesses
         .get(&id)

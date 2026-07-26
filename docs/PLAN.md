@@ -40,7 +40,7 @@ persistence, construction post-boom idle, occasional farm monopoly) are
 recorded in PROGRESS.md and DECISIONS #013–#017; the fixes are Phase 2/3/4
 mechanics.
 
-## Phase 2 — Agent society
+## Phase 2 — Agent society  **[complete — session 3]**
 
 Full utility-based decision engine (complete action set, stored decision
 records with explanations); memory (decay, reinforcement, deterministic
@@ -50,6 +50,20 @@ dimensions + propagation); complete agent inspector.
 *Done when:* utility-scoring unit tests pass; `probe_reputation` passes; a
 real decision's explanation is visible in the inspector; determinism suite
 still green.
+
+*Delivered:* all four acceptance criteria met. Traits (nine, per-agent
+substream); the utility engine scores price reviews, job decisions
+(switch premiums, decaying reservation wages) and takeovers, each
+journaled with a self-rendering explanation; memory (bounded grievance
+store), relationships (all seven dimensions live), reputation (belief
+propagation via workplace + neighborhood gossip, `probe_reputation`
+green); the agent inspector shows identity, traits, memories, relations,
+beliefs and decision explanations verbatim over the on-demand detail
+protocol. Deliberately deferred to their driver phases (recorded in
+DECISIONS #023–#025): the six reputation dimensions needing contracts/
+politics, and the action-space entries that require Phase 3+ systems
+(borrowing, contracts, negotiation, politics); wage/dividend reviews
+remain rule-based and migrate to the engine opportunistically.
 
 ## Phase 3 — Contracts and finance
 

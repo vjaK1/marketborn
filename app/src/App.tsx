@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AgentInspector } from './components/AgentInspector';
 import { AgentTable } from './components/AgentTable';
 import { BusinessTable } from './components/BusinessTable';
 import { EventLog } from './components/EventLog';
@@ -15,6 +16,7 @@ export default function App() {
   const [backend, setBackend] = useState<'connecting' | 'browser' | 'ready'>(
     'connecting',
   );
+  const [inspected, setInspected] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,9 +92,13 @@ export default function App() {
           </div>
         </section>
         <section className="panel">
-          <h2>Agents</h2>
+          <h2>{inspected === null ? 'Agents' : 'Agent inspector'}</h2>
           <div className="body">
-            <AgentTable agents={snapshot.agents} />
+            {inspected === null ? (
+              <AgentTable agents={snapshot.agents} onSelect={setInspected} />
+            ) : (
+              <AgentInspector id={inspected} onBack={() => setInspected(null)} />
+            )}
           </div>
         </section>
       </div>

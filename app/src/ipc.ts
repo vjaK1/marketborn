@@ -7,7 +7,7 @@
  * browser (dev preview / tests) where it shows a "waiting for backend" state.
  */
 
-import type { WorldSnapshot } from './types';
+import type { AgentDetail, WorldSnapshot } from './types';
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -35,4 +35,10 @@ export async function saveGame(): Promise<string> {
   if (!isTauri()) throw new Error('not running inside the desktop shell');
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<string>('save_game');
+}
+
+export async function getAgentDetail(id: number): Promise<AgentDetail | null> {
+  if (!isTauri()) return null;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<AgentDetail | null>('get_agent_detail', { id });
 }

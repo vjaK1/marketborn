@@ -15,7 +15,13 @@ function roleCell(a: AgentRow) {
   );
 }
 
-export function AgentTable({ agents }: { agents: AgentRow[] }) {
+export function AgentTable({
+  agents,
+  onSelect,
+}: {
+  agents: AgentRow[];
+  onSelect: (id: number) => void;
+}) {
   return (
     <table>
       <thead>
@@ -30,7 +36,7 @@ export function AgentTable({ agents }: { agents: AgentRow[] }) {
       </thead>
       <tbody>
         {agents.map((a) => (
-          <tr key={a.id}>
+          <tr key={a.id} className="clickable" onClick={() => onSelect(a.id)}>
             <td>{a.name}</td>
             <td>{roleCell(a)}</td>
             <td className="num">{formatMoney(a.cash_cents)}</td>

@@ -39,10 +39,12 @@ the bond-adjusted switch premium (attachment binds, resentment repels);
 **reputation v1** (#025) — belief-based, propagated by workplace +
 neighborhood gossip with "neutrality is silence", consumed by hiring
 refusal of publicly-unreliable owners; `probe_reputation` **passes**.
-Seeds produce economically distinct histories. Still to come: remaining
-owner reviews on the engine, founding genuinely new firms, the remaining
-reputation dimensions with their Phase 3/4 drivers, the agent inspector
-(the last Phase 2 acceptance item).
+Seeds produce economically distinct histories; the **agent inspector**
+ships (`inspect.rs` + on-demand detail protocol + UI panel) with decision
+explanations verbatim — **all four Phase 2 acceptance criteria are met**.
+Continuing opportunistically in later phases: remaining owner reviews on
+the engine, founding genuinely new firms, and the reputation dimensions
+whose drivers arrive with contracts (Phase 3) and politics (Phase 4).
 
 ## Phase 2 target (per BRIEF.md — design direction)
 

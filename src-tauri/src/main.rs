@@ -22,6 +22,9 @@ const DEFAULT_SEED: u64 = 42;
 enum ShellMsg {
     SetSpeed(u8),
     Save(Sender<Result<String, String>>),
+    /// Inspector detail query: fetch one agent by id (ARCHITECTURE.md
+    /// on-demand protocol — the 10 Hz snapshot stays lean).
+    AgentDetail(u32, Sender<Option<Value>>),
 }
 
 struct Shared {
@@ -51,6 +54,19 @@ fn set_speed(level: u8, shared: State<'_, Shared>) -> Result<(), String> {
     let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
     tx.send(ShellMsg::SetSpeed(level))
         .map_err(|_| "simulation thread is gone".to_string())
+}
+
+#[tauri::command]
+fn get_agent_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Value>, String> {
+    let (reply_tx, reply_rx) = channel();
+    {
+        let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
+        tx.send(ShellMsg::AgentDetail(id, reply_tx))
+            .map_err(|_| "simulation thread is gone".to_string())?;
+    }
+    reply_rx
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|_| "detail query timed out".to_string())
 }
 
 #[tauri::command]
@@ -121,6 +137,11 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
                         Err(e) => error!("{e}"),
                     }
                     let _ = reply.send(result);
+                }
+                ShellMsg::AgentDetail(id, reply) => {
+                    let detail = sim_core::AgentDetail::capture(world, sim_core::AgentId(id))
+                        .and_then(|d| serde_json::to_value(&d).ok());
+                    let _ = reply.send(detail);
                 }
             }
             true
@@ -200,7 +221,12 @@ fn main() {
             info!("Marketborn shell up; simulation thread spawned");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_snapshot, set_speed, save_game])
+        .invoke_handler(tauri::generate_handler![
+            get_snapshot,
+            set_speed,
+            save_game,
+            get_agent_detail
+        ])
         .run(tauri::generate_context!())
         .expect("failed to launch Marketborn");
 }
