@@ -387,6 +387,8 @@ pub fn generate(config: WorldConfig) -> World {
         expected_total_goods: BTreeMap::new(),
         agents,
         businesses,
+        contracts: BTreeMap::new(),
+        next_contract_id: 0,
         market: MarketState::default(),
         status: SimStatus::Running,
     };

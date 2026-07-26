@@ -60,7 +60,16 @@ const INPUT_REVENUE_SHARE_BP: i64 = 7000;
 /// under this cap across the output-price cycle (DECISIONS.md #013).
 const TOOL_REVENUE_SHARE_BP: i64 = 9000;
 
-/// Units of input good consumed per day at the expected production rate.
+/// Units of input good consumed per day at the planned production rate.
+///
+/// Planned, not just trailing: recent stockout days add to the expected
+/// rate one for one (bounded — the counter resets every review window).
+/// This is the demand-pull channel that lets shortages propagate upstream
+/// as QUANTITIES, not only as prices. Without it, a chain fed by contracts
+/// locks at the contracted quantity forever: every stage's realized sales
+/// equal its contracted inflow, so its EMA-derived orders never exceed the
+/// contract, no stage ever buys spot, and the town starves next to free
+/// stock (the seed-7 contract-monoculture deadlock, DECISIONS.md #026).
 pub fn daily_input_need(business: &Business, good: Good) -> Qty {
     let per_batch: Qty = business
         .recipe
@@ -73,35 +82,66 @@ pub fn daily_input_need(business: &Business, good: Good) -> Qty {
         return 0;
     }
     let out_per_batch = business.recipe.output.1.max(1);
-    let batches_needed = (business.expected_daily_sales() + out_per_batch - 1) / out_per_batch;
+    let planned = business.expected_daily_sales() + business.stockout_days as Qty;
+    let batches_needed = (planned + out_per_batch - 1) / out_per_batch;
     batches_needed * per_batch
 }
 
-fn build_offers(state: &SimState, good: Good) -> Vec<Offer> {
+/// Standing offers: each seller's daily contract commitment is withheld —
+/// promised goods are never for sale (`contracts::free_stock`); settlement
+/// collects them right after the markets (phase 6).
+fn build_offers(state: &SimState, good: Good, _tick: u64) -> Vec<Offer> {
     let mut offers: Vec<Offer> = state
         .businesses
         .values()
-        .filter(|b| b.sells == good && b.stock(good) > 0)
-        .map(|b| Offer {
-            seller: b.id,
-            price: b.price,
-            qty: b.stock(good),
+        .filter(|b| b.sells == good)
+        .filter_map(|b| {
+            let free = crate::contracts::free_stock(state, b.id, good);
+            (free > 0).then_some(Offer {
+                seller: b.id,
+                price: b.price,
+                qty: free,
+            })
         })
         .collect();
     offers.sort_by_key(|o| (o.price, o.seller));
     offers
 }
 
-/// Cash a business may spend at market after protecting a payroll reserve.
-fn market_budget(b: &Business) -> Money {
+/// Cash a business may spend at market after protecting a payroll reserve
+/// and any contract payment falling due this tick. Also the affordability
+/// gate contract formation applies to a delivery's cost.
+pub(crate) fn market_budget(state: &SimState, b: &Business, tick: u64) -> Money {
     let reserve = b
         .wage
         .checked_mul_qty(b.workers.len() as i64 * PAYROLL_RESERVE_DAYS)
         .unwrap_or(Money::MAX);
-    (b.cash - reserve).max(Money::ZERO)
+    let due = crate::contracts::payment_due_today(state, b.id, tick);
+    (b.cash - reserve - due).max(Money::ZERO)
 }
 
-fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
+/// The most a producer will pay per unit of `good` as a recipe input:
+/// `INPUT_REVENUE_SHARE_BP` of the revenue one batch earns, divided by the
+/// units of this input per batch. Shared by the market's spot orders and
+/// contract formation, so a contract can never lock in a price the spot
+/// market would refuse.
+pub fn input_reservation_cap(b: &Business, good: Good) -> Money {
+    let per_batch: Qty = b
+        .recipe
+        .inputs
+        .iter()
+        .filter(|(g, _)| *g == good)
+        .map(|(_, q)| *q)
+        .sum::<Qty>()
+        .max(1);
+    let revenue_per_batch = b
+        .price
+        .checked_mul_qty(b.recipe.output.1.max(1))
+        .unwrap_or(Money::MAX);
+    Money::from_cents(revenue_per_batch.mul_bp(INPUT_REVENUE_SHARE_BP).cents() / per_batch)
+}
+
+fn build_orders(state: &SimState, good: Good, tick: u64) -> Vec<Order> {
     let mut orders: Vec<Order> = Vec::new();
 
     // Producers restock inputs toward INPUT_TARGET_DAYS of consumption.
@@ -116,32 +156,16 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
         if want <= 0 {
             continue;
         }
-        let budget = market_budget(b);
+        let budget = market_budget(state, b, tick);
         if budget == Money::ZERO {
             continue;
         }
-        // Reservation price: revenue per batch × input share ÷ units of this
-        // input per batch (integer division toward zero).
-        let per_batch: Qty = b
-            .recipe
-            .inputs
-            .iter()
-            .filter(|(g, _)| *g == good)
-            .map(|(_, q)| *q)
-            .sum::<Qty>()
-            .max(1);
-        let revenue_per_batch = b
-            .price
-            .checked_mul_qty(b.recipe.output.1.max(1))
-            .unwrap_or(Money::MAX);
-        let cap =
-            Money::from_cents(revenue_per_batch.mul_bp(INPUT_REVENUE_SHARE_BP).cents() / per_batch);
         orders.push(Order {
             buyer: AccountId::Business(b.id),
             urgency: if current < need_per_day { 0 } else { 1 },
             qty: want,
             max_spend: Some(budget),
-            max_unit_price: Some(cap),
+            max_unit_price: Some(input_reservation_cap(b, good)),
         });
     }
 
@@ -160,8 +184,9 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
             // No capital spending while sitting on unsold output: a glutted
             // producer must not buy capacity it cannot sell (the mine
             // self-glut lesson, DECISIONS.md #013). Same threshold as the
-            // price review's light-glut signal.
-            if b.stock(b.sells)
+            // price review's light-glut signal; contract-committed stock is
+            // sold stock in waiting, not overhang.
+            if crate::contracts::free_stock(state, b.id, b.sells)
                 > crate::systems::decisions::GLUT_LIGHT_DAYS * b.expected_daily_sales()
             {
                 continue;
@@ -180,7 +205,7 @@ fn build_orders(state: &SimState, good: Good) -> Vec<Order> {
                 .checked_mul_qty(bonus_units_per_day * TOOL_LIFE_WORKER_DAYS)
                 .unwrap_or(Money::MAX);
             let cap = life_value.mul_bp(TOOL_REVENUE_SHARE_BP);
-            let budget = market_budget(b);
+            let budget = market_budget(state, b, tick);
             if budget == Money::ZERO {
                 continue;
             }
@@ -355,9 +380,12 @@ pub struct MarketDepth {
     pub urgent_demand_qty: Qty,
 }
 
-pub fn depth(state: &SimState, good: Good) -> MarketDepth {
-    let offers = build_offers(state, good);
-    let orders = build_orders(state, good);
+/// `tick` is the market day being described: the clearing phase passes the
+/// tick in progress; observers (snapshot, takeover reviews) pass the next
+/// tick, whose reservations are the standing ones.
+pub fn depth(state: &SimState, good: Good, tick: u64) -> MarketDepth {
+    let offers = build_offers(state, good, tick);
+    let orders = build_orders(state, good, tick);
     MarketDepth {
         sellers: offers.len() as u32,
         offered_qty: offers.iter().map(|o| o.qty).sum(),
@@ -379,14 +407,21 @@ pub fn run_goods_markets(
     acc: &mut DayAccumulator,
 ) -> Result<(), LedgerError> {
     for good in Good::ALL {
-        let offers = build_offers(state, good);
-        let orders = build_orders(state, good);
+        let offers = build_offers(state, good, tick);
+        let orders = build_orders(state, good, tick);
         execute_orders(state, journal, tick, good, orders, offers, acc)?;
 
         // A seller is "stocked out" when it *sold out* — it moved units today,
-        // holds nothing, and demand still went unmet. A business with nothing
-        // to sell all day (no workers, no production) gets no scarcity signal:
-        // it isn't participating in the market, so it must not ratchet prices.
+        // holds nothing at all, and demand still went unmet. A business with
+        // nothing to sell all day (no workers, no production) gets no scarcity
+        // signal: it isn't participating in the market, so it must not ratchet
+        // prices. Deliberately TOTAL stock, not free stock: a seller holding a
+        // contract-committed buffer has no scarcity problem — that stock is
+        // sold at the locked price either way, and counting the residual spot
+        // shortfall as scarcity gave committed sellers a stockout day every
+        // day, a one-way ratchet no glut could ever correct (the seed-7 food
+        // inflation collapse, DECISIONS.md #026). True scarcity still prices
+        // in through uncommitted competitors selling out.
         let unmet = acc.unmet_demand.get(&good).copied().unwrap_or(0);
         if unmet > 0 {
             for b in state.businesses.values_mut() {
@@ -595,6 +630,86 @@ mod tests {
         run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
         assert_eq!(w.state.agents[&rich].pantry, PANTRY_TARGET + 2);
         assert_eq!(w.state.businesses[&ids[3]].sold_today, 1);
+    }
+
+    #[test]
+    fn stock_committed_to_todays_delivery_is_withheld_from_offers() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        // The farm holds 10 wheat but owes 6 under a contract due today.
+        {
+            let farm = w.state.businesses.get_mut(&ids[0]).unwrap();
+            farm.add_stock(Good::Wheat, 10);
+            farm.price = Money::from_cents(100);
+        }
+        crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: ids[0],
+                buyer: ids[2],
+                good: Good::Wheat,
+                qty: 6,
+                unit_price: Money::from_cents(90),
+            },
+        );
+        // The mill would happily buy everything on offer.
+        {
+            let mill = w.state.businesses.get_mut(&ids[2]).unwrap();
+            mill.cash = Money::from_cents(100_000);
+            mill.sales_ema_milli = 20_000; // wants ~60 wheat
+        }
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 7, &mut acc).unwrap();
+        assert_eq!(
+            w.state.businesses[&ids[0]].stock(Good::Wheat),
+            6,
+            "only the 4 uncommitted units were for sale"
+        );
+        assert_eq!(w.state.businesses[&ids[0]].sold_today, 4);
+    }
+
+    #[test]
+    fn a_due_contract_payment_is_protected_from_market_spending() {
+        let mut w = bare_world();
+        let ids = biz_ids(&w);
+        // Cheap wheat on offer; the mill wants some but owes its whole cash
+        // balance to a delivery due today.
+        {
+            let farm = w.state.businesses.get_mut(&ids[0]).unwrap();
+            farm.add_stock(Good::Wheat, 20);
+            farm.price = Money::from_cents(100);
+        }
+        crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: ids[0],
+                buyer: ids[2],
+                good: Good::Wheat,
+                qty: 10,
+                unit_price: Money::from_cents(500),
+            },
+        );
+        {
+            let mill = w.state.businesses.get_mut(&ids[2]).unwrap();
+            mill.cash = Money::from_cents(5_000); // exactly the $50 due
+        }
+        w.state.expected_total_money = w.state.total_cash();
+        let mut acc = DayAccumulator::default();
+        run_goods_markets(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(
+            w.state.businesses[&ids[2]].cash,
+            Money::from_cents(5_000),
+            "the due payment never leaks into spot purchases"
+        );
+        // And settlement then collects it cleanly.
+        crate::contracts::settle(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.businesses[&ids[2]].cash, Money::ZERO);
+        assert_eq!(w.state.businesses[&ids[2]].stock(Good::Wheat), 10);
+        assert_eq!(w.state.total_cash(), w.state.expected_total_money);
     }
 
     #[test]

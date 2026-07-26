@@ -603,3 +603,94 @@ paying wages at a business he briefly revived, and ended the run as a
 mill worker with a mixed public record. The soak matrix is unchanged —
 reputation bites exactly where it should (after public failures) and
 nowhere else.
+
+## 026 — Contract kernel v1: requirements-form supply contracts, and the five collapses that shaped them
+
+**Context.** Phase 3 opens with the contract kernel: a `Contract` entity
+in hashed state, ONE type end to end (the supply contract), deterministic
+settlement in the reserved tick phase 6, breach with ledger penalties,
+and a `contract_reconciliation` invariant. The naive design — fixed
+weekly quantity at a fixed price for a quarter — passed every unit test
+and killed every town it touched. Each collapse was diagnosed from
+`sim-cli metrics` CSV time series against a pre-contract baseline
+worktree, and each fix is a recorded mechanic, not a tuning nudge.
+
+**The form.** A supply contract locks a unit PRICE (the seller's posted
+price at signing minus a 5% commitment discount, gated by the buyer's
+input reservation cap so a contract can never lock in a price the spot
+market would refuse) and a DAILY CEILING; each day the buyer takes its
+current input need up to the ceiling (requirements form). Deliveries
+settle daily in phase 6: goods seller→buyer as a zero-sum trade, cash
+buyer→seller through the ledger (`TxKind::ContractDelivery`); books
+categorize at the site. A zero-need day settles trivially. A failed take
+is a miss: the failing side (seller first when both fail) pays a
+cash-capped 25% penalty; three consecutive misses terminate as Breached.
+84 scheduled days ≈ a quarter; expiry is v1's renegotiation. Committed
+ceilings are withheld from the seller's market offers, added to its
+production target, and netted out of its glut and tool-gate signals
+(committed stock is sold stock in waiting); buyers protect today's take
+in their market budget. Formation is a weekly utility-engine decision on
+the buyer's review stagger (Sign vs StaySpot; greed weighs the discount,
+low risk tolerance buys supply security, gamblers hold out until cover
+thins), take-it-or-leave-it at the cheapest capable seller — the
+offer/counteroffer log is the next increment. Sellers auto-accept up to
+an 80% capacity share (floored at one unit so single-worker stages can
+contract at all); buyers refuse sellers they publicly believe unreliable
+(the #025 floor). An underwater buyer — locked price past the
+reservation cap beyond an honesty-widened tolerance (0–10%) — walks
+away, paying the exit penalty (`Terminated`, journaled as a
+`ContractExit` decision). Contract performance drives relationships
+(commercial reliability both ways) and reputation (misses and walk-aways
+seed "unreliable" beliefs — the BRIEF's contract-performance channel).
+
+**The five collapses.**
+1. *Weekly lumps* starved the hand-to-mouth chain between due dates (the
+   seed-6 famine): sellers withheld a week's committed stock — including
+   from the waiting buyer itself. → Daily cadence.
+2. *Committed-seller stockout ratchet*: counting residual unmet spot
+   demand as scarcity gave contracted sellers a stockout day every day —
+   a one-way price ratchet no glut could correct (seed-7 food
+   inflation). → Stockout marks require zero TOTAL stock, as before
+   contracts.
+3. *Fixed-quantity anchor*: with sales exactly equal to contracted
+   inflow, every stage's EMA-derived orders equaled the contract
+   forever — a stable under-production fixed point (farms selling 4/day
+   beside 16 free units, towns starving next to stock). → Requirements
+   form, plus the demand-pull channel: recent stockout days add
+   one-for-one to planned production and input orders, so shortages
+   propagate upstream as quantities, not only prices.
+4. *Wage ratchet on the dead* (latent pre-contract bug the deeper
+   contract crises exposed): a zero-activity business has window profit
+   exactly 0, passed the old `>= 0` raise gate, and bid +5% weekly to
+   the $10,000 ceiling — pricing both rehiring and takeover revival out
+   of existence for the whole town. → Raises need strictly positive
+   profit, and an offer the till can't fund walks down 3% weekly.
+5. *Staffed-zombie deadlock*: a firm hovering just above the hire floor
+   paid wages forever with zero input budget; its rich owner never
+   triggered the hire-gap injection, and its silent input demand kept
+   every upstream supplier failing the revival gate. → The "invest"
+   action's second slice: owners inject working capital when a staffed
+   recipe business can't fund a day of inputs; and the takeover demand
+   gate counts contract-committed flow as live demand.
+
+**Scope choice.** Even with all five fixes, food-chain (wheat/flour)
+contracts collapsed every 10-year pop-29 soak: households are
+price-takers for survival food, so no reservation cap disciplines the
+chain downstream and every distortion lands in its razor-thin cash
+margins. Industry and construction contracts, by contrast, left towns at
+least as strong as before. v1 therefore scopes contracts to durable
+industrial inputs (`contracts::contractable`); food-chain contracts
+return when the bank can float working capital. Recorded, not silent.
+Final matrix: seeds 42/7/123/6 × 3650 all land at 13 employed with
+hunger 12–21 — on par with the strongest pre-contract matrix (#022's 13
+employed) across MORE seeds, and the pop-100 decade ends at 13 employed
+with less hunger than before (83 vs ≈94).
+
+**Consequences.** Saves break (SimState, Books, TxKind, Event gained
+fields/variants; pre-1.0 policy, no released saves). All hashes shift
+(calibration + state shape). Terminal contracts stay in state as the
+contract view's archive (tiny; revisit retention if soaks grow it). Flat
+`Contract` fields factor into a terms enum when the second type lands.
+Deferred to later increments: offer/counteroffer negotiation logging,
+seller-side strategic breach, multi-sourcing one good across sellers,
+renegotiation before expiry, and the contract view UI.

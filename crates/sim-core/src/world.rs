@@ -3,10 +3,11 @@
 use crate::agent::Agent;
 use crate::business::Business;
 use crate::commands::{CommandError, PlayerCommand, QueuedCommand};
+use crate::contracts::Contract;
 use crate::decision::DecisionRecord;
 use crate::events::{Event, EventRecord};
 use crate::goods::{Good, Qty};
-use crate::ids::{AgentId, BusinessId};
+use crate::ids::{AgentId, BusinessId, ContractId};
 use crate::ledger::Transaction;
 use crate::metrics::MetricsDay;
 use crate::money::Money;
@@ -55,6 +56,12 @@ pub struct SimState {
     pub expected_total_goods: BTreeMap<Good, Qty>,
     pub agents: BTreeMap<AgentId, Agent>,
     pub businesses: BTreeMap<BusinessId, Business>,
+    /// All contracts ever signed, live and terminal alike — terminal ones
+    /// are the contract view's archive and Phase 3 credit-scoring input.
+    /// Small and bounded in practice (a handful of buyer-good pairs re-sign
+    /// quarterly); revisit retention if soak state ever grows.
+    pub contracts: BTreeMap<ContractId, Contract>,
+    pub next_contract_id: u32,
     pub market: MarketState,
     pub status: SimStatus,
 }

@@ -104,6 +104,7 @@ pub fn check_all(state: &SimState, journal: &Journal) -> Result<(), Box<Invarian
     non_negative_inventory(state, journal)?;
     employment_reciprocity(state, journal)?;
     business_books(state, journal)?;
+    contract_reconciliation(state, journal)?;
     // Aggregate reconciliation runs after the specific checks so a negative
     // stock reports as non_negative_inventory, not as a totals mismatch.
     goods_conservation(state, journal)?;
@@ -147,6 +148,137 @@ fn business_books(state: &SimState, journal: &Journal) -> Result<(), Box<Invaria
                 b.cash - expected,
                 Some(AccountId::Business(b.id)),
             ));
+        }
+    }
+    Ok(())
+}
+
+/// Per-contract reconciliation (Phase 3): every contract's counters,
+/// schedule and money totals must agree with themselves and its terms. The
+/// cash identity — `paid_total == unit_price × qty × delivered` — is
+/// updated at the same settlement site as the transfer, so a delivery that
+/// moved money without counting (or counted without moving) halts here or
+/// in `business_books`.
+fn contract_reconciliation(
+    state: &SimState,
+    journal: &Journal,
+) -> Result<(), Box<InvariantViolation>> {
+    use crate::contracts::{ContractState, BREACH_AFTER_MISSES};
+    for c in state.contracts.values() {
+        let fail = |what: &str, expected: String, actual: String| {
+            Err(violation(
+                state,
+                journal,
+                "contract_reconciliation",
+                format!("{} {what}: {expected}", c.id),
+                actual,
+                "contract state inconsistent",
+                Some(AccountId::Business(c.seller)),
+            ))
+        };
+        if !state.businesses.contains_key(&c.seller) || !state.businesses.contains_key(&c.buyer) {
+            return fail(
+                "parties",
+                "both businesses exist".into(),
+                format!("seller {} buyer {}", c.seller, c.buyer),
+            );
+        }
+        if c.qty <= 0 || c.every == 0 || c.deliveries == 0 || c.unit_price.is_negative() {
+            return fail(
+                "terms",
+                "positive qty/cadence/deliveries, non-negative price".into(),
+                format!(
+                    "qty {} every {} deliveries {} price {}",
+                    c.qty, c.every, c.deliveries, c.unit_price
+                ),
+            );
+        }
+        let settled = c.delivered + c.missed;
+        if settled > c.deliveries || c.consecutive_misses > c.missed {
+            return fail(
+                "counters",
+                format!("settled ≤ {}, run ≤ missed", c.deliveries),
+                format!(
+                    "delivered {} missed {} run {}",
+                    c.delivered, c.missed, c.consecutive_misses
+                ),
+            );
+        }
+        match c.state {
+            ContractState::Active => {
+                if settled >= c.deliveries || c.consecutive_misses >= BREACH_AFTER_MISSES {
+                    return fail(
+                        "active state",
+                        "unfinished schedule, unbroken run".into(),
+                        format!("settled {settled}, run {}", c.consecutive_misses),
+                    );
+                }
+                let aligned = c.start_tick + (u64::from(settled) + 1) * c.every;
+                if c.next_due != aligned {
+                    return fail(
+                        "schedule",
+                        format!("next_due {aligned}"),
+                        format!("next_due {}", c.next_due),
+                    );
+                }
+            }
+            ContractState::Completed => {
+                if settled != c.deliveries {
+                    return fail(
+                        "completed state",
+                        format!("settled == {}", c.deliveries),
+                        format!("settled {settled}"),
+                    );
+                }
+            }
+            ContractState::Breached => {
+                if c.consecutive_misses != BREACH_AFTER_MISSES {
+                    return fail(
+                        "breached state",
+                        format!("run == {BREACH_AFTER_MISSES}"),
+                        format!("run {}", c.consecutive_misses),
+                    );
+                }
+            }
+            // Voluntary exit can happen at any point in the schedule; the
+            // counter bounds above still apply.
+            ContractState::Terminated => {}
+        }
+        if c.delivered_units < 0 || c.delivered_units > c.qty * i64::from(c.delivered) {
+            return fail(
+                "delivered units",
+                format!("0 ≤ units ≤ ceiling × {} settled days", c.delivered),
+                format!("units {}", c.delivered_units),
+            );
+        }
+        let expected_paid = c
+            .unit_price
+            .checked_mul_qty(c.delivered_units)
+            .unwrap_or(crate::money::Money::MAX);
+        if c.paid_total != expected_paid {
+            return fail(
+                "payments",
+                format!(
+                    "paid {expected_paid} for {} delivered units",
+                    c.delivered_units
+                ),
+                format!("paid {}", c.paid_total),
+            );
+        }
+        // Each miss pays at most one full penalty; a voluntary termination
+        // adds one more.
+        let penalty_events = i64::from(c.missed) + i64::from(c.state == ContractState::Terminated);
+        let penalty_ceiling = c
+            .delivery_cost()
+            .mul_bp(crate::contracts::CONTRACT_PENALTY_BP)
+            .checked_mul_qty(penalty_events)
+            .unwrap_or(crate::money::Money::MAX);
+        if c.penalties_paid_total.is_negative() || c.penalties_paid_total > penalty_ceiling {
+            return fail(
+                "penalties",
+                format!("0 ≤ penalties ≤ {penalty_ceiling} for {} misses", c.missed),
+                format!("penalties {}", c.penalties_paid_total),
+            );
         }
     }
     Ok(())
@@ -382,6 +514,58 @@ mod tests {
         let v = check_all(&w.state, &w.journal).unwrap_err();
         assert_eq!(v.invariant, "business_books");
         assert!(v.delta.contains("5.00"));
+    }
+
+    #[test]
+    fn contract_payment_drift_is_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        let ids: Vec<_> = w.state.businesses.keys().copied().collect();
+        let cid = crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: ids[0],
+                buyer: ids[2],
+                good: crate::goods::Good::Wheat,
+                qty: 5,
+                unit_price: Money::from_cents(400),
+            },
+        );
+        check_all(&w.state, &w.journal).unwrap();
+        // Units counted as delivered without their money moving (schedule
+        // kept aligned so the payment identity is what fires).
+        {
+            let c = w.state.contracts.get_mut(&cid).unwrap();
+            c.delivered = 1;
+            c.delivered_units = 5;
+            c.next_due = 2;
+        }
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "contract_reconciliation");
+        assert!(v.expected.contains("paid"), "{}", v.expected);
+    }
+
+    #[test]
+    fn contract_schedule_misalignment_is_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        let ids: Vec<_> = w.state.businesses.keys().copied().collect();
+        let cid = crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: ids[0],
+                buyer: ids[2],
+                good: crate::goods::Good::Wheat,
+                qty: 5,
+                unit_price: Money::from_cents(400),
+            },
+        );
+        w.state.contracts.get_mut(&cid).unwrap().next_due = 9; // should be 1
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "contract_reconciliation");
+        assert!(v.expected.contains("next_due"));
     }
 
     #[test]

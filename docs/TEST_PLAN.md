@@ -75,6 +75,26 @@ release tests). Never claim green without running them.
   horizon, and yield to desperation; switch premiums widen with loyalty
   (a 16% raise moves the disloyal, not the loyal); a run of dry windows
   breaks the price deadlock while a single quiet week does not.
+- contracts: a delivery moves goods and money, categorizes books and
+  advances the schedule; seller shortfalls and broke buyers are penalized
+  misses (cash-capped, pay-what-you-can) and a clean delivery resets the
+  run; three consecutive misses breach and terminate; an exhausted
+  schedule completes with the paid-per-unit identity exact; zero-need
+  days settle trivially (requirements form); query helpers see only
+  active contracts and free stock nets commitments; misses sour the dyad
+  and seed unreliable beliefs.
+- contract formation: a buyer signs with the cheapest capable seller
+  once (no double-signing while active); covered gamblers stay spot and
+  the record says why; publicly unreliable sellers are passed over;
+  underwater buyers walk away (honesty holds out longer — trait
+  divergence) paying the exit penalty; dead businesses walk wages down
+  instead of ratcheting (the #026 regression).
+- contract market interlocks: committed stock is withheld from same-day
+  offers; a due payment is protected from spot spending and settlement
+  then collects it; committed buffers don't read as glut; sellers
+  produce toward their commitments.
+- contract invariant: payment drift (units without money) and schedule
+  misalignment are each caught with a report.
 - worldgen traits: same seed ⇒ same person; traits vary across the town;
   different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each
@@ -110,6 +130,12 @@ release tests). Never claim green without running them.
   acceptance run**: 100 agents / 20 businesses, one sim year with
   every-tick invariant sweeps (debug), liveness (employment, meals in
   month twelve), full money/goods/books reconciliation at the end.
+- `supply_contract_negotiated_and_fulfilled_end_to_end` (contracts.rs,
+  seed 42, 400 days) — **the Phase 3 first acceptance criterion**: in a
+  natural unstaged run, a supply contract signs (traceable to a journaled
+  `SupplyReview` decision), delivers, and at least one completes its full
+  84-day schedule with `paid == unit_price × delivered_units` exact and
+  conservation green to the end.
 
 ### Determinism (sim-core/tests/determinism.rs)
 
@@ -153,7 +179,8 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   ~~spoilage~~ ✅.
 - **Phase 2**: ~~utility scoring units~~ ✅ · ~~decision-record storage~~
   ✅ · ~~`probe_reputation`~~ ✅ · ~~inspector explanation~~ ✅.
-- **Phase 3**: contract lifecycle integration; default→foreclosure;
+- **Phase 3**: ~~contract lifecycle integration~~ ✅ ·
+  ~~contract_reconciliation invariant~~ ✅ · default→foreclosure;
   `probe_rate_shock`; debt reconciliation invariants.
 - **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy
   band asserts); tax reconciliation; delayed-policy effects.

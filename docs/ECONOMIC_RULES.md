@@ -4,9 +4,9 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 1 in progress (food chain + industry chain). Sections marked
-*[activates: Phase N]* are reserved slots in the phase order, documented now
-so later systems slot in without reordering anything.
+Status: Phase 3 in progress (contract kernel live; bank next). Sections
+marked *[activates: Phase N]* are reserved slots in the phase order,
+documented now so later systems slot in without reordering anything.
 
 ## Time
 
@@ -25,8 +25,8 @@ Every tick executes exactly this sequence:
 | 3 | **Production** | Businesses run recipes; equipped workers add the tool bonus and wear tools down (see §Production). |
 | 4 | **Labor market** | Job matching, then daily payroll (see §Labor). |
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
-| 6 | Contract settlement | *[activates: Phase 3]* |
-| 7 | Banking | *[activates: Phase 3]* |
+| 6 | **Contract settlement** | Every active supply contract due today settles in contract-id order: the buyer takes its current input need up to the contracted daily ceiling at the locked price (goods seller→buyer zero-sum, cash through the ledger); shortfalls are penalized misses; three consecutive misses breach (see §Contracts). |
+| 7 | Banking | *[activates: Phase 3, bank increment]* |
 | 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
 | 10 | **Memory, relationships & reputation** | Every memory fades a little (`memory::decay`); forgotten memories drop. On the agent's weekly stagger day: workplace + neighborhood gossip (listener moves ¼ of the gap toward each speaker per subject; neutrality is silence — only intensity ≥ 8 beliefs get spoken), then relations and beliefs drift one step toward neutral; fully-neutral entries drop. Formation/updates happen at event sites, never by reading the journal back. |
@@ -37,6 +37,8 @@ Every tick executes exactly this sequence:
 | What | Cadence |
 |------|---------|
 | Wages | every tick (daily) |
+| Contract deliveries | every tick (daily) — the town runs on a one-day cadence; weekly lumps starved it (DECISIONS.md #026) |
+| Contract formation & underwater review | on the buyer business's weekly review stagger |
 | Business review (price, wage, dividend, window profit) | every 7 ticks, staggered: a business reviews when `(tick + id) % 7 == 0` |
 | Emergency downsizing check | every tick |
 | State hash + manifest entry | every `hash_every` ticks (default 50) and at every save |
@@ -62,14 +64,18 @@ Every tick executes exactly this sequence:
 Each good has a registry of standing sell offers, rebuilt each tick from
 current business inventory (equivalent to refreshing standing offers):
 
-1. **Offers**: every business with `sells == good` and stock > 0 offers its
-   whole stock at its posted price. Offers sort by `(unit price, seller id)`.
+1. **Offers**: every business with `sells == good` offers its **free
+   stock** — on hand minus its daily contract commitments
+   (`contracts::free_stock`; promised goods are not for sale) — at its
+   posted price. Offers sort by `(unit price, seller id)`.
 2. **Orders** (buyers), sorted by `(urgency, account)` where accounts order
    businesses before households, then by id (DECISIONS.md #008):
    - *Producers* buy inputs up to `INPUT_TARGET_DAYS (3) × daily input need`,
-     where daily need derives from the sales EMA. Urgency 0 when holding less
-     than one day of input, else 1. Spending is capped to keep a 3-day
-     payroll reserve. Producers carry a **reservation price**: they refuse
+     where daily need derives from the **planned** rate (sales EMA plus
+     recent stockout days — the demand-pull channel, §Production). Urgency
+     0 when holding less than one day of input, else 1. Spending is capped
+     to keep a 3-day payroll reserve **plus any contract payment due
+     today**. Producers carry a **reservation price**: they refuse
      unit prices above `70% × (output price × output per batch) ÷ input units
      per batch` — the marginal-revenue cap that damps cost-push spirals
      (DECISIONS.md #011).
@@ -95,19 +101,95 @@ current business inventory (equivalent to refreshing standing offers):
    to the next offer. Money moves buyer → seller through the ledger; goods
    move seller → buyer.
 4. **Signals**: a seller gets a stockout day only when it **sold out** —
-   it moved units today, holds zero, and aggregate demand went unmet. A
-   business with nothing to sell all day isn't participating and gets no
-   scarcity signal (dead businesses must not ratchet prices). Volume-weighted
-   average execution prices are recorded per good (`market.last_prices`,
-   metrics, chart).
+   it moved units today, holds zero **total** stock, and aggregate demand
+   went unmet. A business with nothing to sell all day isn't participating
+   and gets no scarcity signal (dead businesses must not ratchet prices),
+   and a seller holding only contract-committed stock has no scarcity
+   problem — that stock is sold either way, and counting the residual spot
+   shortfall was a one-way price ratchet (DECISIONS.md #026).
+   Volume-weighted average execution prices are recorded per good
+   (`market.last_prices`, metrics, chart); contract deliveries settle
+   off-market and do not move them.
+
+## Contracts (Phase 3 — supply contracts, requirements form)
+
+One type live (DECISIONS.md #026): a buyer business locks a recipe
+input's PRICE and a DAILY CEILING with one seller; each day the buyer
+takes its **current** input need up to the ceiling at the locked price.
+Price rigid, quantity adaptive — both opposite rigidities (weekly lumps,
+fixed quantities) collapsed towns and are documented in #026.
+
+- **Scope**: durable industrial inputs only (`contracts::contractable` —
+  iron ore, steel, tools, wood, bricks). The survival-food chain (wheat,
+  flour) stays spot in v1: its downstream buyers are price-taking
+  households, so no reservation cap disciplines a locked price; returns
+  with the bank.
+- **Formation** (weekly, buyer's review stagger, before owner reviews):
+  for each recipe input without an active contract, the buyer's owner
+  scores **Sign vs StaySpot** through the utility engine — the 5%
+  commitment discount weighed by greed, supply security (input cover vs
+  the 3-day target) weighed by caution, a commitment cost that scales
+  with risk tolerance squared (gamblers hold out until cover thins).
+  Both outcomes journal a `SupplyReview` decision record. Terms:
+  cheapest capable seller (price, then id), unit price = posted − 5%
+  (floor 1¢), must clear the buyer's input reservation cap; ceiling =
+  buyer's daily need capped at the seller's contractable share (80% of
+  bare-handed capacity, floored at one unit) net of prior commitments;
+  buyer must afford one full take beyond its protected reserves. The
+  buyer refuses sellers whose owner it publicly believes unreliable
+  (< 26, as hiring). Seller side is v1 take-it-or-leave-it (posted terms
+  are their offer); the offer/counteroffer log is the next increment.
+- **Settlement** (phase 6, contract-id order): take = min(ceiling,
+  buyer's `daily_input_need`). Zero-need days settle trivially. Success
+  moves goods (zero-sum) and cash (`TxKind::ContractDelivery`; books:
+  seller revenue, buyer input/tool costs; seller `sold_today` includes
+  contract volume so the EMA sees it). Failure is a **miss**: the
+  failing side (seller when short of goods — checked first — else the
+  buyer short of cash) pays 25% of the missed take's value, cash-capped
+  (`TxKind::ContractPenalty`, books `penalties_paid/received`).
+  `consecutive_misses ≥ 3` ⇒ **Breached** (terminal). Schedule: 84 daily
+  deliveries ≈ one quarter, `next_due` advances every due date hit or
+  missed; exhaustion ⇒ **Completed**. Expiry is v1's renegotiation:
+  parties re-sign at fresh prices.
+- **Underwater exit** (weekly, same review): a buyer whose locked price
+  exceeds its current input reservation cap beyond an honesty-widened
+  tolerance (0–10% past the cap) walks away, paying one exit penalty
+  (25% of a full-ceiling delivery, cash-capped) ⇒ **Terminated**;
+  journaled as a `ContractExit` decision. This is the escape valve that
+  lets crisis-priced contracts die instead of their buyers (#026).
+- **Interlocks**: committed ceilings are withheld from the seller's
+  market offers daily (promised goods are not for sale), added to the
+  seller's production target, and netted out of its glut signal and
+  tool-purchase gate (committed stock is sold stock in waiting — but
+  stockout marks still require zero TOTAL stock, see §Markets). Buyers
+  protect today's takes in their market budget. The takeover-revival
+  demand gate counts town-wide committed flow as live demand.
+- **Social fabric**: each clean delivery nudges both owners' mutual
+  commercial reliability (+2) and trust (+1); a miss or walk-away hits
+  the victim's view of the failer (reliability −8, trust −4, resentment
+  +4) and seeds a public "unreliable" belief (−15) that gossip then
+  carries — contract performance is a reputation driver (BRIEF).
+- **Bookkeeping invariant** (`contract_reconciliation`, every sweep):
+  parties exist; terms sane; counters bounded; Active schedules aligned
+  (`next_due == start + (settled+1) × every`); terminal states
+  consistent; `paid_total == unit_price × delivered_units` exactly;
+  penalties within `penalty events × full ceiling penalty`.
 
 ## Production
 
-Per business, in id order: `desired = expected_daily_sales × (OUTPUT_TARGET_DAYS
-(4) + 1) − current stock`; batches = min(ceil(desired / output-per-batch),
-capacity batches, input-limited batches); consume inputs, add output — all
-creation/destruction through the goods ledger. `expected_daily_sales =
-ceil(sales EMA)`, minimum 1 so a stalled business still plans a minimal batch.
+Per business, in id order: `desired = planned_daily_sales × (OUTPUT_TARGET_DAYS
+(4) + 1) + contract commitments − current stock`; batches = min(ceil(desired /
+output-per-batch), capacity batches, input-limited batches); consume inputs,
+add output — all creation/destruction through the goods ledger.
+`planned_daily_sales = expected_daily_sales + stockout_days`: recent
+stockout days add to the plan one for one (bounded — the counter resets
+each review window). This **demand-pull channel** lets shortages propagate
+upstream as quantities, not only prices; without it a contract-fed chain
+locks at the contracted flow forever (DECISIONS.md #026). The same planned
+rate drives input orders (§Markets). `expected_daily_sales = ceil(sales
+EMA)`, minimum 1 so a stalled business still plans a minimal batch; sellers
+add their committed contract ceilings on top so deliveries are on hand at
+settlement.
 
 **Tools (capital good).** Tool-using businesses (farms, mine) equip
 `min(workers, tool stock)` workers. Capacity = `workers × batches-per-worker
@@ -193,11 +275,15 @@ Weekly, on the agent stagger, before owner reviews (DECISIONS.md #021):
 
 Daily:
 
-- **Owner capital injection**: if the business cannot fund one hire
-  (`cash < 5 × wage`) and the owner holds personal cash above a $100.00
-  reserve, the owner transfers savings in (up to funding two hires) —
-  the Phase 0 slice of the brief's "invest" action and the channel that
-  returns household money to production after a bust (DECISIONS.md #011).
+- **Owner capital injection** — the brief's "invest" action, two
+  triggers: the business cannot fund one hire (`cash < 5 × wage`), or it
+  is **staffed with a recipe to run and cannot afford one day of inputs**
+  after its protected reserves (the working-capital slice — without it a
+  firm hovering just above the hire floor paid wages forever while
+  producing nothing, and its rich owner never stepped in; DECISIONS.md
+  #011/#026). The owner transfers savings above a $100.00 personal
+  reserve, topping the business up to two hires of runway plus a week of
+  inputs at last observed prices.
 - **Emergency downsizing**: if cash < 2 days of payroll, the most recently
   hired worker is let go (one per day).
 
@@ -220,10 +306,15 @@ On review day (`(tick + id) % 7 == 0`):
   `DecisionRecord` with all scores and inputs. Steps stay integer with
   explicit floors/ceilings (10¢ / $100,000). Window counters reset;
   `dry_windows` extends on a zero-revenue window and resets on any sale.
-- **Wage**: vacancies unfilled ≥ 7 days **and** a non-negative window profit
-  → raise 5% (a loss-making business bidding wages up while broke is the
-  death-spiral input, not competition). Fully staffed and the 7-day window
-  ran a loss → cut 3%. Floor $3.00, ceiling $10,000/day.
+- **Wage**: vacancies unfilled ≥ 7 days **and** a strictly positive window
+  profit → raise 5% (a loss-making business bidding wages up while broke
+  is the death-spiral input; and `≥ 0` was a latent trap — a dead
+  business's zero-profit window ratcheted its wage to the ceiling, pricing
+  rehiring and takeover revival out of existence, DECISIONS.md #026).
+  Fully staffed and the 7-day window ran a loss → cut 3%. Vacancies open
+  but **cash below one hire at the posted wage** → cut 3% (an offer the
+  till cannot fund is walked down until it becomes hirable-into again).
+  Floor $3.00, ceiling $10,000/day.
 - **Dividend**: cash above `21 days of payroll at target headcount + 7 days
   of input purchases at last observed prices` pays 25% of the excess to the
   owner. The buffer uses *target* headcount so owners cannot strip a

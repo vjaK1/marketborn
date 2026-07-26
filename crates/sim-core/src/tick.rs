@@ -61,8 +61,11 @@ impl World {
         // Phase 5 — goods markets (posted prices, deterministic clearing).
         market::run_goods_markets(&mut self.state, &mut self.journal, t, &mut acc)
             .map_err(internal)?;
-        // Phase 6 — contract settlement: activates in project Phase 3.
-        // Phase 7 — banking: activates in project Phase 3.
+        // Phase 6 — contract settlement: scheduled deliveries execute or
+        // miss with penalties; breaches terminate (Phase 3).
+        crate::contracts::settle(&mut self.state, &mut self.journal, t, &mut acc)
+            .map_err(internal)?;
+        // Phase 7 — banking: activates in project Phase 3 (bank increment).
         // Phase 8 — consumption.
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
         // Phase 9 — agent decisions (utility engine + owner reviews).

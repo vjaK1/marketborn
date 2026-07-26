@@ -46,6 +46,22 @@ Continuing opportunistically in later phases: remaining owner reviews on
 the engine, founding genuinely new firms, and the reputation dimensions
 whose drivers arrive with contracts (Phase 3) and politics (Phase 4).
 
+## Phase 3 status (contract kernel, DECISIONS #026)
+
+The engine gained two contract actions. **SupplyReview** (weekly, buyer's
+stagger): Sign vs StaySpot over a live requirements-contract offer —
+greed weighs the 5% commitment discount, caution (inverse risk
+tolerance) buys supply security as input cover thins, and a commitment
+cost scaling with risk tolerance squared keeps gamblers on the spot
+market until a crunch converts them; both outcomes journal.
+**ContractExit** (recorded only when it happens): a buyer walks away from
+a contract locked above its input reservation cap once the gap exceeds an
+honesty-widened tolerance (0–10% past the cap) — honest owners honor
+deals longer at real cost; the exit pays a penalty and the jilted owner's
+belief sours. Contract performance is the first Phase 3 reputation
+driver: deliveries build private commercial reliability both ways; misses
+and walk-aways seed public "unreliable" beliefs that gossip carries.
+
 ## Phase 2 target (per BRIEF.md — design direction)
 
 ### Identity & traits

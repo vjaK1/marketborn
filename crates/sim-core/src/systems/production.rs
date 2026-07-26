@@ -44,7 +44,10 @@ pub fn run(state: &mut SimState) {
             let Some(b) = state.businesses.get(&bid) else {
                 continue;
             };
-            let expected = b.expected_daily_sales();
+            // Plan for demand, not just trailing sales: recent stockout
+            // days add to the rate one for one (the same demand-pull that
+            // drives input orders — market::daily_input_need).
+            let expected = b.expected_daily_sales() + b.stockout_days as Qty;
             let out_good = b.recipe.output.0;
             let out_per_batch = b.recipe.output.1.max(1);
             // Cover today's expected sales and refill toward the target
@@ -54,7 +57,12 @@ pub fn run(state: &mut SimState) {
             } else {
                 OUTPUT_TARGET_DAYS
             };
-            let target = expected * buffer_days + expected;
+            // Contract commitments stack on top: the seller accumulates its
+            // rolling per-period promise across the week so the delivery is
+            // on hand when settlement calls (Phase 3). The EMA alone cannot
+            // plan for it — it only sees a delivery after it happens.
+            let committed = crate::contracts::committed_per_period(state, bid, out_good);
+            let target = expected * buffer_days + expected + committed;
             let current = b.stock(out_good);
             if current >= target {
                 None
@@ -186,6 +194,55 @@ mod tests {
         }
         run(&mut w.state);
         assert_eq!(w.state.businesses[&farm_id].produced_today, 0);
+    }
+
+    #[test]
+    fn sellers_produce_toward_their_contract_commitments() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(5));
+        let farm_id = *w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Wheat)
+            .map(|b| &b.id)
+            .unwrap();
+        let buyer = *w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Flour)
+            .map(|b| &b.id)
+            .unwrap();
+        // At its EMA target the farm would sit idle; a 12-unit weekly
+        // commitment reopens the gap and the farm builds toward it.
+        {
+            let farm = w.state.businesses.get_mut(&farm_id).unwrap();
+            farm.sales_ema_milli = 2_000; // expects 2/day → EMA target 10
+            farm.inventory.clear();
+            farm.add_stock(Good::Wheat, 10);
+        }
+        run(&mut w.state);
+        assert_eq!(
+            w.state.businesses[&farm_id].produced_today, 0,
+            "at the EMA target without commitments"
+        );
+        crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: farm_id,
+                buyer,
+                good: Good::Wheat,
+                qty: 12,
+                unit_price: crate::money::Money::from_cents(500),
+            },
+        );
+        run(&mut w.state);
+        assert!(
+            w.state.businesses[&farm_id].produced_today > 0,
+            "the commitment reopens the production gap"
+        );
     }
 
     #[test]

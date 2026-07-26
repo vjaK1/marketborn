@@ -17,6 +17,8 @@ pub struct DayAccumulator {
     pub spoiled: BTreeMap<Good, Qty>,
     pub food_consumed: Qty,
     pub hungry_agents: u32,
+    pub contract_deliveries: u32,
+    pub contract_misses: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -36,6 +38,12 @@ pub struct MetricsDay {
     pub spoiled: BTreeMap<Good, Qty>,
     pub food_consumed: Qty,
     pub food_produced: Qty,
+    /// Supply contracts currently active.
+    pub contracts_active: u32,
+    /// Deliveries settled today.
+    pub contract_deliveries: u32,
+    /// Deliveries missed today.
+    pub contract_misses: u32,
     /// Per-business daily state, for time-series analysis and (later) the
     /// business inspector's historical charts.
     pub businesses: BTreeMap<BusinessId, BizDay>,
@@ -121,6 +129,13 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
         spoiled: acc.spoiled.clone(),
         food_consumed: acc.food_consumed,
         food_produced,
+        contracts_active: state
+            .contracts
+            .values()
+            .filter(|c| c.state == crate::contracts::ContractState::Active)
+            .count() as u32,
+        contract_deliveries: acc.contract_deliveries,
+        contract_misses: acc.contract_misses,
         businesses,
     }
 }

@@ -32,6 +32,12 @@ id_type!(
     BusinessId,
     "B"
 );
+id_type!(
+    /// Identifies a contract (Phase 3). Assigned from `SimState::next_contract_id`,
+    /// never reused; terminal contracts keep their id in the archive.
+    ContractId,
+    "C"
+);
 
 /// A money-holding account. Every ledger movement is between two accounts
 /// (or one account and the monetary authority, for explicit mint/burn).

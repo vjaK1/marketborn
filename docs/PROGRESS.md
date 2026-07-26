@@ -5,6 +5,90 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 4 — 2026-07-26 — Phase 3 increment 1: the contract kernel
+
+### Supply contracts v1 (requirements form) — DECISIONS #026
+
+- `contracts.rs`: the `Contract` entity (hashed state, binds businesses,
+  survives takeovers) with the full lifecycle — Active → Completed /
+  Breached (3 consecutive misses) / Terminated (voluntary underwater
+  exit). Terms lock a unit PRICE (posted − 5% commitment discount, gated
+  by the buyer's input reservation cap) and a DAILY CEILING; each day
+  the buyer takes its current need up to the ceiling. Settlement runs in
+  the reserved tick phase 6: goods zero-sum, cash through the ledger
+  (`ContractDelivery`/`ContractPenalty`), misses penalized 25%
+  cash-capped, books categorized at the site
+  (`penalties_received/paid` join the cash identity).
+- Formation is a utility-engine decision (`SupplyReview`: Sign vs
+  StaySpot — greed weighs the discount, caution buys supply security,
+  gamblers hold out until cover thins) on the buyer's weekly stagger;
+  underwater buyers walk away past an honesty-widened tolerance
+  (`ContractExit`, exit penalty). Contract performance now drives
+  relationships (commercial reliability) and reputation ("unreliable"
+  beliefs from misses/walk-aways) — the BRIEF's contract-performance
+  channel, first of the Phase 3 reputation drivers.
+- Interlocks: sellers produce toward commitments, withhold them from
+  market offers, and read glut/tool gates on free stock; buyers protect
+  due payments in their market budget; the takeover demand gate counts
+  committed flow. New invariant `contract_reconciliation` (schedule
+  alignment, counter bounds, `paid == unit_price × delivered_units`
+  exact, penalty ceilings) runs every sweep.
+- **Five engineered collapses on the way** — each diagnosed from
+  `sim-cli metrics` CSVs vs a pre-contract baseline worktree, each fixed
+  as a recorded mechanic (full narrative in DECISIONS #026): weekly
+  lumps (→ daily cadence), the committed-seller stockout ratchet
+  (→ total-stock stockout marks), the fixed-quantity EMA anchor
+  (→ requirements form + the demand-pull channel: stockout days add
+  one-for-one to planned production/input orders), the latent
+  dead-business wage ratchet to the $10k ceiling (→ raises need strictly
+  positive profit; unfundable offers walk down), and the staffed-zombie
+  deadlock (→ working-capital owner injection; second slice of
+  "invest").
+- **Recorded scope tradeoff**: v1 contracts cover durable industrial
+  inputs only (`contracts::contractable`). Food-chain (wheat/flour)
+  contracts collapsed every 10-year pop-29 soak — households are
+  price-takers for survival food, so no reservation cap disciplines the
+  chain and distortions land in its razor-thin cash margins. They return
+  with the bank's working-capital credit. Flagged, not silent.
+
+### Verification
+
+- `npm run check`: **exit 0** (fmt, clippy -D warnings, 114 sim-core
+  unit + 5 integration suites + 4+1 determinism + 7 persistence, tsc,
+  vitest 11/11). `check:full` green — see below.
+- Phase 3 acceptance criterion 1 **green**: integration test
+  `supply_contract_negotiated_and_fulfilled_end_to_end` (seed 42, 400
+  days, unstaged) — signed (traceable to its journaled SupplyReview),
+  delivered, ≥ 1 contract Completed with the paid-per-unit identity
+  exact and conservation green.
+- Soak matrix (release, 3650 ticks): seeds 42/7/123/6 all land at
+  **13 employed, hunger 12–21** — on par with the strongest pre-contract
+  matrix (#022: 13 employed) across more seeds; pop-100 decade ends
+  13 employed / 83 hungry (was ≈94 hungry). The two general fixes (wage
+  ratchet, working-capital injection) are net stabilizers beyond
+  contracts.
+- Saves break (state shape + calibration); schema_version stays 1
+  pre-1.0, no released saves.
+
+### Exact next task (Phase 3 continues)
+
+1. Session protocol: `npm run check` first.
+2. Next increment options, in PLAN order: **the bank** (deposits, credit
+   assessment, loans, collateral, defaults, foreclosure, liquidity/
+   solvency — tick phase 7 is reserved; `default→foreclosure` flow test
+   and `probe_rate_shock` are the remaining Phase 3 acceptance
+   criteria), or first grow **negotiation v1** (offer/counteroffer log
+   on supply contracts — BRIEF requires complete negotiation logging;
+   the contract view UI wants it). Suggested: the bank next — it
+   unblocks food-chain contracts (working-capital credit), employment
+   contracts, and both remaining acceptance tests; negotiation logging
+   can ride the same increment as the contract view.
+3. Soak checkpoints after every economy change: seeds 42/7/123 (+6 — it
+   earned its place) at 365/1500/3650 plus `--population 100`; on
+   surprises dump `sim-cli metrics <save> --csv`.
+
+---
+
 ## Session 3 — 2026-07-26 — Phase 2: COMPLETE
 
 ### Agent inspector (the final acceptance item)

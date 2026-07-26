@@ -4,8 +4,9 @@
 //! shown in the UI, but they are *not* part of the hashed state.
 //! Determinism tests compare event sequences explicitly.
 
-use crate::goods::Good;
-use crate::ids::{AccountId, AgentId, BusinessId};
+use crate::contracts::ContractParty;
+use crate::goods::{Good, Qty};
+use crate::ids::{AccountId, AgentId, BusinessId, ContractId};
 use crate::money::Money;
 use serde::{Deserialize, Serialize};
 
@@ -74,6 +75,49 @@ pub enum Event {
         to: AgentId,
         price: Money,
     },
+    /// A supply contract was agreed (Phase 3): recurring delivery of
+    /// `qty` × `good` at `unit_price`, daily, `deliveries` times.
+    ContractSigned {
+        contract: ContractId,
+        seller: BusinessId,
+        buyer: BusinessId,
+        good: Good,
+        qty: Qty,
+        unit_price: Money,
+        deliveries: u32,
+    },
+    /// A scheduled delivery settled: goods moved and the buyer paid.
+    ContractDelivered {
+        contract: ContractId,
+        good: Good,
+        qty: Qty,
+        amount: Money,
+    },
+    /// A scheduled delivery failed; the failing side paid a (cash-capped)
+    /// penalty.
+    ContractMissed {
+        contract: ContractId,
+        by: ContractParty,
+        penalty: Money,
+    },
+    /// Terminated after too many consecutive misses.
+    ContractBreached {
+        contract: ContractId,
+        by: ContractParty,
+    },
+    /// A party walked away voluntarily, paying the exit penalty (the
+    /// brief's "breach contract" action — an underwater buyer cuts its
+    /// losses).
+    ContractTerminated {
+        contract: ContractId,
+        by: ContractParty,
+        penalty: Money,
+    },
+    /// Every scheduled delivery date has passed; the contract ended
+    /// normally.
+    ContractCompleted {
+        contract: ContractId,
+    },
     AgentHungry {
         agent: AgentId,
         streak: u32,
@@ -103,6 +147,12 @@ impl Event {
             Event::DividendPaid { .. } => "dividend_paid",
             Event::OwnerInvested { .. } => "owner_invested",
             Event::BusinessSold { .. } => "business_sold",
+            Event::ContractSigned { .. } => "contract_signed",
+            Event::ContractDelivered { .. } => "contract_delivered",
+            Event::ContractMissed { .. } => "contract_missed",
+            Event::ContractBreached { .. } => "contract_breached",
+            Event::ContractTerminated { .. } => "contract_terminated",
+            Event::ContractCompleted { .. } => "contract_completed",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",
             Event::CommandRejected { .. } => "command_rejected",

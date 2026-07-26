@@ -15,7 +15,7 @@
 //! (job switching, entry/exit, negotiation) join incrementally.
 
 use crate::agent::Traits;
-use crate::goods::Qty;
+use crate::goods::{Good, Qty};
 use crate::ids::{AgentId, BusinessId};
 use crate::money::Money;
 use serde::{Deserialize, Serialize};
@@ -232,6 +232,85 @@ pub fn takeover_appetite(ambition: u8, risk_tolerance: u8) -> bool {
     u32::from(ambition) + u32::from(risk_tolerance) > 120
 }
 
+/// Supply-contract review actions, in tie-break order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContractAction {
+    /// Lock the recurring delivery at the discounted price.
+    Sign,
+    /// Keep buying day to day on the spot market.
+    StaySpot,
+}
+
+impl ContractAction {
+    pub const ALL: [ContractAction; 2] = [ContractAction::Sign, ContractAction::StaySpot];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ContractAction::Sign => "sign the supply contract",
+            ContractAction::StaySpot => "stay on the spot market",
+        }
+    }
+}
+
+/// The signals a supply-contract review reads, captured into the record.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct SupplyContractInputs {
+    /// Discount off the seller's posted price, in basis points.
+    pub discount_bp: i64,
+    /// Days of this input on hand at the expected consumption rate.
+    pub cover_days: Qty,
+    /// The deciding owner's weighting traits.
+    pub greed: u8,
+    pub risk_tolerance: u8,
+}
+
+/// Utility scores for signing a supply contract versus staying spot.
+/// Certainty is the axis: cautious owners buy supply security early,
+/// gamblers hold out on the spot market until their input cover actually
+/// thins, and greed weighs the locked-in discount. Neutral owners sign —
+/// recurring contracts are ordinary business, refusing them is the
+/// personality-driven exception (DECISIONS.md #026).
+pub fn score_contract_action(action: ContractAction, i: &SupplyContractInputs) -> f64 {
+    match action {
+        ContractAction::Sign => {
+            let greed_w = 0.5 + f64::from(i.greed) / 100.0; // 0.5 ..= 1.5
+            let caution = (100.0 - f64::from(i.risk_tolerance)) / 100.0; // 0 ..= 1
+            let discount = (i.discount_bp as f64 / 100.0) * 0.1 * greed_w;
+            let security =
+                (crate::market::INPUT_TARGET_DAYS - i.cover_days) as f64 * 0.3 * (0.5 + caution);
+            let rt = f64::from(i.risk_tolerance) / 100.0;
+            let commitment = rt * rt * 1.2; // gamblers hate being locked in
+            discount + security - commitment
+        }
+        ContractAction::StaySpot => 0.0,
+    }
+}
+
+/// Score both actions and pick the winner (ties break by enum order).
+pub fn choose_contract_action(
+    inputs: &SupplyContractInputs,
+) -> (ContractAction, Vec<ScoredContractAction>) {
+    let mut best = ContractAction::StaySpot;
+    let mut best_score = f64::MIN;
+    let mut considered = Vec::with_capacity(ContractAction::ALL.len());
+    for action in ContractAction::ALL {
+        let score = score_contract_action(action, inputs);
+        considered.push(ScoredContractAction { action, score });
+        if score > best_score {
+            best = action;
+            best_score = score;
+        }
+    }
+    (best, considered)
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct ScoredContractAction {
+    pub action: ContractAction,
+    /// Journal-only float (never hashed, never read back by sim logic).
+    pub score: f64,
+}
+
 /// One journaled decision: who chose what, every score considered, and the
 /// inputs that mattered.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -265,6 +344,35 @@ pub enum DecisionDetail {
         seller: AgentId,
         price: Money,
         capital_after: Money,
+    },
+    /// A buyer weighed locking a recurring input delivery against staying
+    /// on the spot market (Phase 3). Journaled whether they sign or not —
+    /// staying spot is a real choice about a live offer.
+    SupplyReview {
+        business: BusinessId,
+        seller: BusinessId,
+        good: Good,
+        qty: Qty,
+        unit_price: Money,
+        inputs: SupplyContractInputs,
+        considered: Vec<ScoredContractAction>,
+        chosen: ContractAction,
+    },
+    /// A buyer walked away from an underwater supply contract: the locked
+    /// price ran past what the input can earn back (the reservation cap),
+    /// beyond even the owner's honesty-widened tolerance. Recorded only
+    /// when it happens — honoring a workable deal is the default.
+    ContractExit {
+        business: BusinessId,
+        contract: crate::ids::ContractId,
+        good: Good,
+        unit_price: Money,
+        /// The buyer's current input reservation cap.
+        cap: Money,
+        /// How far past the cap the owner would have tolerated, in basis
+        /// points (scales with honesty).
+        tolerance_bp: i64,
+        penalty: Money,
     },
 }
 
@@ -334,6 +442,45 @@ impl DecisionRecord {
                 capital_after,
             } => format!(
                 "Bought the moribund {business} from {seller} for {price}, keeping {capital_after} to restart it."
+            ),
+            DecisionDetail::SupplyReview {
+                seller,
+                good,
+                qty,
+                unit_price,
+                inputs: i,
+                considered,
+                chosen,
+                ..
+            } => {
+                let scores = considered
+                    .iter()
+                    .map(|s| format!("{} {:+.2}", s.action.label(), s.score))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let verb = match chosen {
+                    ContractAction::Sign => "Signed with",
+                    ContractAction::StaySpot => "Declined a contract with",
+                };
+                format!(
+                    "{verb} {seller} for {qty} {good}/day at {unit_price} ({}% under spot): {} day(s) of cover on hand — weighing greed {} and risk tolerance {}. Scores: {scores}.",
+                    i.discount_bp / 100,
+                    i.cover_days,
+                    i.greed,
+                    i.risk_tolerance,
+                )
+            }
+            DecisionDetail::ContractExit {
+                contract,
+                good,
+                unit_price,
+                cap,
+                tolerance_bp,
+                penalty,
+                ..
+            } => format!(
+                "Walked away from {contract}: paying {unit_price} per {good} against a {cap} ceiling — past even a {}% tolerance for honoring the deal. Ate the {penalty} exit penalty.",
+                tolerance_bp / 100,
             ),
         }
     }
@@ -479,6 +626,60 @@ mod tests {
         // Patience widens the horizon.
         assert!(reservation_wage(food, 50, 100, 60, false) > Money::ZERO);
         assert_eq!(reservation_wage(food, 50, 0, 30, false), Money::ZERO);
+    }
+
+    #[test]
+    fn contract_appetite_neutral_signs_and_gamblers_wait_for_the_crunch() {
+        let at_cover = |risk_tolerance: u8, cover_days: Qty| SupplyContractInputs {
+            discount_bp: 500,
+            cover_days,
+            greed: 50,
+            risk_tolerance,
+        };
+        // A neutral owner takes the discount at full cover.
+        let (a, _) = choose_contract_action(&at_cover(50, 3));
+        assert_eq!(a, ContractAction::Sign);
+        // A cautious owner signs even harder.
+        let (a, _) = choose_contract_action(&at_cover(10, 3));
+        assert_eq!(a, ContractAction::Sign);
+        // A gambler stays spot while well covered…
+        let (a, _) = choose_contract_action(&at_cover(90, 3));
+        assert_eq!(a, ContractAction::StaySpot);
+        // …but signs when supply actually tightens — identical conditions,
+        // different people, different timing.
+        let (a, _) = choose_contract_action(&at_cover(90, 0));
+        assert_eq!(a, ContractAction::Sign);
+    }
+
+    #[test]
+    fn supply_review_records_explain_themselves() {
+        let inputs = SupplyContractInputs {
+            discount_bp: 500,
+            cover_days: 1,
+            greed: 60,
+            risk_tolerance: 20,
+        };
+        let (chosen, considered) = choose_contract_action(&inputs);
+        let r = DecisionRecord {
+            seq: 0,
+            tick: 30,
+            actor: crate::ids::AgentId(2),
+            detail: DecisionDetail::SupplyReview {
+                business: crate::ids::BusinessId(2),
+                seller: crate::ids::BusinessId(0),
+                good: Good::Wheat,
+                qty: 12,
+                unit_price: Money::from_cents(523),
+                inputs,
+                considered,
+                chosen,
+            },
+        };
+        let text = r.explanation();
+        assert!(text.contains("Signed with B0"), "{text}");
+        assert!(text.contains("12 wheat/day"));
+        assert!(text.contains("5% under spot"));
+        assert!(text.contains("risk tolerance 20"));
     }
 
     #[test]

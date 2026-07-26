@@ -162,6 +162,20 @@ fn account_label(state: &SimState, account: AccountId) -> String {
     }
 }
 
+/// `(seller, buyer)` labels for a contract, falling back to the bare id.
+fn contract_parties(state: &SimState, id: crate::ids::ContractId) -> (String, String) {
+    state
+        .contracts
+        .get(&id)
+        .map(|c| {
+            (
+                business_label(state, c.seller),
+                business_label(state, c.buyer),
+            )
+        })
+        .unwrap_or_else(|| (id.to_string(), id.to_string()))
+}
+
 /// Human-readable rendering of an event against current state.
 pub fn event_text(state: &SimState, event: &Event) -> String {
     match event {
@@ -262,6 +276,64 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
             business_label(state, *business),
             agent_label(state, *from)
         ),
+        Event::ContractSigned {
+            contract,
+            seller,
+            buyer,
+            good,
+            qty,
+            unit_price,
+            deliveries,
+        } => format!(
+            "{} signed {contract}: {} supplies {qty} {good}/day at {unit_price} for {deliveries} days",
+            business_label(state, *buyer),
+            business_label(state, *seller)
+        ),
+        Event::ContractDelivered {
+            contract,
+            good,
+            qty,
+            amount,
+        } => {
+            let (seller, buyer) = contract_parties(state, *contract);
+            format!("{seller} delivered {qty} {good} to {buyer} for {amount} under {contract}")
+        }
+        Event::ContractMissed {
+            contract,
+            by,
+            penalty,
+        } => {
+            let (seller, buyer) = contract_parties(state, *contract);
+            let failer = match by {
+                crate::contracts::ContractParty::Seller => seller,
+                crate::contracts::ContractParty::Buyer => buyer,
+            };
+            format!("{failer} missed a delivery under {contract}, paying a {penalty} penalty")
+        }
+        Event::ContractBreached { contract, by } => {
+            let (seller, buyer) = contract_parties(state, *contract);
+            let failer = match by {
+                crate::contracts::ContractParty::Seller => seller,
+                crate::contracts::ContractParty::Buyer => buyer,
+            };
+            format!("{contract} breached: {failer} failed three deliveries running")
+        }
+        Event::ContractTerminated {
+            contract,
+            by,
+            penalty,
+        } => {
+            let (seller, buyer) = contract_parties(state, *contract);
+            let (walker, other) = match by {
+                crate::contracts::ContractParty::Seller => (seller, buyer),
+                crate::contracts::ContractParty::Buyer => (buyer, seller),
+            };
+            format!("{walker} walked away from {contract} with {other}, paying a {penalty} exit penalty")
+        }
+        Event::ContractCompleted { contract } => {
+            let (seller, buyer) = contract_parties(state, *contract);
+            format!("{contract} between {seller} and {buyer} ran its full term")
+        }
         Event::AgentHungry { agent, streak } => {
             if *streak <= 1 {
                 format!("{} went hungry today", agent_label(state, *agent))
@@ -386,7 +458,9 @@ impl WorldSnapshot {
         let markets = Good::ALL
             .iter()
             .map(|good| {
-                let d = crate::market::depth(state, *good);
+                // The standing market being described is the NEXT tick's,
+                // whose contract reservations are the ones that will bind.
+                let d = crate::market::depth(state, *good, state.tick + 1);
                 let day_stat =
                     |f: &dyn Fn(&crate::metrics::MetricsDay) -> i64| last_day.map(f).unwrap_or(0);
                 MarketRow {

@@ -204,6 +204,26 @@ pub fn on_left_job(worker: &mut Agent, old_owner: AgentId) {
     });
 }
 
+/// A contract delivery settled cleanly: both owners find the other a
+/// little more reliable to do business with (Phase 3 settlement site).
+pub fn on_contract_delivered(party: &mut Agent, counterparty: AgentId) {
+    relate(party, counterparty, |r| {
+        r.commercial_reliability = bump(r.commercial_reliability, 2);
+        r.trust = bump(r.trust, 1);
+    });
+}
+
+/// A delivery was missed: the wronged owner's view of the failer sours —
+/// sharper than the slow build of clean deliveries, softer than an unpaid
+/// payroll (a business shortfall, not a personal betrayal).
+pub fn on_contract_missed(victim: &mut Agent, failer: AgentId) {
+    relate(victim, failer, |r| {
+        r.commercial_reliability = bump(r.commercial_reliability, -8);
+        r.trust = bump(r.trust, -4);
+        r.resentment = bump(r.resentment, 4);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

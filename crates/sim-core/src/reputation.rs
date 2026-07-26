@@ -159,6 +159,16 @@ pub fn on_wage_moved_witness(worker: &mut Agent, owner: AgentId, raised: bool) {
     });
 }
 
+/// A contract delivery was missed: the wronged owner now believes the
+/// failing owner unreliable — contract performance is a reputation driver
+/// (BRIEF.md), and gossip carries the news from here. Softer than a missed
+/// payroll (−25): one failed shipment, not a roster left unpaid.
+pub fn on_contract_missed_victim(victim: &mut Agent, failer: AgentId) {
+    believe(victim, failer, |b| {
+        b.reliable = bump(b.reliable, -15);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

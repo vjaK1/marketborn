@@ -6,7 +6,7 @@
 //! Nothing else in the codebase may touch `cash` fields directly.
 
 use crate::goods::{Good, Qty};
-use crate::ids::AccountId;
+use crate::ids::{AccountId, ContractId};
 use crate::money::Money;
 use crate::world::{Journal, SimState, MAX_TX_IN_MEMORY};
 use serde::{Deserialize, Serialize};
@@ -25,6 +25,19 @@ pub enum TxKind {
     /// Equity changes hands: a buyer pays a broke owner for a moribund
     /// business (agent → agent; the business's own cash is untouched).
     BusinessSale,
+    /// A scheduled contract delivery: buyer pays seller at the agreed price
+    /// (settlement phase, Phase 3).
+    ContractDelivery {
+        contract: ContractId,
+        good: Good,
+        qty: Qty,
+        unit_price: Money,
+    },
+    /// The failing side of a missed delivery compensates the other
+    /// (cash-capped).
+    ContractPenalty {
+        contract: ContractId,
+    },
     /// Explicit money creation/destruction via player command.
     MonetaryPolicy {
         memo: String,

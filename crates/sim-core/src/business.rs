@@ -80,6 +80,10 @@ pub struct Books {
     pub dividends: Money,
     /// Owner recapitalizations received.
     pub owner_invested: Money,
+    /// Contract-miss penalties received from failing counterparties.
+    pub penalties_received: Money,
+    /// Contract-miss penalties paid to wronged counterparties.
+    pub penalties_paid: Money,
     /// Net monetary policy applied directly to this account (mint − burn;
     /// may be negative).
     pub policy_net: Money,
@@ -98,6 +102,8 @@ impl Books {
             wages: Money::ZERO,
             dividends: Money::ZERO,
             owner_invested: Money::ZERO,
+            penalties_received: Money::ZERO,
+            penalties_paid: Money::ZERO,
             policy_net: Money::ZERO,
             spoiled_units: 0,
         }
@@ -105,18 +111,28 @@ impl Books {
 
     /// The cash balance these books imply. Must equal the live balance.
     pub fn expected_cash(&self) -> Money {
-        self.starting_cash + self.revenue + self.owner_invested + self.policy_net
+        self.starting_cash
+            + self.revenue
+            + self.owner_invested
+            + self.penalties_received
+            + self.policy_net
             - self.input_costs
             - self.tool_costs
             - self.wages
             - self.dividends
+            - self.penalties_paid
     }
 
-    /// Lifetime operating profit: revenue minus all operating outflows.
+    /// Lifetime operating profit: revenue and penalty income minus all
+    /// operating outflows (contract penalties are an operating consequence).
     /// Distributions (dividends) and financing (owner investment, policy)
     /// are excluded.
     pub fn lifetime_profit(&self) -> Money {
-        self.revenue - self.input_costs - self.tool_costs - self.wages
+        self.revenue + self.penalties_received
+            - self.input_costs
+            - self.tool_costs
+            - self.wages
+            - self.penalties_paid
     }
 }
 
@@ -256,14 +272,16 @@ mod tests {
         books.wages += Money::from_cents(700);
         books.dividends += Money::from_cents(300);
         books.owner_invested += Money::from_cents(400);
+        books.penalties_received += Money::from_cents(250);
+        books.penalties_paid += Money::from_cents(150);
         books.policy_net -= Money::from_cents(100);
         assert_eq!(
             books.expected_cash(),
-            Money::from_cents(120_000 + 5_000 - 2_000 - 1_000 - 700 - 300 + 400 - 100)
+            Money::from_cents(120_000 + 5_000 - 2_000 - 1_000 - 700 - 300 + 400 + 250 - 150 - 100)
         );
         assert_eq!(
             books.lifetime_profit(),
-            Money::from_cents(5_000 - 2_000 - 1_000 - 700),
+            Money::from_cents(5_000 + 250 - 2_000 - 1_000 - 700 - 150),
             "profit is operating only: dividends/financing excluded"
         );
     }

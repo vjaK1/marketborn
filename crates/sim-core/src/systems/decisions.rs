@@ -104,8 +104,12 @@ fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(
                 // (demand > offered) was tried and rejected: a dead
                 // business's own leftover stock masks the coming shortage
                 // and blocks the exact revival that restores competition
-                // (DECISIONS.md #021).
-                if crate::market::depth(state, b.sells).demand_qty == 0 {
+                // (DECISIONS.md #021). Contract-committed flow counts as
+                // demand — a good bought entirely under contract is a live
+                // market the revived firm can compete for (#026).
+                if crate::market::depth(state, b.sells, tick).demand_qty == 0
+                    && crate::contracts::town_committed(state, b.sells) == 0
+                {
                     continue;
                 }
                 // Equity = assets (cash on hand + inventory at market).
@@ -185,16 +189,257 @@ fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(
     Ok(())
 }
 
+/// Weekly supply-contract formation (Phase 3, DECISIONS.md #026), on the
+/// buyer business's review stagger. The buyer's owner weighs locking each
+/// recipe input's daily delivery — at the cheapest capable seller's posted
+/// price minus the commitment discount — against staying on the spot
+/// market, through the utility engine. Negotiation v1 is take-it-or-leave-
+/// it: the seller's side is a capacity check (posted terms are their own
+/// offer); the offer/counteroffer log is the next increment. Runs before
+/// the owner reviews, so terms read the prices the week actually traded at.
+fn supply_contract_reviews(state: &mut SimState, journal: &mut Journal, tick: u64) {
+    let buyer_ids: Vec<BusinessId> = state.businesses.keys().copied().collect();
+    for bid in buyer_ids {
+        if !(tick + u64::from(bid.0)).is_multiple_of(REVIEW_PERIOD) {
+            continue;
+        }
+        // First, review existing commitments: a contract whose locked
+        // price has run past what the input can earn back (the reservation
+        // cap) is a slow bleed the buyer must be able to stop — without
+        // this valve, buyers locked in at crisis prices die with their
+        // towns instead of deflating them (DECISIONS.md #026). Honesty
+        // widens how far underwater an owner goes before walking: 0–10%
+        // past the cap.
+        let underwater: Vec<(
+            crate::ids::ContractId,
+            crate::goods::Good,
+            Money,
+            Money,
+            i64,
+        )> = {
+            let Some(b) = state.businesses.get(&bid) else {
+                continue;
+            };
+            let honesty = state
+                .agents
+                .get(&b.owner)
+                .map(|a| a.traits.honesty)
+                .unwrap_or(50);
+            let tolerance_bp = i64::from(honesty) * 10;
+            state
+                .contracts
+                .values()
+                .filter(|c| c.state == crate::contracts::ContractState::Active && c.buyer == bid)
+                .filter_map(|c| {
+                    let cap = market::input_reservation_cap(b, c.good);
+                    let ceiling = cap + cap.mul_bp(tolerance_bp);
+                    (c.unit_price > ceiling).then_some((
+                        c.id,
+                        c.good,
+                        c.unit_price,
+                        cap,
+                        tolerance_bp,
+                    ))
+                })
+                .collect()
+        };
+        for (cid, good, unit_price, cap, tolerance_bp) in underwater {
+            let owner = state.businesses.get(&bid).map(|b| b.owner);
+            match crate::contracts::buyer_walks_away(state, journal, tick, cid) {
+                Ok(penalty) => {
+                    if let Some(actor) = owner {
+                        journal.push_decision(decision::DecisionRecord {
+                            seq: 0,
+                            tick,
+                            actor,
+                            detail: decision::DecisionDetail::ContractExit {
+                                business: bid,
+                                contract: cid,
+                                good,
+                                unit_price,
+                                cap,
+                                tolerance_bp,
+                                penalty,
+                            },
+                        });
+                    }
+                }
+                Err(_) => continue,
+            }
+        }
+        let input_goods: Vec<crate::goods::Good> = state
+            .businesses
+            .get(&bid)
+            .map(|b| b.recipe.inputs.iter().map(|(g, _)| *g).collect())
+            .unwrap_or_default();
+        for good in input_goods {
+            if !crate::contracts::contractable(good) {
+                continue;
+            }
+            type Proposal = (
+                BusinessId,
+                crate::goods::Qty,
+                Money,
+                crate::decision::SupplyContractInputs,
+                AgentId,
+            );
+            let proposal: Option<Proposal> = {
+                let Some(b) = state.businesses.get(&bid) else {
+                    continue;
+                };
+                // A firm with nobody working signs nothing, and one
+                // contract per input good at a time.
+                if b.workers.is_empty() || crate::contracts::has_active_supply(state, bid, good) {
+                    continue;
+                }
+                let need = market::daily_input_need(b, good);
+                if need == 0 {
+                    continue;
+                }
+                let want = need * crate::contracts::CONTRACT_EVERY as Qty;
+                let cap = market::input_reservation_cap(b, good);
+                let Some(owner) = state.agents.get(&b.owner) else {
+                    continue;
+                };
+                // Cheapest capable seller the owner will deal with. Offers
+                // are price-sorted, so a discounted price above the buyer's
+                // input cap ends the search — everything further costs more.
+                let mut sellers: Vec<&crate::business::Business> = state
+                    .businesses
+                    .values()
+                    .filter(|s| s.id != bid && s.sells == good && !s.workers.is_empty())
+                    .collect();
+                sellers.sort_by_key(|s| (s.price, s.id));
+                let mut found = None;
+                for s in sellers {
+                    let unit_price = (s.price
+                        - s.price.mul_bp(crate::contracts::CONTRACT_DISCOUNT_BP))
+                    .max(Money::from_cents(1));
+                    if unit_price > cap {
+                        break;
+                    }
+                    // Partial coverage: the delivery is capped at the
+                    // contractable share of the seller's bare-handed
+                    // capacity per period, net of what it has already
+                    // promised — no oversubscription, and the seller keeps
+                    // headroom for its spot customers and for bad weeks.
+                    // The buyer's spot orders top up the rest; multi-
+                    // sourcing one good across sellers is a later
+                    // increment.
+                    let capacity_per_period = s.workers.len() as Qty
+                        * s.recipe.batches_per_worker
+                        * s.recipe.output.1.max(1)
+                        * crate::contracts::CONTRACT_EVERY as Qty;
+                    // Floored at one unit: the share cap must not round a
+                    // single-worker stage (mine, steelworks) out of the
+                    // contract economy — committing fully to your only
+                    // customer is sound under requirements form.
+                    let contractable = (capacity_per_period
+                        * crate::contracts::CONTRACT_CAPACITY_SHARE_BP as Qty
+                        / 10_000)
+                        .max((capacity_per_period > 0) as Qty);
+                    let committed = crate::contracts::committed_per_period(state, s.id, good);
+                    let qty = want.min(contractable - committed);
+                    if qty < 1 {
+                        continue;
+                    }
+                    // No deals with the publicly unreliable (same floor as
+                    // hiring refusal, DECISIONS.md #025).
+                    if crate::reputation::belief_about(owner, s.owner).reliable
+                        < crate::reputation::RELIABLE_HIRING_FLOOR
+                    {
+                        continue;
+                    }
+                    // The buyer must afford one delivery beyond its
+                    // protected reserves today.
+                    let cost = unit_price.checked_mul_qty(qty).unwrap_or(Money::MAX);
+                    if market::market_budget(state, b, tick) < cost {
+                        continue;
+                    }
+                    found = Some((s.id, qty, unit_price));
+                    break;
+                }
+                found.map(|(seller, qty, unit_price)| {
+                    let inputs = crate::decision::SupplyContractInputs {
+                        discount_bp: crate::contracts::CONTRACT_DISCOUNT_BP,
+                        cover_days: b.stock(good) / need,
+                        greed: owner.traits.greed,
+                        risk_tolerance: owner.traits.risk_tolerance,
+                    };
+                    (seller, qty, unit_price, inputs, b.owner)
+                })
+            };
+            let Some((seller, qty, unit_price, inputs, owner)) = proposal else {
+                continue;
+            };
+            let (chosen, considered) = crate::decision::choose_contract_action(&inputs);
+            journal.push_decision(decision::DecisionRecord {
+                seq: 0,
+                tick,
+                actor: owner,
+                detail: decision::DecisionDetail::SupplyReview {
+                    business: bid,
+                    seller,
+                    good,
+                    qty,
+                    unit_price,
+                    inputs,
+                    considered,
+                    chosen,
+                },
+            });
+            if chosen == crate::decision::ContractAction::Sign {
+                crate::contracts::sign(
+                    state,
+                    journal,
+                    tick,
+                    crate::contracts::SupplyTerms {
+                        seller,
+                        buyer: bid,
+                        good,
+                        qty,
+                        unit_price,
+                    },
+                );
+            }
+        }
+    }
+}
+
+/// Cost of one day of recipe inputs at last observed market prices —
+/// shared by the dividend buffer and the working-capital injection.
+fn daily_input_cost(state: &SimState, b: &crate::business::Business) -> Money {
+    let mut total = Money::ZERO;
+    for (good, _) in &b.recipe.inputs {
+        let need = market::daily_input_need(b, *good);
+        let price = state
+            .market
+            .last_prices
+            .get(good)
+            .copied()
+            .unwrap_or(Money::ZERO);
+        total += price.checked_mul_qty(need).unwrap_or(Money::ZERO);
+    }
+    total
+}
+
 pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(), LedgerError> {
     // Takeovers run first, so a freshly bought business gets its new
-    // owner's capital injection in this same pass.
+    // owner's capital injection in this same pass; contract formation
+    // follows, before the owner reviews reprice anything.
     takeovers(state, journal, tick)?;
+    supply_contract_reviews(state, journal, tick);
     let business_ids: Vec<BusinessId> = state.businesses.keys().copied().collect();
     for bid in business_ids {
-        // --- Daily: owner capital injection. A business too broke to fund a
-        // single hire draws on its owner's savings above a personal reserve —
-        // the Phase 0 slice of the brief's "invest" action, and the channel
-        // that returns household money to production after a bust. ---
+        // --- Daily: owner capital injection — the brief's "invest" action.
+        // Two triggers: a business too broke to fund a single hire, and a
+        // STAFFED business whose recipe needs inputs it has no budget for
+        // after the payroll reserve. The second is load-bearing: without
+        // it, a firm hovering just above the hire floor pays wages forever
+        // while producing nothing (no input budget), its rich owner never
+        // steps in, and its silent input demand keeps every upstream
+        // supplier failing the revival gate — the staffed-zombie deadlock
+        // that froze whole towns (DECISIONS.md #026). ---
         let inject: Option<(AgentId, Money)> = {
             let Some(b) = state.businesses.get(&bid) else {
                 continue;
@@ -203,7 +448,12 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 .wage
                 .checked_mul_qty(crate::systems::labor::HIRING_CASH_DAYS)
                 .unwrap_or(Money::MAX);
-            if b.cash >= hire_floor {
+            let input_day = daily_input_cost(state, b);
+            let hiring_gap = b.cash < hire_floor;
+            let input_blocked = !b.workers.is_empty()
+                && input_day > Money::ZERO
+                && market::market_budget(state, b, tick) < input_day;
+            if !hiring_gap && !input_blocked {
                 None
             } else {
                 let owner_cash = state
@@ -212,8 +462,10 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                     .map(|a| a.cash)
                     .unwrap_or(Money::ZERO);
                 let available = owner_cash - OWNER_RESERVE;
-                // Fund up to two workers for the hiring window.
-                let want = hire_floor.checked_mul_qty(2).unwrap_or(Money::MAX) - b.cash;
+                // Fund two hires of runway plus a week of inputs.
+                let input_week = input_day.checked_mul_qty(7).unwrap_or(Money::MAX);
+                let want =
+                    hire_floor.checked_mul_qty(2).unwrap_or(Money::MAX) + input_week - b.cash;
                 let amount = want.min(available);
                 if amount > Money::ZERO {
                     Some((b.owner, amount))
@@ -292,7 +544,10 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 continue;
             };
             let ema_day = b.expected_daily_sales();
-            let stock = b.stock(b.sells);
+            // The glut signal reads free stock: the rolling buffer earmarked
+            // for contract deliveries is sold stock in waiting, not overhang
+            // to be priced away.
+            let stock = crate::contracts::free_stock(state, bid, b.sells);
             let min_step = Money::from_cents(1);
 
             let window_profit = b.revenue_window - b.costs_window;
@@ -356,11 +611,20 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
 
             let mut new_wage = None;
             // Raise wages to attract labor only from a position of strength:
-            // a loss-making business bidding wages up while broke is the
-            // death-spiral input, not competition.
+            // STRICTLY positive window profit. `>= 0` was a latent death
+            // trap — a stone-dead business has revenue 0 − costs 0 = 0,
+            // "non-negative", and ratcheted +5% weekly forever until its
+            // posted wage hit the ceiling, which then priced both direct
+            // rehiring (the hiring cash gate) and takeover revival (restart
+            // capital = hires at that wage) out of existence for the whole
+            // town (DECISIONS.md #026).
+            let hire_floor = b
+                .wage
+                .checked_mul_qty(crate::systems::labor::HIRING_CASH_DAYS)
+                .unwrap_or(Money::MAX);
             if b.vacancies() > 0
                 && b.vacancy_days >= REVIEW_PERIOD as u32
-                && !window_profit.is_negative()
+                && window_profit > Money::ZERO
             {
                 let raised =
                     (b.wage + b.wage.mul_bp(WAGE_RAISE_BP).max(min_step)).min(WAGE_CEILING);
@@ -372,23 +636,24 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 if cut != b.wage {
                     new_wage = Some((b.wage, cut));
                 }
+            } else if b.vacancies() > 0 && b.cash < hire_floor && b.wage > WAGE_FLOOR {
+                // An offer the till cannot fund is not an offer: walk the
+                // posted wage down toward what the business can actually
+                // pay, so a dead firm becomes hirable-into (or cheaply
+                // buyable) again instead of fossilizing at a fantasy wage.
+                let cut = (b.wage - b.wage.mul_bp(WAGE_CUT_BP).max(min_step)).max(WAGE_FLOOR);
+                if cut != b.wage {
+                    new_wage = Some((b.wage, cut));
+                }
             }
 
             // Dividend: pay out a quarter of cash above a survival buffer
             // (three weeks of payroll plus a week of input purchases at last
             // observed prices). The rounding remainder — and the other 75% —
             // stays with the business.
-            let mut input_week = Money::ZERO;
-            for (good, _) in &b.recipe.inputs {
-                let need = market::daily_input_need(b, *good);
-                let price = state
-                    .market
-                    .last_prices
-                    .get(good)
-                    .copied()
-                    .unwrap_or(Money::ZERO);
-                input_week += price.checked_mul_qty(need * 7).unwrap_or(Money::ZERO);
-            }
+            let input_week = daily_input_cost(state, b)
+                .checked_mul_qty(7)
+                .unwrap_or(Money::MAX);
             // Buffer against the *target* headcount, not the current one, so
             // a downsized business retains the capital to staff back up
             // instead of paying it out.
@@ -546,6 +811,48 @@ mod tests {
     }
 
     #[test]
+    fn contract_committed_stock_does_not_read_as_glut() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let ids: Vec<BusinessId> = w.state.businesses.keys().copied().collect();
+        let (farm, mill) = (ids[0], ids[2]);
+        let t = review_tick_for(farm);
+        let old = {
+            let b = w.state.businesses.get_mut(&farm).unwrap();
+            b.stockout_days = 0;
+            let sells = b.sells;
+            b.sales_ema_milli = 1_000; // expects 1/day
+            b.inventory.clear();
+            b.add_stock(sells, 100); // would be a massive glut…
+            b.price
+        };
+        // …but 97 of it is the rolling buffer for a signed delivery: free
+        // stock is 3 days — healthy, not glutted (the utilization cut is
+        // profit-gated off by the loss-making window).
+        crate::contracts::sign(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::contracts::SupplyTerms {
+                seller: farm,
+                buyer: mill,
+                good: crate::goods::Good::Wheat,
+                qty: 97,
+                unit_price: Money::from_cents(500),
+            },
+        );
+        {
+            let b = w.state.businesses.get_mut(&farm).unwrap();
+            b.revenue_window = Money::ZERO;
+            b.costs_window = Money::from_cents(100); // loss-making window
+        }
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        assert_eq!(
+            w.state.businesses[&farm].price, old,
+            "an earmarked delivery buffer must not trigger the glut cut"
+        );
+    }
+
+    #[test]
     fn idle_capacity_cuts_price_without_glut_or_stockout() {
         let mut w = World::from_config(WorldConfig::default_with_seed(4));
         let bid = *w.state.businesses.keys().next().unwrap();
@@ -693,6 +1000,255 @@ mod tests {
         assert_eq!(
             w.state.businesses[&bid].owner, old_owner,
             "no appetite, no deal"
+        );
+    }
+
+    #[test]
+    fn dead_businesses_walk_wages_down_instead_of_ratcheting_up() {
+        // Regression (DECISIONS.md #026): a zero-activity business has a
+        // window profit of exactly zero; under the old `>= 0` raise rule
+        // it bid +5% weekly forever until its wage hit the ceiling, which
+        // priced rehiring AND takeover revival out of existence. Now: no
+        // raise without strictly positive profit, and an offer the till
+        // cannot fund is walked down.
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let bid = *w.state.businesses.keys().next().unwrap();
+        let owner = w.state.businesses[&bid].owner;
+        let staff: Vec<AgentId> = w.state.businesses[&bid].workers.clone();
+        for aid in staff {
+            w.state.agents.get_mut(&aid).unwrap().employer = None;
+        }
+        {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.workers.clear();
+            b.cash = Money::from_cents(1_000);
+            b.books = crate::business::Books::new(Money::from_cents(1_000));
+            b.vacancy_days = 30;
+            b.revenue_window = Money::ZERO;
+            b.costs_window = Money::ZERO;
+        }
+        // Owner too broke to inject (below the personal reserve).
+        w.state.agents.get_mut(&owner).unwrap().cash = Money::from_cents(5_000);
+        w.state.expected_total_money = w.state.total_cash();
+        let before = w.state.businesses[&bid].wage;
+        run(&mut w.state, &mut w.journal, review_tick_for(bid)).unwrap();
+        let after = w.state.businesses[&bid].wage;
+        assert!(
+            after < before,
+            "an unfundable offer must fall, not ratchet: {before} -> {after}"
+        );
+    }
+
+    #[test]
+    fn review_signs_with_the_cheapest_capable_seller_once() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let ids: Vec<BusinessId> = w.state.businesses.keys().copied().collect();
+        // Two iron-ore sellers: the mine, and a farm converted into a
+        // dearer ore vendor. The steelworks is the buyer.
+        let (dear_ore, mine, steelworks) = (ids[0], ids[4], ids[5]);
+        w.state.businesses.get_mut(&mine).unwrap().price = Money::from_cents(700);
+        {
+            let b = w.state.businesses.get_mut(&dear_ore).unwrap();
+            b.sells = crate::goods::Good::IronOre;
+            b.price = Money::from_cents(750);
+        }
+        let owner = w.state.businesses[&steelworks].owner;
+        {
+            let o = w.state.agents.get_mut(&owner).unwrap();
+            o.traits.risk_tolerance = 50;
+            o.traits.greed = 50;
+        }
+        // No seeded cover: supply security matters to a neutral owner.
+        w.state
+            .businesses
+            .get_mut(&steelworks)
+            .unwrap()
+            .inventory
+            .remove(&crate::goods::Good::IronOre);
+        let t = review_tick_for(steelworks);
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        let signed: Vec<_> = w
+            .state
+            .contracts
+            .values()
+            .filter(|c| c.buyer == steelworks && c.good == crate::goods::Good::IronOre)
+            .collect();
+        assert_eq!(signed.len(), 1, "exactly one ore contract");
+        let c = signed[0];
+        assert_eq!(c.seller, mine, "the cheaper seller wins");
+        // 5% off the $7.00 posted price, toward zero: $6.65.
+        assert_eq!(c.unit_price, Money::from_cents(665));
+        assert!(c.qty >= 1);
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, crate::events::Event::ContractSigned { buyer, .. } if buyer == steelworks)));
+        assert!(w.journal.decisions.iter().any(|d| matches!(
+            &d.detail,
+            decision::DecisionDetail::SupplyReview { business, chosen: decision::ContractAction::Sign, .. } if *business == steelworks
+        )));
+        // Next review: the active contract blocks a second signing.
+        run(&mut w.state, &mut w.journal, t + REVIEW_PERIOD).unwrap();
+        let ore_contracts = w
+            .state
+            .contracts
+            .values()
+            .filter(|c| c.buyer == steelworks && c.good == crate::goods::Good::IronOre)
+            .count();
+        assert_eq!(ore_contracts, 1, "no double-signing while active");
+    }
+
+    #[test]
+    fn gambler_owners_stay_spot_while_covered_and_the_record_says_why() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let ids: Vec<BusinessId> = w.state.businesses.keys().copied().collect();
+        let steelworks = ids[5];
+        let owner = w.state.businesses[&steelworks].owner;
+        {
+            let o = w.state.agents.get_mut(&owner).unwrap();
+            o.traits.risk_tolerance = 95;
+            o.traits.greed = 50;
+        }
+        // Full input cover: no security pressure.
+        {
+            let need = market::daily_input_need(
+                &w.state.businesses[&steelworks],
+                crate::goods::Good::IronOre,
+            );
+            let b = w.state.businesses.get_mut(&steelworks).unwrap();
+            b.inventory.remove(&crate::goods::Good::IronOre);
+            b.add_stock(
+                crate::goods::Good::IronOre,
+                need * market::INPUT_TARGET_DAYS,
+            );
+        }
+        let t = review_tick_for(steelworks);
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        assert!(
+            !w.state
+                .contracts
+                .values()
+                .any(|c| c.buyer == steelworks && c.good == crate::goods::Good::IronOre),
+            "a covered gambler keeps gambling"
+        );
+        let record = w
+            .journal
+            .decisions
+            .iter()
+            .find(|d| {
+                matches!(
+                    &d.detail,
+                    decision::DecisionDetail::SupplyReview { business, .. } if *business == steelworks
+                )
+            })
+            .expect("declining is still a journaled decision");
+        assert!(record.explanation().contains("Declined"));
+        assert!(record.explanation().contains("risk tolerance 95"));
+    }
+
+    #[test]
+    fn underwater_buyers_walk_away_and_honesty_holds_out_longer() {
+        // The mill locked wheat at $5.60 against a $5.32 reservation cap
+        // (flour $7.60 × 70%) — 5.3% underwater. A dishonest owner
+        // (tolerance 0%) walks; an honest one (tolerance 10%, ceiling
+        // $5.85) honors the deal. Identical books, different people.
+        let world_with_honesty = |honesty: u8| {
+            let mut w = World::from_config(WorldConfig::default_with_seed(4));
+            let ids: Vec<BusinessId> = w.state.businesses.keys().copied().collect();
+            let (farm, mill) = (ids[0], ids[2]);
+            let cid = crate::contracts::sign(
+                &mut w.state,
+                &mut w.journal,
+                0,
+                crate::contracts::SupplyTerms {
+                    seller: farm,
+                    buyer: mill,
+                    good: crate::goods::Good::Wheat,
+                    qty: 4,
+                    unit_price: Money::from_cents(560),
+                },
+            );
+            let owner = w.state.businesses[&mill].owner;
+            w.state.agents.get_mut(&owner).unwrap().traits.honesty = honesty;
+            let t = review_tick_for(mill);
+            run(&mut w.state, &mut w.journal, t).unwrap();
+            (w, cid)
+        };
+
+        let (w, cid) = world_with_honesty(0);
+        assert_eq!(
+            w.state.contracts[&cid].state,
+            crate::contracts::ContractState::Terminated,
+            "5% underwater is past a dishonest owner's patience"
+        );
+        assert!(
+            w.state.contracts[&cid].penalties_paid_total > Money::ZERO,
+            "walking away costs the exit penalty"
+        );
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, crate::events::Event::ContractTerminated { contract, .. } if contract == cid)));
+        assert!(w.journal.decisions.iter().any(|d| matches!(
+            &d.detail,
+            decision::DecisionDetail::ContractExit { contract, .. } if *contract == cid
+        )));
+        // The jilted seller's owner now doubts the buyer's owner.
+        let seller_owner = w.state.businesses[&w.state.contracts[&cid].seller].owner;
+        let buyer_owner = w.state.businesses[&w.state.contracts[&cid].buyer].owner;
+        assert!(
+            crate::reputation::belief_about(&w.state.agents[&seller_owner], buyer_owner).reliable
+                < crate::reputation::NEUTRAL
+        );
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+
+        let (w, cid) = world_with_honesty(100);
+        assert_eq!(
+            w.state.contracts[&cid].state,
+            crate::contracts::ContractState::Active,
+            "an honest owner tolerates 10% underwater and honors the deal"
+        );
+    }
+
+    #[test]
+    fn publicly_unreliable_sellers_get_no_contracts() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let ids: Vec<BusinessId> = w.state.businesses.keys().copied().collect();
+        let (dear_ore, mine, steelworks) = (ids[0], ids[4], ids[5]);
+        w.state.businesses.get_mut(&mine).unwrap().price = Money::from_cents(700);
+        {
+            let b = w.state.businesses.get_mut(&dear_ore).unwrap();
+            b.sells = crate::goods::Good::IronOre;
+            b.price = Money::from_cents(750);
+        }
+        let buyer_owner = w.state.businesses[&steelworks].owner;
+        let mine_owner = w.state.businesses[&mine].owner;
+        {
+            let o = w.state.agents.get_mut(&buyer_owner).unwrap();
+            o.traits.risk_tolerance = 50;
+            o.traits.greed = 50;
+            crate::reputation::believe(o, mine_owner, |b| b.reliable = 10);
+        }
+        w.state
+            .businesses
+            .get_mut(&steelworks)
+            .unwrap()
+            .inventory
+            .remove(&crate::goods::Good::IronOre);
+        let t = review_tick_for(steelworks);
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        let signed: Vec<_> = w
+            .state
+            .contracts
+            .values()
+            .filter(|c| c.buyer == steelworks && c.good == crate::goods::Good::IronOre)
+            .collect();
+        assert_eq!(signed.len(), 1);
+        assert_eq!(
+            signed[0].seller, dear_ore,
+            "the cheaper but distrusted seller is passed over"
         );
     }
 
