@@ -5,6 +5,88 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 5 — 2026-07-26 — Phase 3 increment 2: the bank (credit kernel)
+
+### Bank v1 — DECISIONS #027
+
+- `bank.rs`: one bank with a first-class ledger account
+  (`AccountId::Bank`), capitalized at worldgen ($70/resident, minted
+  into the money supply), its own lifetime books, and the new
+  `debt_reconciliation` invariant (bank cash == books; per-loan
+  balance/counter/state identities; loan-book sums == aggregates) every
+  sweep.
+- 84-day working-capital term loans: straight-line principal, fixed
+  annual rate (360-day year), interest accrued daily in integer
+  milli-cents on the declining balance (sub-cent carry never becomes
+  money until paid). Service collects daily in tick phase 7,
+  interest-first, full-or-miss; three consecutive misses default →
+  foreclosure: cash seized, then goods at last market prices into bank
+  inventory (goods conservation counts it), remainder written off
+  against equity; seized goods fire-sell daily to the market's own
+  deterministic buyer queue. The stripped business survives for the
+  takeover machinery.
+- Demand side on the utility engine (`BorrowReview`, the distress
+  ladder's third rung after own till and owner injection): payroll
+  runway = urgency, rate = price, debt aversion = weight. Supply side
+  deterministic: no second loan, no prior defaulters (v1 credit
+  memory), a 25% liquidity floor (defaults shrink the lendable pool —
+  the BRIEF's credit-contraction capability), income OR coverage test.
+  `SetBankRate` player command reprices future loans (clamped 0–500%).
+  Loan service is junior to wages/market/contracts and protected in the
+  borrower's market budget.
+
+### Phase 3 acceptance scorecard — all three criteria GREEN
+
+- Supply contract negotiated + fulfilled end-to-end ✓ (session 4).
+- **default→foreclosure flow ✓** (`foreclosure.rs`): staged borrower
+  loses its income, misses 3 days, defaults; bank seizes cash + wheat at
+  market valuation, fire-sells it, writes off the shortfall — full
+  ticks, every-tick invariants, books reconciling. Natural defaults
+  also occur unstaged: seeds 42 and 7 each produce 6 organic defaults
+  by year 4 (loans first issue ~day 112, 2–3 concurrent).
+- **`probe_rate_shock` ✓** (pinned seed 42): control run borrows
+  organically after tick 100; the same world with `SetBankRate` 150%
+  at tick 100 borrows strictly less. Calibrated once, frozen.
+
+### Verification
+
+- `npm run check` exit 0 (121 sim-core unit tests; 7 integration/
+  determinism/probe suites; 7 persistence; tsc; vitest). `check:full`
+  exit 0 incl. `soak_1500`.
+- Soak matrix (release, 3650 ticks): seeds 42/7/123/6 all at
+  **13 employed, hunger 16–19** — unchanged from the contract-kernel
+  baseline; the bank adds credit without destabilizing the design
+  center.
+- **Known issue (recorded, deferred)**: the pop-100 DECADE horizon
+  drifted between dystopia variants (13 → 7 employed at year 10; food
+  production dead by day 600 in both). Its formal acceptance — the
+  1-year `scale.rs` run with every-tick invariants — stays green.
+  Decade-horizon pop-100 health is Phase 4 territory (`soak_10y`,
+  welfare/policy levers) per PLAN; do not chase it piecemeal.
+- Saves break again (SimState/Books/TxKind/Event/PlayerCommand grew);
+  schema_version 1, no released saves. Metrics CSV gained bank_cash /
+  debt_outstanding / loans_active / loan_defaults columns.
+
+### Exact next task (Phase 3 closes next)
+
+1. Session protocol: `npm run check` first.
+2. Remaining before Phase 3 can be declared complete (PLAN.md): the
+   **contract view UI** (terms, parties, payment/delivery history,
+   breaches, penalties — BRIEF's v1.0 screen; the negotiation history
+   table can start as the SupplyReview/BorrowReview decision trail) and
+   **negotiation v1's offer/counteroffer log** (BRIEF: "log every
+   negotiation completely" — grow it on supply-contract formation, then
+   surface it in the view). Suggested one increment: sim-side
+   negotiation log + snapshot/detail plumbing + the contract view panel,
+   launch-verified.
+3. Then declare Phase 3 complete (check:full + PLAN/PROGRESS updates)
+   and open Phase 4 (government, events, emergence probes, soak_10y —
+   which also owns the recorded pop-100 decade issue).
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; `sim-cli metrics --csv` on surprises.
+
+---
+
 ## Session 4 — 2026-07-26 — Phase 3 increment 1: the contract kernel
 
 ### Supply contracts v1 (requirements form) — DECISIONS #026

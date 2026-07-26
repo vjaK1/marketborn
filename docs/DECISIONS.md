@@ -694,3 +694,79 @@ contract view's archive (tiny; revisit retention if soaks grow it). Flat
 Deferred to later increments: offer/counteroffer negotiation logging,
 seller-side strategic breach, multi-sourcing one good across sellers,
 renegotiation before expiry, and the contract view UI.
+
+---
+
+## 027 — Bank v1: distress credit, default→foreclosure, and the rate lever
+
+**Context.** Phase 3's remaining acceptance criteria: the
+default→foreclosure flow test and `probe_rate_shock`. The BRIEF's banking
+spec (deposits, loans, interest, collateral, credit assessment, defaults,
+foreclosures, liquidity, solvency) is bigger than one increment; this
+slice ships the credit kernel end to end and records the rest.
+
+**Decision.** One bank, capitalized at worldgen ($70/resident, minted as
+part of the initial money supply) with its own ledger account
+(`AccountId::Bank`, appended after Business/Agent so buyer ordering is
+untouched), its own lifetime books, and a `debt_reconciliation` invariant
+(bank cash == books; per-loan balance/counter/state identities; loan-book
+sums == bank aggregates) every sweep.
+
+*Loans.* Working-capital term loans to businesses: 84 days, straight-line
+principal, annual rate in bp fixed at issue (360-day year), interest
+accrued daily in integer MILLI-cents on the declining balance (sub-cent
+remainders carry in an accumulator and never become money until paid
+through the ledger; a repaid loan's dangling sub-cent dies with it).
+Service collects daily in tick phase 7, interest before principal, full
+payment or a counted miss — `DEFAULT_AFTER_MISSES (3)` consecutive misses
+default the loan. Foreclosure: seize cash up to the claim, then inventory
+goods at last market prices (whole units — lumpy, the ≤1-unit overshoot
+is the borrower's loss; unpriced goods cannot settle debt), write off the
+rest against bank equity. Seized goods sit in bank inventory (goods
+conservation counts it) and fire-sell daily to the market's own
+deterministic buyer queue at last prices (off-market: `last_prices`
+unmoved). The stripped business survives as an ordinary moribund firm —
+takeover-revival's problem, not the bank's.
+
+*Demand side.* Borrowing is the distress ladder's third rung: own till,
+then owner injection, then — if the business still cannot fund a hire or
+a day of inputs — the owner scores **Borrow vs Struggle** through the
+utility engine (`BorrowReview`): payroll runway sets the urgency, the
+rate is the price, debt aversion (low risk tolerance) weighs it. This
+price sensitivity IS the transmission channel: `probe_rate_shock` (pinned
+seed 42, `SetBankRate` to 150% at tick 100) shows organic lending in the
+control run and contraction in the shocked run. Businesses with no
+payroll clock (no workers) get no urgency — the bank does not do venture
+lending for restarts; injection and takeover cover those.
+
+*Supply side.* Deterministic assessment, no RNG: refuse a second
+concurrent loan, refuse any borrower with a defaulted loan on the book
+(v1 credit memory — permanent; soften when credit history matters more),
+refuse below the bank's liquidity floor (25% of starting capital — as
+defaults eat equity the lendable pool shrinks: the credit-contraction
+capability the BRIEF asks for), and require the income test (day-one
+service ≤ 50% of expected daily revenue) OR the coverage test (principal
+≤ 70% of assets). Rate = the posted base rate at issue; the player's
+`SetBankRate` command (clamped 0..=50,000 bp) reprices future loans only.
+
+*Priority.* Loan service is junior to wages, market reserves and contract
+takes (phase order 4→5→6→7); a borrower's due service is protected in its
+market budget like a contract payment, so a miss means real insolvency,
+not sloppy sequencing.
+
+**Verification.** Natural credit lives: seeds 42/7 organically issue
+loans from ~day 112 (up to 2–3 concurrent) and produce 6 natural
+defaults each with conservation green. The staged flow test
+(`foreclosure.rs`) walks borrow → service → 3 misses → default →
+seizure → fire sale → writeoff through full ticks. The pop-29 soak
+matrix holds at 13 employed on all four seeds. The pop-100 decade
+drifted between dystopia variants (13 → 7 employed at year 10; its
+formal acceptance — the 1-year scale.rs run — stays green); that horizon
+belongs to Phase 4's `soak_10y` + welfare levers and is recorded, not
+chased here.
+
+**Deferred, recorded.** Deposits and bank runs (liquidity crises),
+household credit and mortgages, takeover/expansion lending, bank
+ownership and dividends, credit-history decay, multi-bank competition.
+Saves break again (SimState/Books/TxKind/Event/PlayerCommand grew);
+schema_version stays 1 pre-1.0.

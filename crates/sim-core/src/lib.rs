@@ -12,6 +12,7 @@
 #![cfg_attr(not(test), deny(clippy::unwrap_used, clippy::expect_used))]
 
 pub mod agent;
+pub mod bank;
 pub mod business;
 pub mod commands;
 pub mod contracts;
@@ -38,13 +39,14 @@ pub mod world;
 pub mod worldgen;
 
 pub use agent::{Agent, Traits};
+pub use bank::{Bank, Loan, LoanState};
 pub use business::{Books, Business, BusinessKind, Recipe};
 pub use commands::{PlayerCommand, QueuedCommand};
 pub use contracts::{Contract, ContractParty, ContractState};
 pub use decision::{DecisionRecord, PriceAction};
 pub use events::{Event, EventRecord};
 pub use goods::{Good, Qty};
-pub use ids::{AccountId, AgentId, BusinessId, ContractId};
+pub use ids::{AccountId, AgentId, BusinessId, ContractId, LoanId};
 pub use inspect::AgentDetail;
 pub use invariants::InvariantViolation;
 pub use ledger::{Transaction, TxKind};

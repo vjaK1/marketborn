@@ -65,7 +65,9 @@ impl World {
         // miss with penalties; breaches terminate (Phase 3).
         crate::contracts::settle(&mut self.state, &mut self.journal, t, &mut acc)
             .map_err(internal)?;
-        // Phase 7 — banking: activates in project Phase 3 (bank increment).
+        // Phase 7 — banking: loan service accrues and collects, defaults
+        // foreclose, seized goods fire-sell (Phase 3).
+        crate::bank::run(&mut self.state, &mut self.journal, t, &mut acc).map_err(internal)?;
         // Phase 8 — consumption.
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
         // Phase 9 — agent decisions (utility engine + owner reviews).
@@ -223,6 +225,14 @@ fn apply_commands(world: &mut World, t: u64) {
                         },
                     ),
                 }
+            }
+            PlayerCommand::SetBankRate { rate_bp } => {
+                let old_bp = world.state.bank.base_rate_bp;
+                let new_bp = rate_bp.clamp(0, 50_000);
+                world.state.bank.base_rate_bp = new_bp;
+                world
+                    .journal
+                    .push_event(t, Event::BankRateSet { old_bp, new_bp });
             }
         }
     }

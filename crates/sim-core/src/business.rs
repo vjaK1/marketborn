@@ -84,12 +84,22 @@ pub struct Books {
     pub penalties_received: Money,
     /// Contract-miss penalties paid to wronged counterparties.
     pub penalties_paid: Money,
+    /// Loan principal received from the bank (Phase 3).
+    pub loan_received: Money,
+    /// Loan principal repaid to the bank.
+    pub principal_repaid: Money,
+    /// Loan interest paid to the bank.
+    pub interest_paid: Money,
+    /// Cash seized by the bank in foreclosure.
+    pub seized_cash: Money,
     /// Net monetary policy applied directly to this account (mint − burn;
     /// may be negative).
     pub policy_net: Money,
     /// Units lost to spoilage across all goods held — a physical
     /// write-down, not a cash flow (excluded from the cash identity).
     pub spoiled_units: Qty,
+    /// Units seized by the bank in foreclosure — likewise physical.
+    pub seized_units: Qty,
 }
 
 impl Books {
@@ -104,8 +114,13 @@ impl Books {
             owner_invested: Money::ZERO,
             penalties_received: Money::ZERO,
             penalties_paid: Money::ZERO,
+            loan_received: Money::ZERO,
+            principal_repaid: Money::ZERO,
+            interest_paid: Money::ZERO,
+            seized_cash: Money::ZERO,
             policy_net: Money::ZERO,
             spoiled_units: 0,
+            seized_units: 0,
         }
     }
 
@@ -115,24 +130,29 @@ impl Books {
             + self.revenue
             + self.owner_invested
             + self.penalties_received
+            + self.loan_received
             + self.policy_net
             - self.input_costs
             - self.tool_costs
             - self.wages
             - self.dividends
             - self.penalties_paid
+            - self.principal_repaid
+            - self.interest_paid
+            - self.seized_cash
     }
 
     /// Lifetime operating profit: revenue and penalty income minus all
-    /// operating outflows (contract penalties are an operating consequence).
-    /// Distributions (dividends) and financing (owner investment, policy)
-    /// are excluded.
+    /// operating outflows (contract penalties and loan interest are
+    /// operating consequences). Distributions (dividends) and financing
+    /// (owner investment, loan principal, policy) are excluded.
     pub fn lifetime_profit(&self) -> Money {
         self.revenue + self.penalties_received
             - self.input_costs
             - self.tool_costs
             - self.wages
             - self.penalties_paid
+            - self.interest_paid
     }
 }
 

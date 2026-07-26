@@ -6,7 +6,7 @@
 //! Nothing else in the codebase may touch `cash` fields directly.
 
 use crate::goods::{Good, Qty};
-use crate::ids::{AccountId, ContractId};
+use crate::ids::{AccountId, ContractId, LoanId};
 use crate::money::Money;
 use crate::world::{Journal, SimState, MAX_TX_IN_MEMORY};
 use serde::{Deserialize, Serialize};
@@ -37,6 +37,26 @@ pub enum TxKind {
     /// (cash-capped).
     ContractPenalty {
         contract: ContractId,
+    },
+    /// The bank disburses a loan's principal to the borrower.
+    LoanDisbursed {
+        loan: LoanId,
+    },
+    /// Daily loan service: `interest: true` is the interest leg, `false`
+    /// the principal installment.
+    LoanPayment {
+        loan: LoanId,
+        interest: bool,
+    },
+    /// Foreclosure: the bank seizes the defaulted borrower's cash.
+    CollateralSeized {
+        loan: LoanId,
+    },
+    /// A buyer pays the bank for fire-sold seized goods.
+    Liquidation {
+        good: Good,
+        qty: Qty,
+        unit_price: Money,
     },
     /// Explicit money creation/destruction via player command.
     MonetaryPolicy {
@@ -90,6 +110,7 @@ pub fn balance(state: &SimState, account: AccountId) -> Result<Money, LedgerErro
             .get(&id)
             .map(|b| b.cash)
             .ok_or(LedgerError::UnknownAccount(account)),
+        AccountId::Bank => Ok(state.bank.cash),
     }
 }
 
@@ -105,6 +126,7 @@ fn cash_mut(state: &mut SimState, account: AccountId) -> Result<&mut Money, Ledg
             .get_mut(&id)
             .map(|b| &mut b.cash)
             .ok_or(LedgerError::UnknownAccount(account)),
+        AccountId::Bank => Ok(&mut state.bank.cash),
     }
 }
 
@@ -181,10 +203,14 @@ pub fn mint(
     }
     *cash_mut(state, to)? += amount;
     state.expected_total_money += amount;
-    if let AccountId::Business(id) = to {
-        if let Some(b) = state.businesses.get_mut(&id) {
-            b.books.policy_net += amount;
+    match to {
+        AccountId::Business(id) => {
+            if let Some(b) = state.businesses.get_mut(&id) {
+                b.books.policy_net += amount;
+            }
         }
+        AccountId::Bank => state.bank.books.policy_net += amount,
+        AccountId::Agent(_) => {}
     }
     record(
         journal,
@@ -225,10 +251,14 @@ pub fn burn(
         *cash_mut(state, from).unwrap() -= amount;
     }
     state.expected_total_money -= amount;
-    if let AccountId::Business(id) = from {
-        if let Some(b) = state.businesses.get_mut(&id) {
-            b.books.policy_net -= amount;
+    match from {
+        AccountId::Business(id) => {
+            if let Some(b) = state.businesses.get_mut(&id) {
+                b.books.policy_net -= amount;
+            }
         }
+        AccountId::Bank => state.bank.books.policy_net -= amount,
+        AccountId::Agent(_) => {}
     }
     record(
         journal,

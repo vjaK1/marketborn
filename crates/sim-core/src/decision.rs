@@ -311,6 +311,78 @@ pub struct ScoredContractAction {
     pub score: f64,
 }
 
+/// Borrow-review actions, in tie-break order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BorrowAction {
+    /// Take the bank's working-capital loan at the current rate.
+    Borrow,
+    /// Ride out the shortfall without debt.
+    Struggle,
+}
+
+impl BorrowAction {
+    pub const ALL: [BorrowAction; 2] = [BorrowAction::Borrow, BorrowAction::Struggle];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            BorrowAction::Borrow => "borrow from the bank",
+            BorrowAction::Struggle => "struggle through without debt",
+        }
+    }
+}
+
+/// The signals a borrow review reads, captured into the record.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct BorrowInputs {
+    /// Days of payroll the business can still cover from cash.
+    pub payroll_days_left: Qty,
+    /// The bank's current annual base rate in basis points.
+    pub rate_bp: i64,
+    /// The deciding owner's weighting trait: debt appetite.
+    pub risk_tolerance: u8,
+}
+
+/// Utility scores for borrowing against struggling on. Urgency is runway:
+/// the closer payroll failure looms, the stronger the pull; the rate is
+/// the push, weighed heavier by debt-averse (low risk tolerance) owners.
+/// This price sensitivity is the transmission channel `probe_rate_shock`
+/// guards: at a punitive rate only the truly desperate and the bold still
+/// borrow (DECISIONS.md #027).
+pub fn score_borrow_action(action: BorrowAction, i: &BorrowInputs) -> f64 {
+    match action {
+        BorrowAction::Borrow => {
+            let urgency = (5.0 - i.payroll_days_left as f64).max(0.0) / 5.0; // 0 ..= 1
+            let caution = (100.0 - f64::from(i.risk_tolerance)) / 100.0; // 0 ..= 1
+            let cost = (i.rate_bp as f64 / 10_000.0) * (0.5 + caution);
+            urgency * 1.2 - cost
+        }
+        BorrowAction::Struggle => 0.0,
+    }
+}
+
+/// Score both actions and pick the winner (ties break by enum order).
+pub fn choose_borrow_action(inputs: &BorrowInputs) -> (BorrowAction, Vec<ScoredBorrowAction>) {
+    let mut best = BorrowAction::Struggle;
+    let mut best_score = f64::MIN;
+    let mut considered = Vec::with_capacity(BorrowAction::ALL.len());
+    for action in BorrowAction::ALL {
+        let score = score_borrow_action(action, inputs);
+        considered.push(ScoredBorrowAction { action, score });
+        if score > best_score {
+            best = action;
+            best_score = score;
+        }
+    }
+    (best, considered)
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct ScoredBorrowAction {
+    pub action: BorrowAction,
+    /// Journal-only float (never hashed, never read back by sim logic).
+    pub score: f64,
+}
+
 /// One journaled decision: who chose what, every score considered, and the
 /// inputs that mattered.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -357,6 +429,21 @@ pub enum DecisionDetail {
         inputs: SupplyContractInputs,
         considered: Vec<ScoredContractAction>,
         chosen: ContractAction,
+    },
+    /// A distressed owner weighed bank credit against struggling on
+    /// (Phase 3). Journaled when the loan is taken, and — to bound the
+    /// journal — on the weekly stagger when a live offer is declined or
+    /// the bank refuses.
+    BorrowReview {
+        business: BusinessId,
+        amount: Money,
+        inputs: BorrowInputs,
+        considered: Vec<ScoredBorrowAction>,
+        chosen: BorrowAction,
+        /// The bank's answer when the owner chose to borrow (`None` until
+        /// asked). A refusal reason means the owner wanted the loan and
+        /// the bank said no.
+        refused: Option<crate::bank::CreditRefusal>,
     },
     /// A buyer walked away from an underwater supply contract: the locked
     /// price ran past what the input can earn back (the reservation cap),
@@ -467,6 +554,36 @@ impl DecisionRecord {
                     i.discount_bp / 100,
                     i.cover_days,
                     i.greed,
+                    i.risk_tolerance,
+                )
+            }
+            DecisionDetail::BorrowReview {
+                business,
+                amount,
+                inputs: i,
+                considered,
+                chosen,
+                refused,
+            } => {
+                let scores = considered
+                    .iter()
+                    .map(|s| format!("{} {:+.2}", s.action.label(), s.score))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let outcome = match (chosen, refused) {
+                    (BorrowAction::Borrow, None) => format!("Borrowed {amount} for {business}"),
+                    (BorrowAction::Borrow, Some(r)) => format!(
+                        "Asked the bank for {amount} for {business} and was refused: {}",
+                        r.label()
+                    ),
+                    (BorrowAction::Struggle, _) => {
+                        format!("Declined credit for {business}")
+                    }
+                };
+                format!(
+                    "{outcome}: {} day(s) of payroll left at a {}% rate — weighing risk tolerance {}. Scores: {scores}.",
+                    i.payroll_days_left,
+                    i.rate_bp / 100,
                     i.risk_tolerance,
                 )
             }

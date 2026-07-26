@@ -95,6 +95,18 @@ release tests). Never claim green without running them.
   produce toward their commitments.
 - contract invariant: payment drift (units without money) and schedule
   misalignment are each caught with a report.
+- bank: interest accrues in milli-cents with sub-cent carry becoming
+  paid whole cents; a fully served term repays with the bank keeping the
+  interest margin; three consecutive misses default and foreclose (cash
+  then goods, writeoff recorded); seized goods fire-sell back into the
+  market with bank books reconciling; assessment gates refuse a second
+  loan, prior defaulters, an illiquid bank, and income/coverage
+  failures.
+- borrowing: a distressed business with a broke owner takes a loan that
+  spares the last hire (journaled BorrowReview); a punitive rate deters
+  all but the desperate-and-bold (trait divergence — the probe's
+  micro-foundation); emergency downsizing still fires when the bank is
+  drained.
 - worldgen traits: same seed ⇒ same person; traits vary across the town;
   different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each
@@ -136,6 +148,18 @@ release tests). Never claim green without running them.
   `SupplyReview` decision), delivers, and at least one completes its full
   84-day schedule with `paid == unit_price × delivered_units` exact and
   conservation green to the end.
+- `default_leads_to_foreclosure_and_the_books_survive` (foreclosure.rs) —
+  **the Phase 3 second acceptance criterion**: a borrower with real debt
+  loses its income, misses three days running, defaults, and the bank
+  forecloses — cash seized, wheat seized at market valuation and
+  fire-sold, the shortfall written off — through full ticks with
+  every-tick invariant sweeps and bank books reconciling. (Natural
+  defaults also occur unstaged: seeds 42/7 each produce 6 by year 4.)
+- `probe_rate_shock_contracts_lending` (probe_rate_shock.rs, pinned seed
+  42) — **the Phase 3 third acceptance criterion**: twin runs diverging
+  only by `SetBankRate` to 150% at tick 100; the control run borrows
+  organically after the shock tick and the shocked run borrows strictly
+  less. Thresholds frozen per the probe calibration policy.
 
 ### Determinism (sim-core/tests/determinism.rs)
 
@@ -180,8 +204,10 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
 - **Phase 2**: ~~utility scoring units~~ ✅ · ~~decision-record storage~~
   ✅ · ~~`probe_reputation`~~ ✅ · ~~inspector explanation~~ ✅.
 - **Phase 3**: ~~contract lifecycle integration~~ ✅ ·
-  ~~contract_reconciliation invariant~~ ✅ · default→foreclosure;
-  `probe_rate_shock`; debt reconciliation invariants.
+  ~~contract_reconciliation invariant~~ ✅ · ~~default→foreclosure~~ ✅ ·
+  ~~`probe_rate_shock`~~ ✅ · ~~debt reconciliation invariant~~ ✅.
+  Remaining before the phase closes: negotiation logging + contract/bank
+  UI (contract view), deposits deferral recorded.
 - **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy
   band asserts); tax reconciliation; delayed-policy effects.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,

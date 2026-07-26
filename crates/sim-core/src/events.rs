@@ -6,7 +6,7 @@
 
 use crate::contracts::ContractParty;
 use crate::goods::{Good, Qty};
-use crate::ids::{AccountId, AgentId, BusinessId, ContractId};
+use crate::ids::{AccountId, AgentId, BusinessId, ContractId, LoanId};
 use crate::money::Money;
 use serde::{Deserialize, Serialize};
 
@@ -118,6 +118,43 @@ pub enum Event {
     ContractCompleted {
         contract: ContractId,
     },
+    /// The bank issued a working-capital loan (Phase 3).
+    LoanIssued {
+        loan: LoanId,
+        business: BusinessId,
+        principal: Money,
+        rate_bp: i64,
+    },
+    /// A day's loan service could not be met in full.
+    LoanPaymentMissed {
+        loan: LoanId,
+        business: BusinessId,
+        shortfall: Money,
+    },
+    /// Principal fully repaid; the loan closed cleanly.
+    LoanRepaid {
+        loan: LoanId,
+        business: BusinessId,
+    },
+    /// Three consecutive missed payments: the loan defaulted.
+    LoanDefaulted {
+        loan: LoanId,
+        business: BusinessId,
+        outstanding: Money,
+    },
+    /// Foreclosure ran: cash and goods seized, the rest written off.
+    CollateralSeized {
+        loan: LoanId,
+        business: BusinessId,
+        cash: Money,
+        goods_value: Money,
+        written_off: Money,
+    },
+    /// Interest-rate policy moved the bank's base rate.
+    BankRateSet {
+        old_bp: i64,
+        new_bp: i64,
+    },
     AgentHungry {
         agent: AgentId,
         streak: u32,
@@ -153,6 +190,12 @@ impl Event {
             Event::ContractBreached { .. } => "contract_breached",
             Event::ContractTerminated { .. } => "contract_terminated",
             Event::ContractCompleted { .. } => "contract_completed",
+            Event::LoanIssued { .. } => "loan_issued",
+            Event::LoanPaymentMissed { .. } => "loan_payment_missed",
+            Event::LoanRepaid { .. } => "loan_repaid",
+            Event::LoanDefaulted { .. } => "loan_defaulted",
+            Event::CollateralSeized { .. } => "collateral_seized",
+            Event::BankRateSet { .. } => "bank_rate_set",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",
             Event::CommandRejected { .. } => "command_rejected",

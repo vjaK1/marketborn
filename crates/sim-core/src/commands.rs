@@ -20,12 +20,18 @@ pub enum PlayerCommand {
         delta: Money,
         memo: String,
     },
+    /// Interest-rate policy (Phase 3): set the bank's annual base rate in
+    /// basis points. Existing loans keep their fixed rate; new lending
+    /// reprices — the credit-contraction lever `probe_rate_shock` guards.
+    /// Clamped to 0..=50_000 bp at application.
+    SetBankRate { rate_bp: i64 },
 }
 
 impl PlayerCommand {
     pub fn kind(&self) -> &'static str {
         match self {
             PlayerCommand::AdjustMoneySupply { .. } => "adjust_money_supply",
+            PlayerCommand::SetBankRate { .. } => "set_bank_rate",
         }
     }
 }

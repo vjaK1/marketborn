@@ -159,6 +159,7 @@ fn account_label(state: &SimState, account: AccountId) -> String {
     match account {
         AccountId::Agent(id) => agent_label(state, id),
         AccountId::Business(id) => business_label(state, id),
+        AccountId::Bank => "the bank".to_string(),
     }
 }
 
@@ -333,6 +334,49 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
         Event::ContractCompleted { contract } => {
             let (seller, buyer) = contract_parties(state, *contract);
             format!("{contract} between {seller} and {buyer} ran its full term")
+        }
+        Event::LoanIssued {
+            loan,
+            business,
+            principal,
+            rate_bp,
+        } => format!(
+            "The bank lent {} {principal} at {}% ({loan})",
+            business_label(state, *business),
+            rate_bp / 100
+        ),
+        Event::LoanPaymentMissed {
+            loan,
+            business,
+            shortfall,
+        } => format!(
+            "{} missed a {loan} payment, {shortfall} short",
+            business_label(state, *business)
+        ),
+        Event::LoanRepaid { loan, business } => format!(
+            "{} repaid {loan} in full",
+            business_label(state, *business)
+        ),
+        Event::LoanDefaulted {
+            loan,
+            business,
+            outstanding,
+        } => format!(
+            "{} defaulted on {loan} owing {outstanding}",
+            business_label(state, *business)
+        ),
+        Event::CollateralSeized {
+            loan,
+            business,
+            cash,
+            goods_value,
+            written_off,
+        } => format!(
+            "The bank foreclosed on {} ({loan}): seized {cash} cash and {goods_value} in goods, wrote off {written_off}",
+            business_label(state, *business)
+        ),
+        Event::BankRateSet { old_bp, new_bp } => {
+            format!("The bank's base rate moved {}% → {}%", old_bp / 100, new_bp / 100)
         }
         Event::AgentHungry { agent, streak } => {
             if *streak <= 1 {

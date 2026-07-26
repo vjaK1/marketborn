@@ -105,6 +105,7 @@ pub fn check_all(state: &SimState, journal: &Journal) -> Result<(), Box<Invarian
     employment_reciprocity(state, journal)?;
     business_books(state, journal)?;
     contract_reconciliation(state, journal)?;
+    debt_reconciliation(state, journal)?;
     // Aggregate reconciliation runs after the specific checks so a negative
     // stock reports as non_negative_inventory, not as a totals mismatch.
     goods_conservation(state, journal)?;
@@ -279,6 +280,135 @@ fn contract_reconciliation(
                 format!("0 ≤ penalties ≤ {penalty_ceiling} for {} misses", c.missed),
                 format!("penalties {}", c.penalties_paid_total),
             );
+        }
+    }
+    Ok(())
+}
+
+/// Bank and debt reconciliation (Phase 3): the bank's cash must equal what
+/// its lifetime books imply, per-loan counters must agree with themselves,
+/// and the loan book's totals must sum to the bank's aggregates — a loan
+/// flow that bypassed its bookkeeping site halts here or in
+/// `money_conservation`/`business_books`.
+fn debt_reconciliation(state: &SimState, journal: &Journal) -> Result<(), Box<InvariantViolation>> {
+    use crate::bank::{LoanState, DEFAULT_AFTER_MISSES};
+    let bank = &state.bank;
+    let expected = bank.books.expected_cash();
+    if bank.cash != expected {
+        return Err(violation(
+            state,
+            journal,
+            "debt_reconciliation",
+            format!("bank books imply {expected}"),
+            format!("bank cash is {}", bank.cash),
+            bank.cash - expected,
+            Some(AccountId::Bank),
+        ));
+    }
+    let mut disbursed = crate::money::Money::ZERO;
+    let mut repaid = crate::money::Money::ZERO;
+    let mut interest = crate::money::Money::ZERO;
+    for l in bank.loans.values() {
+        let fail = |what: &str, expected: String, actual: String| {
+            Err(violation(
+                state,
+                journal,
+                "debt_reconciliation",
+                format!("{} {what}: {expected}", l.id),
+                actual,
+                "loan state inconsistent",
+                Some(AccountId::Business(l.borrower)),
+            ))
+        };
+        if !state.businesses.contains_key(&l.borrower) {
+            return fail(
+                "borrower",
+                "business exists".into(),
+                format!("{} not found", l.borrower),
+            );
+        }
+        if l.principal <= crate::money::Money::ZERO
+            || l.outstanding.is_negative()
+            || l.accrued_interest_milli < 0
+        {
+            return fail(
+                "terms",
+                "positive principal, non-negative balances".into(),
+                format!(
+                    "principal {} outstanding {} accrued_milli {}",
+                    l.principal, l.outstanding, l.accrued_interest_milli
+                ),
+            );
+        }
+        if l.outstanding != l.principal - l.principal_repaid_total {
+            return fail(
+                "balance",
+                format!("outstanding == {}", l.principal - l.principal_repaid_total),
+                format!("outstanding {}", l.outstanding),
+            );
+        }
+        if l.consecutive_misses > l.missed_payments {
+            return fail(
+                "counters",
+                "run ≤ missed".into(),
+                format!("run {} missed {}", l.consecutive_misses, l.missed_payments),
+            );
+        }
+        match l.state {
+            LoanState::Active => {
+                if l.consecutive_misses >= DEFAULT_AFTER_MISSES {
+                    return fail(
+                        "active state",
+                        format!("run < {DEFAULT_AFTER_MISSES}"),
+                        format!("run {}", l.consecutive_misses),
+                    );
+                }
+            }
+            LoanState::Repaid => {
+                if l.outstanding != crate::money::Money::ZERO {
+                    return fail(
+                        "repaid state",
+                        "outstanding == 0".into(),
+                        format!("outstanding {}", l.outstanding),
+                    );
+                }
+            }
+            LoanState::Defaulted => {}
+        }
+        disbursed += l.principal;
+        repaid += l.principal_repaid_total;
+        interest += l.interest_paid_total;
+    }
+    if disbursed != bank.books.principal_disbursed
+        || repaid != bank.books.principal_repaid
+        || interest != bank.books.interest_received
+    {
+        return Err(violation(
+            state,
+            journal,
+            "debt_reconciliation",
+            format!(
+                "loan book sums to disbursed {} repaid {} interest {}",
+                bank.books.principal_disbursed,
+                bank.books.principal_repaid,
+                bank.books.interest_received
+            ),
+            format!("loans sum to disbursed {disbursed} repaid {repaid} interest {interest}"),
+            "aggregate/loan-book mismatch",
+            Some(AccountId::Bank),
+        ));
+    }
+    for (good, qty) in &bank.inventory {
+        if *qty < 0 {
+            return Err(violation(
+                state,
+                journal,
+                "debt_reconciliation",
+                ">= 0",
+                format!("bank holds {qty} {good}"),
+                *qty,
+                Some(AccountId::Bank),
+            ));
         }
     }
     Ok(())

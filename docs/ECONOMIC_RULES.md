@@ -26,7 +26,7 @@ Every tick executes exactly this sequence:
 | 4 | **Labor market** | Job matching, then daily payroll (see §Labor). |
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
 | 6 | **Contract settlement** | Every active supply contract due today settles in contract-id order: the buyer takes its current input need up to the contracted daily ceiling at the locked price (goods seller→buyer zero-sum, cash through the ledger); shortfalls are penalized misses; three consecutive misses breach (see §Contracts). |
-| 7 | Banking | *[activates: Phase 3, bank increment]* |
+| 7 | **Banking** | Every active loan in id order: daily interest accrues (integer milli-cents on the declining balance), the day's service (interest first, then the principal installment) auto-collects; a full shortfall is a counted miss and three consecutive misses default the loan and run foreclosure. Then the bank fire-sells any seized inventory to the market's buyer queue at last prices (see §Banking). |
 | 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
 | 10 | **Memory, relationships & reputation** | Every memory fades a little (`memory::decay`); forgotten memories drop. On the agent's weekly stagger day: workplace + neighborhood gossip (listener moves ¼ of the gap toward each speaker per subject; neutrality is silence — only intensity ≥ 8 beliefs get spoken), then relations and beliefs drift one step toward neutral; fully-neutral entries drop. Formation/updates happen at event sites, never by reading the journal back. |
@@ -39,6 +39,8 @@ Every tick executes exactly this sequence:
 | Wages | every tick (daily) |
 | Contract deliveries | every tick (daily) — the town runs on a one-day cadence; weekly lumps starved it (DECISIONS.md #026) |
 | Contract formation & underwater review | on the buyer business's weekly review stagger |
+| Loan interest accrual + service collection | every tick (daily) |
+| Distressed-borrowing consideration | daily when triggered; declines/refusals journal on the weekly stagger |
 | Business review (price, wage, dividend, window profit) | every 7 ticks, staggered: a business reviews when `(tick + id) % 7 == 0` |
 | Emergency downsizing check | every tick |
 | State hash + manifest entry | every `hash_every` ticks (default 50) and at every save |
@@ -174,6 +176,61 @@ fixed quantities) collapsed towns and are documented in #026.
   (`next_due == start + (settled+1) × every`); terminal states
   consistent; `paid_total == unit_price × delivered_units` exactly;
   penalties within `penalty events × full ceiling penalty`.
+
+## Banking (Phase 3 — the credit kernel, DECISIONS.md #027)
+
+One bank, capitalized at worldgen ($70 per resident, minted into the
+initial money supply), holding a first-class ledger account. v1 lends its
+own equity to businesses; deposits, household credit and bank ownership
+are recorded deferrals.
+
+- **Loans**: 84-day working-capital term loans, straight-line principal
+  (the division remainder collects on the final day), annual rate in
+  basis points fixed at issue (360-day year, default 1,800 bp). Interest
+  accrues daily in integer **milli-cents** on the declining balance —
+  sub-cent remainders carry in a per-loan accumulator and only become
+  money when paid through the ledger; a repaid loan's dangling sub-cent
+  dies with it (never money, conservation-safe).
+- **Service** (phase 7, loan-id order): the day's bill = accrued whole
+  cents of interest + the installment, collected interest-first
+  (`TxKind::LoanPayment`), books categorized both sides. Full payment or
+  a counted miss — nothing partial moves, so the borrower's remaining
+  cash meets tomorrow's attempt. Three consecutive misses ⇒ **default**.
+- **Foreclosure**: seize cash up to the claim (outstanding + accrued
+  whole cents), then inventory goods valued at last market prices in
+  canonical good order (whole units; the ≤1-unit overshoot is the
+  borrower's loss; unpriced goods cannot settle debt), write off the
+  rest against bank equity. Seized goods live in bank inventory (counted
+  by goods conservation) and **fire-sell daily** to the same
+  deterministic buyer queue the goods market builds, at last prices,
+  off-market (`last_prices` unmoved). The stripped business survives as
+  an ordinary moribund firm for the takeover machinery.
+- **Demand** (decisions phase, the distress ladder's third rung after
+  own till and owner injection): a business still unable to fund a hire
+  or a day of inputs scores **Borrow vs Struggle** through the utility
+  engine — payroll runway is the urgency, the rate the price, debt
+  aversion (inverse risk tolerance) the weight. Amount = two hires of
+  runway + a week of inputs − cash (minimum $10). No urgency without a
+  payroll clock: the bank does not fund restarts (injection/takeover
+  territory). Borrows always journal a `BorrowReview`; declines and
+  refusals journal on the weekly stagger.
+- **Assessment** (deterministic): refuse a second concurrent loan, any
+  borrower with a defaulted loan on the book (v1 credit memory), or
+  anything that would dip the bank below its liquidity floor (25% of
+  starting capital — default losses shrink the lendable pool: the
+  credit-contraction channel). Otherwise require the income test
+  (day-one service ≤ 50% of expected daily revenue) OR the coverage
+  test (principal ≤ 70% of cash + inventory at last prices).
+- **Rate policy**: `SetBankRate` (player command, clamped 0..=50,000 bp)
+  reprices FUTURE loans only. `probe_rate_shock` guards the channel:
+  punitive money finds fewer takers.
+- **Priority**: loan service is junior to wages, market reserves and
+  contract takes (phases 4→5→6→7); the day's due service is protected in
+  the borrower's market budget, so a miss means real insolvency.
+- **Invariant** (`debt_reconciliation`, every sweep): bank cash equals
+  its lifetime books; per loan, outstanding == principal − repaid with
+  sane counters and terminal states; the loan book's sums equal the
+  bank's aggregates; bank inventory non-negative.
 
 ## Production
 
@@ -337,6 +394,7 @@ in later phases, but changes must be recorded (they shift every hash).
 | Construction chain | lumber camp (1 worker, $6.00, wood $5.00, uses tools) · brickworks (1, $6.00, bricks $6.00, uses tools) · construction co (1, $6.00, home $300.00) |
 | Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker · lumber camp → 1 wood, 2/worker · brickworks → 1 bricks, 2/worker · construction 6 wood + 6 bricks → 1 home, 1/worker |
 | Business start cash | $1,200.00 each |
+| Bank | capital $70.00 × population (minted at gen) · base rate 1,800 bp/yr · loan term 84 days · liquidity floor 25% of capital |
 | Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
 | Comfort floor | $400.00 cash → second daily meal |
 | Home floor | $600.00 cash → buy one home, paying ≤ half of cash |

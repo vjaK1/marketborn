@@ -1,6 +1,7 @@
 //! The world: hashed simulation state, input log, and output journal.
 
 use crate::agent::Agent;
+use crate::bank::Bank;
 use crate::business::Business;
 use crate::commands::{CommandError, PlayerCommand, QueuedCommand};
 use crate::contracts::Contract;
@@ -62,6 +63,9 @@ pub struct SimState {
     /// quarterly); revisit retention if soak state ever grows.
     pub contracts: BTreeMap<ContractId, Contract>,
     pub next_contract_id: u32,
+    /// The town's single bank (Phase 3): credit, seized collateral, and
+    /// its own cash — part of the money supply.
+    pub bank: Bank,
     pub market: MarketState,
     pub status: SimStatus,
 }
@@ -70,12 +74,12 @@ impl SimState {
     pub fn total_cash(&self) -> Money {
         let agents: Money = self.agents.values().map(|a| a.cash).sum();
         let businesses: Money = self.businesses.values().map(|b| b.cash).sum();
-        agents + businesses
+        agents + businesses + self.bank.cash
     }
 
     /// Total on-hand quantity of one good across the whole world: business
-    /// inventories plus household holdings (pantries hold food; owned homes
-    /// are household property).
+    /// inventories, household holdings (pantries hold food; owned homes
+    /// are household property), and collateral seized by the bank.
     pub fn total_goods(&self, good: Good) -> Qty {
         let in_businesses: Qty = self.businesses.values().map(|b| b.stock(good)).sum();
         let in_households: Qty = match good {
@@ -83,7 +87,7 @@ impl SimState {
             Good::Home => self.agents.values().filter(|a| a.owns_home).count() as Qty,
             _ => 0,
         };
-        in_businesses + in_households
+        in_businesses + in_households + self.bank.stock(good)
     }
 }
 

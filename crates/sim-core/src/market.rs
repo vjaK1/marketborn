@@ -108,15 +108,17 @@ fn build_offers(state: &SimState, good: Good, _tick: u64) -> Vec<Offer> {
     offers
 }
 
-/// Cash a business may spend at market after protecting a payroll reserve
-/// and any contract payment falling due this tick. Also the affordability
-/// gate contract formation applies to a delivery's cost.
+/// Cash a business may spend at market after protecting a payroll reserve,
+/// any contract payment falling due this tick, and today's loan service.
+/// Also the affordability gate contract formation applies to a delivery's
+/// cost.
 pub(crate) fn market_budget(state: &SimState, b: &Business, tick: u64) -> Money {
     let reserve = b
         .wage
         .checked_mul_qty(b.workers.len() as i64 * PAYROLL_RESERVE_DAYS)
         .unwrap_or(Money::MAX);
-    let due = crate::contracts::payment_due_today(state, b.id, tick);
+    let due = crate::contracts::payment_due_today(state, b.id, tick)
+        + crate::bank::payment_due_today(state, b.id, tick);
     (b.cash - reserve - due).max(Money::ZERO)
 }
 
@@ -354,6 +356,9 @@ fn execute_orders(
                         }
                     }
                 }
+                // The bank never places market orders (it sells seized
+                // goods through its own liquidation channel).
+                AccountId::Bank => {}
             }
             *acc.trade_volume.entry(good).or_insert(0) += take;
             *acc.trade_value.entry(good).or_insert(Money::ZERO) += cost;
@@ -366,6 +371,90 @@ fn execute_orders(
         }
     }
     Ok(())
+}
+
+/// Fire-sell the bank's seized `good` (up to `qty` units at `unit_price`)
+/// to the same deterministic buyer queue the goods market builds — the
+/// bank phase's liquidation channel (Phase 3). Buyers keep their
+/// reservation prices and budgets; goods move bank→buyer and cash
+/// buyer→bank (`TxKind::Liquidation`). Off-market: `last_prices` are not
+/// moved. Returns the proceeds.
+pub(crate) fn bank_liquidation(
+    state: &mut SimState,
+    journal: &mut Journal,
+    tick: u64,
+    good: Good,
+    qty: Qty,
+    unit_price: Money,
+) -> Result<Money, LedgerError> {
+    let orders = build_orders(state, good, tick);
+    let mut remaining = qty;
+    let mut proceeds = Money::ZERO;
+    for order in orders {
+        if remaining == 0 {
+            break;
+        }
+        if let Some(cap) = order.max_unit_price {
+            if unit_price > cap {
+                continue;
+            }
+        }
+        let cash = ledger::balance(state, order.buyer)?;
+        let spendable = match order.max_spend {
+            Some(b) => b.min(cash),
+            None => cash,
+        };
+        let take = order
+            .qty
+            .min(remaining)
+            .min(spendable.affordable_units(unit_price));
+        if take == 0 {
+            continue;
+        }
+        let Some(cost) = unit_price.checked_mul_qty(take) else {
+            break;
+        };
+        ledger::transfer(
+            state,
+            journal,
+            tick,
+            order.buyer,
+            AccountId::Bank,
+            cost,
+            TxKind::Liquidation {
+                good,
+                qty: take,
+                unit_price,
+            },
+        )?;
+        *state.bank.inventory.entry(good).or_insert(0) -= take;
+        match order.buyer {
+            AccountId::Agent(id) => {
+                if let Some(agent) = state.agents.get_mut(&id) {
+                    match good {
+                        Good::Home => agent.owns_home = true,
+                        _ => agent.pantry += take,
+                    }
+                    agent.total_spent += cost;
+                }
+            }
+            AccountId::Business(id) => {
+                if let Some(buyer) = state.businesses.get_mut(&id) {
+                    buyer.add_stock(good, take);
+                    buyer.costs_window += cost;
+                    if good == Good::Tools {
+                        buyer.books.tool_costs += cost;
+                    } else {
+                        buyer.books.input_costs += cost;
+                    }
+                }
+            }
+            AccountId::Bank => {}
+        }
+        remaining -= take;
+        proceeds += cost;
+    }
+    Ok(proceeds)
 }
 
 /// Read-only standing depth of one good's market, derived from the same

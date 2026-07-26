@@ -497,6 +497,98 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
             );
         }
 
+        // --- Daily: distressed borrowing (Phase 3, DECISIONS.md #027).
+        // Own money first (the injection above); if the business is STILL
+        // short of a hire or a day of inputs, the owner weighs bank credit
+        // through the utility engine. Runway sets the urgency, the rate is
+        // the price, and debt aversion (low risk tolerance) weighs it —
+        // the probe_rate_shock transmission channel. Borrows always
+        // journal; declines and refusals journal on the weekly stagger to
+        // bound the record volume. ---
+        let borrow: Option<(Money, decision::BorrowInputs)> = {
+            let Some(b) = state.businesses.get(&bid) else {
+                continue;
+            };
+            let hire_floor = b
+                .wage
+                .checked_mul_qty(crate::systems::labor::HIRING_CASH_DAYS)
+                .unwrap_or(Money::MAX);
+            let input_day = daily_input_cost(state, b);
+            let hiring_gap = b.cash < hire_floor;
+            let input_blocked = !b.workers.is_empty()
+                && input_day > Money::ZERO
+                && market::market_budget(state, b, tick) < input_day;
+            if !hiring_gap && !input_blocked {
+                None
+            } else {
+                let input_week = input_day.checked_mul_qty(7).unwrap_or(Money::MAX);
+                let want =
+                    hire_floor.checked_mul_qty(2).unwrap_or(Money::MAX) + input_week - b.cash;
+                if want < crate::bank::MIN_LOAN {
+                    None
+                } else {
+                    let payroll = b.daily_payroll();
+                    // Runway in days; businesses with no payroll have no
+                    // urgency clock — the bank does not do venture lending
+                    // for restarts (owner injection and takeover cover
+                    // those), so a neutral runway leaves the rate to
+                    // decide.
+                    let days_left = if payroll > Money::ZERO {
+                        (b.cash.cents() / payroll.cents()).min(9)
+                    } else {
+                        5
+                    };
+                    state.agents.get(&b.owner).map(|owner| {
+                        (
+                            want,
+                            decision::BorrowInputs {
+                                payroll_days_left: days_left,
+                                rate_bp: state.bank.base_rate_bp,
+                                risk_tolerance: owner.traits.risk_tolerance,
+                            },
+                        )
+                    })
+                }
+            }
+        };
+        if let Some((amount, inputs)) = borrow {
+            let (chosen, considered) = decision::choose_borrow_action(&inputs);
+            let stagger_day = (tick + u64::from(bid.0)).is_multiple_of(REVIEW_PERIOD);
+            let owner = state.businesses.get(&bid).map(|b| b.owner);
+            let record = |journal: &mut Journal, refused: Option<crate::bank::CreditRefusal>| {
+                if let Some(actor) = owner {
+                    journal.push_decision(decision::DecisionRecord {
+                        seq: 0,
+                        tick,
+                        actor,
+                        detail: decision::DecisionDetail::BorrowReview {
+                            business: bid,
+                            amount,
+                            inputs,
+                            considered: considered.clone(),
+                            chosen,
+                            refused,
+                        },
+                    });
+                }
+            };
+            if chosen == decision::BorrowAction::Borrow {
+                match crate::bank::assess(state, bid, amount) {
+                    Ok(()) => {
+                        crate::bank::issue(state, journal, tick, bid, amount)?;
+                        record(journal, None);
+                    }
+                    Err(refusal) => {
+                        if stagger_day {
+                            record(journal, Some(refusal));
+                        }
+                    }
+                }
+            } else if stagger_day {
+                record(journal, None);
+            }
+        }
+
         // --- Daily: emergency downsizing (last hired leaves first). ---
         let fire: Option<AgentId> = {
             let Some(b) = state.businesses.get(&bid) else {
@@ -882,8 +974,12 @@ mod tests {
         let staff_before = w.state.businesses[&bid].workers.len();
         let owner = w.state.businesses[&bid].owner;
         w.state.businesses.get_mut(&bid).unwrap().cash = Money::from_cents(100);
-        // The owner is broke too, so no capital injection can rescue payroll.
+        // The owner is broke too, so no capital injection can rescue
+        // payroll — and the bank is drained, so credit can't either (the
+        // rescue-by-loan path has its own test).
         w.state.agents.get_mut(&owner).unwrap().cash = Money::from_cents(500);
+        w.state.bank.cash = Money::ZERO;
+        w.state.bank.books = crate::bank::BankBooks::new(Money::ZERO);
         w.state.expected_total_money = w.state.total_cash();
         // Non-review tick: only the daily emergency rule runs.
         let t = review_tick_for(bid) + 1;
@@ -891,6 +987,87 @@ mod tests {
         let b = &w.state.businesses[&bid];
         assert_eq!(b.workers.len(), staff_before - 1);
         assert_eq!(w.state.agents[&last_hired].employer, None);
+    }
+
+    #[test]
+    fn distressed_businesses_borrow_when_the_owner_cannot_inject() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let bid = *w.state.businesses.keys().next().unwrap();
+        let owner = w.state.businesses[&bid].owner;
+        let staff_before = w.state.businesses[&bid].workers.len();
+        {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.cash = Money::from_cents(100);
+            b.books = crate::business::Books::new(Money::from_cents(100));
+        }
+        {
+            let o = w.state.agents.get_mut(&owner).unwrap();
+            o.cash = Money::from_cents(500); // below the injection reserve
+            o.traits.risk_tolerance = 80; // no debt aversion in the way
+        }
+        w.state.expected_total_money = w.state.total_cash();
+        let t = review_tick_for(bid) + 1;
+        run(&mut w.state, &mut w.journal, t).unwrap();
+        let loan = w
+            .state
+            .bank
+            .active_loan_of(bid)
+            .expect("the bank stepped in where the owner could not");
+        assert!(loan.principal >= crate::bank::MIN_LOAN);
+        assert!(
+            w.state.businesses[&bid].cash > Money::from_cents(100),
+            "the loan recapitalized the till"
+        );
+        assert_eq!(
+            w.state.businesses[&bid].workers.len(),
+            staff_before,
+            "credit spared the last hire"
+        );
+        assert_eq!(w.state.businesses[&bid].books.loan_received, loan.principal);
+        assert!(w.journal.decisions.iter().any(|d| matches!(
+            &d.detail,
+            decision::DecisionDetail::BorrowReview {
+                business,
+                chosen: decision::BorrowAction::Borrow,
+                refused: None,
+                ..
+            } if *business == bid
+        )));
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, Event::LoanIssued { business, .. } if business == bid)));
+        assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn a_punitive_rate_deters_all_but_the_desperate() {
+        // The probe_rate_shock micro-foundation: identical distress,
+        // different rates, different choices.
+        let cheap = decision::BorrowInputs {
+            payroll_days_left: 2,
+            rate_bp: 1_800,
+            risk_tolerance: 50,
+        };
+        let (a, _) = decision::choose_borrow_action(&cheap);
+        assert_eq!(a, decision::BorrowAction::Borrow);
+        let dear = decision::BorrowInputs {
+            payroll_days_left: 2,
+            rate_bp: 15_000,
+            risk_tolerance: 50,
+        };
+        let (a, _) = decision::choose_borrow_action(&dear);
+        assert_eq!(a, decision::BorrowAction::Struggle, "150% deters");
+        // …unless payroll fails tomorrow and the owner is bold.
+        let desperate = decision::BorrowInputs {
+            payroll_days_left: 0,
+            rate_bp: 15_000,
+            risk_tolerance: 100,
+        };
+        let (a, _) = decision::choose_borrow_action(&desperate);
+        assert_eq!(a, decision::BorrowAction::Borrow);
     }
 
     #[test]

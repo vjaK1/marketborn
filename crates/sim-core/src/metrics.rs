@@ -19,6 +19,7 @@ pub struct DayAccumulator {
     pub hungry_agents: u32,
     pub contract_deliveries: u32,
     pub contract_misses: u32,
+    pub loan_defaults: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -44,6 +45,14 @@ pub struct MetricsDay {
     pub contract_deliveries: u32,
     /// Deliveries missed today.
     pub contract_misses: u32,
+    /// The bank's cash on hand.
+    pub bank_cash: Money,
+    /// Outstanding principal across active loans.
+    pub debt_outstanding: Money,
+    /// Loans currently being serviced.
+    pub loans_active: u32,
+    /// Loans that defaulted today.
+    pub loan_defaults: u32,
     /// Per-business daily state, for time-series analysis and (later) the
     /// business inspector's historical charts.
     pub businesses: BTreeMap<BusinessId, BizDay>,
@@ -64,6 +73,7 @@ pub struct BizDay {
 pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay {
     let household_cash: Money = state.agents.values().map(|a| a.cash).sum();
     let business_cash: Money = state.businesses.values().map(|b| b.cash).sum();
+    let bank_cash = state.bank.cash;
     let mut employed = 0u32;
     let mut unemployed = 0u32;
     let mut owners = 0u32;
@@ -116,7 +126,7 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
         .collect();
     MetricsDay {
         tick,
-        money_total: household_cash + business_cash,
+        money_total: household_cash + business_cash + bank_cash,
         household_cash,
         business_cash,
         employed,
@@ -136,6 +146,15 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
             .count() as u32,
         contract_deliveries: acc.contract_deliveries,
         contract_misses: acc.contract_misses,
+        bank_cash,
+        debt_outstanding: state.bank.debt_outstanding(),
+        loans_active: state
+            .bank
+            .loans
+            .values()
+            .filter(|l| l.state == crate::bank::LoanState::Active)
+            .count() as u32,
+        loan_defaults: acc.loan_defaults,
         businesses,
     }
 }

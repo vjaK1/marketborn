@@ -38,6 +38,12 @@ id_type!(
     ContractId,
     "C"
 );
+id_type!(
+    /// Identifies a bank loan (Phase 3). Assigned from `Bank::next_loan_id`,
+    /// never reused; terminal loans stay in the book as credit history.
+    LoanId,
+    "L"
+);
 
 /// A money-holding account. Every ledger movement is between two accounts
 /// (or one account and the monetary authority, for explicit mint/burn).
@@ -45,11 +51,15 @@ id_type!(
 /// Ordering note: the derived order (`Business` before `Agent`) is part of
 /// the deterministic buyer ordering in the market phase — businesses buy
 /// production inputs before households buy consumption goods within the same
-/// urgency tier. Documented in `docs/ECONOMIC_RULES.md`.
+/// urgency tier. Documented in `docs/ECONOMIC_RULES.md`. `Bank` is appended
+/// last (Phase 3) and never places market orders, so the pre-bank ordering
+/// is unchanged.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 pub enum AccountId {
     Business(BusinessId),
     Agent(AgentId),
+    /// The town's single bank (Phase 3).
+    Bank,
 }
 
 impl fmt::Display for AccountId {
@@ -57,6 +67,7 @@ impl fmt::Display for AccountId {
         match self {
             AccountId::Business(id) => write!(f, "business {id}"),
             AccountId::Agent(id) => write!(f, "agent {id}"),
+            AccountId::Bank => write!(f, "the bank"),
         }
     }
 }

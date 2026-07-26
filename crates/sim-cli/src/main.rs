@@ -255,7 +255,7 @@ fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
 
     let mut out = String::new();
     out.push_str(
-        "tick,employed,unemployed,hungry,household_cash,business_cash,food_consumed,food_produced,contracts_active,contract_deliveries,contract_misses",
+        "tick,employed,unemployed,hungry,household_cash,business_cash,food_consumed,food_produced,contracts_active,contract_deliveries,contract_misses,bank_cash,debt_outstanding,loans_active,loan_defaults",
     );
     for good in Good::ALL {
         let g = good.name().replace(' ', "_");
@@ -271,7 +271,7 @@ fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
 
     for day in &world.journal.metrics {
         out.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
             day.tick,
             day.employed,
             day.unemployed,
@@ -282,7 +282,11 @@ fn cmd_metrics(save: &Path, csv: Option<&Path>) -> Result<ExitCode, String> {
             day.food_produced,
             day.contracts_active,
             day.contract_deliveries,
-            day.contract_misses
+            day.contract_misses,
+            day.bank_cash.cents(),
+            day.debt_outstanding.cents(),
+            day.loans_active,
+            day.loan_defaults
         ));
         for good in Good::ALL {
             let price = day

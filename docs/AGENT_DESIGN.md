@@ -62,6 +62,15 @@ belief sours. Contract performance is the first Phase 3 reputation
 driver: deliveries build private commercial reliability both ways; misses
 and walk-aways seed public "unreliable" beliefs that gossip carries.
 
+With the bank (DECISIONS #027) the engine gained **BorrowReview** — the
+distress ladder's third rung (own till, owner injection, then credit):
+Borrow vs Struggle, where payroll runway is the urgency, the bank's rate
+the price, and debt aversion (inverse risk tolerance) the weight. A
+punitive rate flips everyone but the desperate-and-bold to Struggle —
+the transmission channel `probe_rate_shock` pins. The brief's "borrow"
+and "repay debt" actions are live; "invest" now spans hire funding and
+working capital.
+
 ## Phase 2 target (per BRIEF.md — design direction)
 
 ### Identity & traits

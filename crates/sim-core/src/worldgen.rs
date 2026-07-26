@@ -389,6 +389,11 @@ pub fn generate(config: WorldConfig) -> World {
         businesses,
         contracts: BTreeMap::new(),
         next_contract_id: 0,
+        // The bank's capital scales with the town: ~$70 per resident buys
+        // a lending pool that covers several concurrent working-capital
+        // loans without dwarfing the real economy (DECISIONS.md #027).
+        // It is minted here as part of the initial money supply.
+        bank: crate::bank::Bank::new(Money::from_cents(7_000 * i64::from(population))),
         market: MarketState::default(),
         status: SimStatus::Running,
     };
