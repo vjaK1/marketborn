@@ -1,8 +1,9 @@
 //! The contract kernel (Phase 3, per BRIEF.md §Contracts and negotiation).
 //!
 //! One type end to end for now: the **recurring supply contract**, in
-//! requirements form — the terms lock a unit PRICE (the seller's posted
-//! price minus a commitment discount) and a daily delivery CEILING; each
+//! requirements form — the terms lock a unit PRICE (haggled out below the
+//! seller's posted price at a logged negotiation table — `negotiation.rs`)
+//! and a daily delivery CEILING; each
 //! day the buyer takes its current input need up to that ceiling. Price
 //! rigid, quantity adaptive. Both rigidities were tried and killed towns
 //! (DECISIONS.md #026): weekly delivery lumps starved a hand-to-mouth
@@ -52,9 +53,6 @@ pub const CONTRACT_EVERY: u64 = 1;
 /// the parties are free to re-sign at fresh prices — expiry is the v1
 /// renegotiation channel.
 pub const CONTRACT_DELIVERIES: u32 = 84;
-/// Commitment discount off the seller's posted price at signing, in basis
-/// points: the buyer locks supply below spot, the seller locks demand.
-pub const CONTRACT_DISCOUNT_BP: i64 = 500;
 /// Penalty for a missed delivery, in basis points of the delivery value,
 /// paid by the failing side and capped at what it can afford (banking and
 /// enforceable debt arrive with the bank increment).

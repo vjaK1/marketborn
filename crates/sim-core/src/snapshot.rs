@@ -11,6 +11,9 @@ use crate::world::{SimState, SimStatus, World};
 use serde::Serialize;
 
 const EVENT_TAIL: usize = 120;
+/// Newest contracts carried in the snapshot table (full archive via the
+/// detail protocol).
+const CONTRACT_TAIL: usize = 50;
 const HISTORY_DAYS: usize = 180;
 /// Cosmetic calendar: 360-day years (DECISIONS.md #006).
 const DAYS_PER_YEAR: u64 = 360;
@@ -26,8 +29,27 @@ pub struct WorldSnapshot {
     pub agents: Vec<AgentRow>,
     pub businesses: Vec<BusinessRow>,
     pub markets: Vec<MarketRow>,
+    /// Newest first, capped — the contract view's table; the inspector
+    /// fetches full detail (negotiation log, delivery history) by id.
+    pub contracts: Vec<ContractRow>,
     pub price_history: PriceHistory,
     pub events: Vec<EventRow>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ContractRow {
+    pub id: u32,
+    pub seller: String,
+    pub buyer: String,
+    pub good: String,
+    /// Daily delivery ceiling (requirements form).
+    pub qty: i64,
+    pub unit_price_cents: i64,
+    pub state: String,
+    pub delivered: u32,
+    pub missed: u32,
+    pub deliveries: u32,
+    pub start_tick: u64,
 }
 
 /// Per-good market view: standing depth (derived from the live offer/order
@@ -541,6 +563,26 @@ impl WorldSnapshot {
             })
             .collect();
 
+        let contracts = state
+            .contracts
+            .values()
+            .rev()
+            .take(CONTRACT_TAIL)
+            .map(|c| ContractRow {
+                id: c.id.0,
+                seller: business_label(state, c.seller),
+                buyer: business_label(state, c.buyer),
+                good: c.good.name().to_string(),
+                qty: c.qty,
+                unit_price_cents: c.unit_price.cents(),
+                state: contract_state_label(c.state).to_string(),
+                delivered: c.delivered,
+                missed: c.missed,
+                deliveries: c.deliveries,
+                start_tick: c.start_tick,
+            })
+            .collect();
+
         let event_start = world.journal.events.len().saturating_sub(EVENT_TAIL);
         let events = world
             .journal
@@ -576,9 +618,20 @@ impl WorldSnapshot {
             agents,
             businesses,
             markets,
+            contracts,
             price_history: PriceHistory { ticks, series },
             events,
         }
+    }
+}
+
+/// Human label for a contract's lifecycle state.
+pub(crate) fn contract_state_label(s: crate::contracts::ContractState) -> &'static str {
+    match s {
+        crate::contracts::ContractState::Active => "active",
+        crate::contracts::ContractState::Completed => "completed",
+        crate::contracts::ContractState::Breached => "breached",
+        crate::contracts::ContractState::Terminated => "terminated",
     }
 }
 

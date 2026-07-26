@@ -107,6 +107,14 @@ release tests). Never claim green without running them.
   all but the desperate-and-bold (trait divergence — the probe's
   micro-foundation); emergency downsizing still fires when the bank is
   drained.
+- negotiation: a generous seller takes the opening bid in one round;
+  greedy parties grind to the bottom line through the full exchange; a
+  floor above the buyer's earning ceiling is a logged impasse; traits
+  move real money (a generous seller's price < a stingy one's) and
+  identical inputs replay identically; formation logs the table with a
+  Signed outcome and the achieved (not flat) discount feeds the review.
+- inspect: contract detail carries the negotiation move-by-move and the
+  contract's event history; unknown ids yield none.
 - worldgen traits: same seed ⇒ same person; traits vary across the town;
   different seeds ⇒ different people.
 - invariants: fresh world green; corrupted cash/inventory/employment each
@@ -205,9 +213,9 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   ✅ · ~~`probe_reputation`~~ ✅ · ~~inspector explanation~~ ✅.
 - **Phase 3**: ~~contract lifecycle integration~~ ✅ ·
   ~~contract_reconciliation invariant~~ ✅ · ~~default→foreclosure~~ ✅ ·
-  ~~`probe_rate_shock`~~ ✅ · ~~debt reconciliation invariant~~ ✅.
-  Remaining before the phase closes: negotiation logging + contract/bank
-  UI (contract view), deposits deferral recorded.
+  ~~`probe_rate_shock`~~ ✅ · ~~debt reconciliation invariant~~ ✅ ·
+  ~~negotiation logging~~ ✅ · ~~contract view (launch-verified)~~ ✅ —
+  **phase complete**; recorded deferrals in DECISIONS #026–#028.
 - **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy
   band asserts); tax reconciliation; delayed-policy effects.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,

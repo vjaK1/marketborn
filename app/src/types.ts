@@ -12,8 +12,49 @@ export interface WorldSnapshot {
   agents: AgentRow[];
   businesses: BusinessRow[];
   markets: MarketRow[];
+  contracts: ContractRow[];
   price_history: PriceHistory;
   events: EventRow[];
+}
+
+export interface ContractRow {
+  id: number;
+  seller: string;
+  buyer: string;
+  good: string;
+  qty: number;
+  unit_price_cents: number;
+  state: string;
+  delivered: number;
+  missed: number;
+  deliveries: number;
+  start_tick: number;
+}
+
+export interface ContractDetail {
+  id: number;
+  seller: string;
+  buyer: string;
+  good: string;
+  qty: number;
+  unit_price_cents: number;
+  state: string;
+  start_tick: number;
+  next_due: number;
+  deliveries: number;
+  delivered: number;
+  missed: number;
+  delivered_units: number;
+  paid_total_cents: number;
+  penalties_cents: number;
+  negotiation: NegotiationRow[];
+  history: TickText[];
+}
+
+export interface NegotiationRow {
+  by: string;
+  price_cents: number;
+  because: string;
 }
 
 export interface MarketRow {

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { AgentInspector } from './components/AgentInspector';
 import { AgentTable } from './components/AgentTable';
 import { BusinessTable } from './components/BusinessTable';
+import { ContractInspector } from './components/ContractInspector';
+import { ContractTable } from './components/ContractTable';
 import { EventLog } from './components/EventLog';
 import { MarketTable } from './components/MarketTable';
 import { PriceChart } from './components/PriceChart';
@@ -17,6 +19,9 @@ export default function App() {
     'connecting',
   );
   const [inspected, setInspected] = useState<number | null>(null);
+  const [inspectedContract, setInspectedContract] = useState<number | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +87,24 @@ export default function App() {
             <h2>Markets</h2>
             <div className="body">
               <MarketTable markets={snapshot.markets} />
+            </div>
+          </section>
+          <section className="panel">
+            <h2>
+              {inspectedContract === null ? 'Contracts' : 'Contract inspector'}
+            </h2>
+            <div className="body">
+              {inspectedContract === null ? (
+                <ContractTable
+                  contracts={snapshot.contracts}
+                  onSelect={setInspectedContract}
+                />
+              ) : (
+                <ContractInspector
+                  id={inspectedContract}
+                  onBack={() => setInspectedContract(null)}
+                />
+              )}
             </div>
           </section>
         </div>

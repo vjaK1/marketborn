@@ -475,3 +475,29 @@ td.neg {
   height: 100%;
   min-height: 220px;
 }
+
+/* ---------- Contract view ---------- */
+
+.contract-state {
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 1px 7px;
+  font-size: 12px;
+  color: var(--text-2);
+  background: var(--panel-2);
+}
+
+.contract-active {
+  color: var(--ok, #7dc87d);
+  border-color: currentColor;
+}
+
+.contract-completed {
+  color: var(--text-2);
+}
+
+.contract-breached,
+.contract-terminated {
+  color: var(--serious);
+  border-color: currentColor;
+}

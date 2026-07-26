@@ -7,7 +7,7 @@
  * browser (dev preview / tests) where it shows a "waiting for backend" state.
  */
 
-import type { AgentDetail, WorldSnapshot } from './types';
+import type { AgentDetail, ContractDetail, WorldSnapshot } from './types';
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -41,4 +41,12 @@ export async function getAgentDetail(id: number): Promise<AgentDetail | null> {
   if (!isTauri()) return null;
   const { invoke } = await import('@tauri-apps/api/core');
   return invoke<AgentDetail | null>('get_agent_detail', { id });
+}
+
+export async function getContractDetail(
+  id: number,
+): Promise<ContractDetail | null> {
+  if (!isTauri()) return null;
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<ContractDetail | null>('get_contract_detail', { id });
 }

@@ -65,7 +65,7 @@ politics, and the action-space entries that require Phase 3+ systems
 (borrowing, contracts, negotiation, politics); wage/dividend reviews
 remain rule-based and migrate to the engine opportunistically.
 
-## Phase 3 — Contracts and finance
+## Phase 3 — Contracts and finance  **[complete — sessions 4–6]**
 
 Full contract lifecycle for all seven types; deterministic negotiation with
 complete offer/counteroffer logging; breach and penalties; the bank
@@ -76,6 +76,26 @@ view.
 *Done when:* supply contract negotiated and fulfilled end-to-end in an
 integration test; default→foreclosure flow test passes; `probe_rate_shock`
 passes.
+
+*Delivered:* all three acceptance criteria green. Supply contracts in
+requirements form (negotiated price locked, daily ceiling, adaptive
+takes) settling in tick phase 6, with breach, penalties, voluntary
+underwater exit, and the `contract_reconciliation` invariant; a
+three-round deterministic haggle with every offer/counteroffer/reason
+journaled, feeding the utility engine's Sign/StaySpot review; the bank
+(worldgen-capitalized, first-class ledger account) with working-capital
+term loans, milli-cent interest accrual, credit assessment, daily
+service, default→foreclosure→fire-sale, the `debt_reconciliation`
+invariant, and the `SetBankRate` lever guarded by `probe_rate_shock`;
+the contract view (snapshot table + on-demand inspector with the
+negotiation log and event history), launch-verified. Scope tradeoffs
+recorded in DECISIONS #026–#028: contracts cover the seven types'
+FIRST (supply) end to end — employment contracts ride the labor
+machinery, loans the bank, and the remaining types (partnerships,
+exclusive distribution, leases, acquisitions) plus deposits/bank-runs,
+mortgages, and wage negotiation are recorded deferrals with their
+driver phases; food-chain supply contracts return with working-capital
+credit adoption; the dedicated negotiation inspector is v1.1.
 
 ## Phase 4 — Government, events and emergence
 

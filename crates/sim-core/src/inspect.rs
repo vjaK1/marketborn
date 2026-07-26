@@ -7,7 +7,7 @@
 //! decision records with their explanations verbatim — the "why did you
 //! do that?" the Phase 2 acceptance demands.
 
-use crate::ids::AgentId;
+use crate::ids::{AgentId, ContractId};
 use crate::memory::MemoryKind;
 use crate::snapshot::{agent_label, business_label};
 use crate::world::World;
@@ -191,10 +191,144 @@ impl AgentDetail {
     }
 }
 
+/// Everything the contract view shows for one contract: terms, tallies,
+/// the complete negotiation log (every offer, counteroffer and reason —
+/// BRIEF §Contracts), and the delivery/miss/breach history.
+#[derive(Clone, Debug, Serialize)]
+pub struct ContractDetail {
+    pub id: u32,
+    pub seller: String,
+    pub buyer: String,
+    pub good: String,
+    pub qty: i64,
+    pub unit_price_cents: i64,
+    pub state: String,
+    pub start_tick: u64,
+    pub next_due: u64,
+    pub deliveries: u32,
+    pub delivered: u32,
+    pub missed: u32,
+    pub delivered_units: i64,
+    pub paid_total_cents: i64,
+    pub penalties_cents: i64,
+    /// The table, move by move. Empty for contracts whose negotiation has
+    /// scrolled out of the journal ring.
+    pub negotiation: Vec<NegotiationRow>,
+    /// Delivery / miss / breach / termination / completion events, oldest
+    /// first (bounded by the events ring).
+    pub history: Vec<TickText>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct NegotiationRow {
+    pub by: &'static str,
+    pub price_cents: i64,
+    pub because: &'static str,
+}
+
+impl ContractDetail {
+    pub fn capture(world: &World, id: ContractId) -> Option<ContractDetail> {
+        let state = &world.state;
+        let c = state.contracts.get(&id)?;
+        let negotiation = world
+            .journal
+            .negotiations
+            .iter()
+            .find(|n| {
+                matches!(
+                    n.outcome,
+                    crate::negotiation::NegotiationOutcome::Signed { contract } if contract == id
+                )
+            })
+            .map(|n| {
+                n.rounds
+                    .iter()
+                    .map(|r| NegotiationRow {
+                        by: r.by.label(),
+                        price_cents: r.unit_price.cents(),
+                        because: r.because.label(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let history = world
+            .journal
+            .events
+            .iter()
+            .filter(|e| contract_of(&e.event) == Some(id))
+            .map(|e| TickText {
+                tick: e.tick,
+                text: crate::snapshot::event_text(state, &e.event),
+            })
+            .collect();
+        Some(ContractDetail {
+            id: id.0,
+            seller: business_label(state, c.seller),
+            buyer: business_label(state, c.buyer),
+            good: c.good.name().to_string(),
+            qty: c.qty,
+            unit_price_cents: c.unit_price.cents(),
+            state: crate::snapshot::contract_state_label(c.state).to_string(),
+            start_tick: c.start_tick,
+            next_due: c.next_due,
+            deliveries: c.deliveries,
+            delivered: c.delivered,
+            missed: c.missed,
+            delivered_units: c.delivered_units,
+            paid_total_cents: c.paid_total.cents(),
+            penalties_cents: c.penalties_paid_total.cents(),
+            negotiation,
+            history,
+        })
+    }
+}
+
+/// The contract an event belongs to, if any.
+fn contract_of(event: &crate::events::Event) -> Option<ContractId> {
+    use crate::events::Event;
+    match event {
+        Event::ContractSigned { contract, .. }
+        | Event::ContractDelivered { contract, .. }
+        | Event::ContractMissed { contract, .. }
+        | Event::ContractBreached { contract, .. }
+        | Event::ContractTerminated { contract, .. }
+        | Event::ContractCompleted { contract } => Some(*contract),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::worldgen::WorldConfig;
+
+    #[test]
+    fn contract_detail_carries_the_negotiation_and_history() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(42));
+        w.run_ticks(200).unwrap();
+        // Seed 42 signs organic contracts well before day 200.
+        let cid = *w
+            .state
+            .contracts
+            .keys()
+            .next()
+            .expect("organic contracts exist by day 200");
+        let d = ContractDetail::capture(&w, cid).unwrap();
+        assert!(!d.seller.is_empty() && !d.buyer.is_empty());
+        assert!(
+            d.negotiation.len() >= 2,
+            "the signed contract's table is on the record"
+        );
+        assert!(
+            d.negotiation.iter().any(|r| r.because.contains("opened")),
+            "the opening bid is logged"
+        );
+        assert!(
+            !d.history.is_empty(),
+            "signing/delivery events appear in the history"
+        );
+        assert!(ContractDetail::capture(&w, ContractId(9999)).is_none());
+    }
 
     #[test]
     fn detail_carries_a_real_decision_explanation() {

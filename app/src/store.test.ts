@@ -21,6 +21,7 @@ function fakeSnapshot(tick: number): WorldSnapshot {
     agents: [],
     businesses: [],
     markets: [],
+    contracts: [],
     price_history: { ticks: [], series: [] },
     events: [],
   };

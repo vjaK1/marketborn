@@ -25,6 +25,8 @@ enum ShellMsg {
     /// Inspector detail query: fetch one agent by id (ARCHITECTURE.md
     /// on-demand protocol — the 10 Hz snapshot stays lean).
     AgentDetail(u32, Sender<Option<Value>>),
+    /// Contract view detail query: terms, negotiation log, history.
+    ContractDetail(u32, Sender<Option<Value>>),
 }
 
 struct Shared {
@@ -62,6 +64,19 @@ fn get_agent_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Value>,
     {
         let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
         tx.send(ShellMsg::AgentDetail(id, reply_tx))
+            .map_err(|_| "simulation thread is gone".to_string())?;
+    }
+    reply_rx
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|_| "detail query timed out".to_string())
+}
+
+#[tauri::command]
+fn get_contract_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Value>, String> {
+    let (reply_tx, reply_rx) = channel();
+    {
+        let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
+        tx.send(ShellMsg::ContractDetail(id, reply_tx))
             .map_err(|_| "simulation thread is gone".to_string())?;
     }
     reply_rx
@@ -140,6 +155,11 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
                 }
                 ShellMsg::AgentDetail(id, reply) => {
                     let detail = sim_core::AgentDetail::capture(world, sim_core::AgentId(id))
+                        .and_then(|d| serde_json::to_value(&d).ok());
+                    let _ = reply.send(detail);
+                }
+                ShellMsg::ContractDetail(id, reply) => {
+                    let detail = sim_core::ContractDetail::capture(world, sim_core::ContractId(id))
                         .and_then(|d| serde_json::to_value(&d).ok());
                     let _ = reply.send(detail);
                 }
@@ -225,7 +245,8 @@ fn main() {
             get_snapshot,
             set_speed,
             save_game,
-            get_agent_detail
+            get_agent_detail,
+            get_contract_detail
         ])
         .run(tauri::generate_context!())
         .expect("failed to launch Marketborn");

@@ -127,20 +127,26 @@ fixed quantities) collapsed towns and are documented in #026.
   households, so no reservation cap disciplines a locked price; returns
   with the bank.
 - **Formation** (weekly, buyer's review stagger, before owner reviews):
-  for each recipe input without an active contract, the buyer's owner
-  scores **Sign vs StaySpot** through the utility engine — the 5%
-  commitment discount weighed by greed, supply security (input cover vs
-  the 3-day target) weighed by caution, a commitment cost that scales
-  with risk tolerance squared (gamblers hold out until cover thins).
-  Both outcomes journal a `SupplyReview` decision record. Terms:
-  cheapest capable seller (price, then id), unit price = posted − 5%
-  (floor 1¢), must clear the buyer's input reservation cap; ceiling =
+  for each recipe input without an active contract, the buyer sits down
+  with ONE seller — the cheapest capable one whose owner it does not
+  publicly believe unreliable (< 26, as hiring), with the ceiling =
   buyer's daily need capped at the seller's contractable share (80% of
-  bare-handed capacity, floored at one unit) net of prior commitments;
-  buyer must afford one full take beyond its protected reserves. The
-  buyer refuses sellers whose owner it publicly believes unreliable
-  (< 26, as hiring). Seller side is v1 take-it-or-leave-it (posted terms
-  are their offer); the offer/counteroffer log is the next increment.
+  bare-handed capacity, floored at one unit) net of prior commitments,
+  and one full take at the posted price affordable beyond protected
+  reserves. **The price is negotiated** (DECISIONS.md #028): a bounded
+  three-round haggle — the buyer opens 6–12% under posted (greed
+  stretches the anchor), the seller concedes at most 2–8% (greed
+  narrows the floor), convergence by explicit rules (accept, counter
+  partway, split-the-difference capped by the buyer's input reservation
+  ceiling, bottom line), impasse when the floor exceeds what the input
+  earns back. Every offer, counteroffer and reason is journaled
+  (`NegotiationRecord`, complete per the BRIEF). On agreement the
+  buyer's owner scores **Sign vs StaySpot** through the utility engine —
+  the ACHIEVED discount weighed by greed, supply security (input cover
+  vs the 3-day target) weighed by caution, a commitment cost scaling
+  with risk tolerance squared (gamblers hold out until cover thins) —
+  journaling a `SupplyReview` either way; a stingy seller can win the
+  table and still lose the deal.
 - **Settlement** (phase 6, contract-id order): take = min(ceiling,
   buyer's `daily_input_need`). Zero-need days settle trivially. Success
   moves goods (zero-sum) and cash (`TxKind::ContractDelivery`; books:

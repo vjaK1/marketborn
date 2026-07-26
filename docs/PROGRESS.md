@@ -5,6 +5,70 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 6 — 2026-07-26 — Phase 3: COMPLETE (negotiation + contract view)
+
+### Negotiation v1 — DECISIONS #028
+
+- `negotiation.rs`: a bounded three-round integer haggle on supply
+  formation, anchored in observable state (no RNG): buyer opens 6–12%
+  under posted (greed stretches), seller floors 2–8% under (greed
+  narrows), explicit convergence rules, impasse when the floor exceeds
+  the buyer's earning ceiling. Every offer/counteroffer/reason journals
+  into a new `Journal.negotiations` ring (cap 2,000) — the BRIEF's "log
+  every negotiation completely". The ACHIEVED discount (not a flat 5%)
+  feeds the Sign/StaySpot review; outcomes: Impasse, BuyerDeclined (won
+  the table, lost the review), Signed.
+- The flat `CONTRACT_DISCOUNT_BP` is gone; contract prices now vary
+  with the two owners' greed — traits move real money.
+
+### Contract view (the Phase 3 UI deliverable)
+
+- Snapshot carries the newest 50 contracts (parties, good, ceiling,
+  price, tallies, state chip); `get_contract_detail` serves the
+  inspector over the reserved on-demand protocol: terms, tallies,
+  penalties, the negotiation move by move, and the contract's event
+  history (honestly bounded by the events ring).
+- **Launch-verified**: at day 26 live delivery events stream in the
+  log; at year 88 the table shows breached/completed states; clicking
+  the breached steel contract opened its inspector — signed Y1·D282,
+  15/84 delivered, missed 3, penalties $5.64, and the full haggle from
+  "buyer opened below spot — $7.17" to "seller gave the bottom line —
+  $7.53 / buyer accepted — $7.53". Incidental: the debug shell ran
+  ~260k consecutive every-tick-invariant ticks at max speed without a
+  halt; the pop-29 world holds 13/19 employed through simulated
+  centuries.
+
+### Phase 3 declared complete
+
+- All three acceptance criteria green (supply contract E2E;
+  default→foreclosure; probe_rate_shock) + negotiation logging +
+  contract view. `npm run check` and `check:full` exit 0 (130+ unit
+  tests across 9 suites; vitest 11; tsc clean).
+- **Recorded scope tradeoffs** (PLAN + DECISIONS #026–#028, not
+  silent): of the BRIEF's seven contract types, supply ships end to
+  end; employment rides the existing labor machinery, loans are the
+  bank's paper, acquisitions exist as takeover deals; partnerships/
+  exclusive-distribution/leases plus deposits, mortgages, wage
+  negotiation, and food-chain contracts are recorded deferrals tied to
+  their driver phases. The dedicated negotiation inspector is v1.1 by
+  the BRIEF's own line.
+
+### Exact next task (Phase 4 — government, events, emergence)
+
+1. Session protocol: `npm run check` first; read PLAN Phase 4 +
+   BRIEF's government/events sections.
+2. Suggested first increment: the government kernel — a Government
+   account (like the bank), ONE tax end to end (e.g. sales tax at the
+   market site: integer bp, remainder-assigned, `tax_reconciliation`
+   invariant), a budget that spends on something real (welfare floor —
+   which also owns the recorded pop-100 decade issue), and the
+   `SetTaxRate`-style command plumbing. Then the deterministic event
+   system (drought first, for `probe_drought`), then `soak_10y`.
+3. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 5 — 2026-07-26 — Phase 3 increment 2: the bank (credit kernel)
 
 ### Bank v1 — DECISIONS #027

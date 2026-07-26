@@ -770,3 +770,61 @@ household credit and mortgages, takeover/expansion lending, bank
 ownership and dividends, credit-history decay, multi-bank competition.
 Saves break again (SimState/Books/TxKind/Event/PlayerCommand grew);
 schema_version stays 1 pre-1.0.
+
+---
+
+## 028 — Negotiation v1: a logged three-round haggle, and the contract view
+
+**Context.** The BRIEF demands real negotiation ("deterministic offers
+and counteroffers, considering market price, bargaining power, …,
+personality") with COMPLETE logging, surfaced as a history table in the
+contract view. v1 formation was take-it-or-leave-it at a flat 5%
+discount.
+
+**Decision.** Supply-contract formation now runs a bounded, integer,
+three-round haggle (`negotiation.rs`), anchored entirely in observable
+state — no RNG. The buyer opens 6%–12% under the seller's posted price
+(greed stretches the anchor); the seller holds a reserve floor 2%–8%
+under posted (greed narrows the concession); convergence follows explicit
+rules — accept an opening at/above the floor, counter partway from
+posted, split the difference capped by the buyer's input reservation
+ceiling, then the seller's bottom line; a floor above what the input can
+earn back is an impasse and the buyer walks. Every move is journaled
+with its mover, price and reason in a `NegotiationRecord` ring
+(`Journal.negotiations`, cap 2,000 — outputs, never hashed, never read
+back). The buyer sits at ONE table a week (the cheapest capable,
+non-distrusted seller); an impasse retries next review at whatever
+prices then hold.
+
+The **achieved discount** — not a constant — feeds the existing
+Sign/StaySpot review, so outcomes now compose three ways: impasse at the
+table, agreement the buyer's review then declines (`BuyerDeclined` — a
+stingy seller can win the haggle and lose the deal), or a signature
+(`Signed { contract }` — the pointer the contract view uses to find the
+table talk). The flat `CONTRACT_DISCOUNT_BP` is gone.
+
+**The contract view** (the Phase 3 UI deliverable): the snapshot carries
+the newest 50 contracts (parties by name, good, daily ceiling, price,
+delivered/missed tallies, state chip); clicking a row opens the contract
+inspector over the on-demand detail protocol (`get_contract_detail` →
+`ContractDetail`): terms, tallies, penalties, the negotiation log move
+by move, and the contract's event history (delivery/miss/breach/
+termination — bounded by the events ring, so ancient contracts honestly
+say the record scrolled away).
+
+**Verification.** Launch-verified at three zoom levels: day 26 (live
+delivery events "…delivered 1 iron ore … under C3"), year 88 (the table
+showing breached/completed states), and a breached contract's inspector
+(signed Y1·D282, 15/84 delivered, missed 3, penalties $5.64, the full
+haggle from "buyer opened below spot — $7.17" to "seller gave the bottom
+line — $7.53 / buyer accepted — $7.53"). Incidental soak evidence: the
+debug shell ran ~260,000 consecutive ticks with every-tick invariant
+sweeps at max speed without a halt — the pop-29 world is stable at 13/19
+employed through simulated centuries. The full matrix is unchanged;
+`probe_rate_shock` and both flow tests held without recalibration.
+
+**Deferred.** Wage negotiation through the same protocol (the labor
+market's reservation-wage machinery is negotiation-shaped already);
+seller-side personality beyond greed (desperation should widen the
+floor); multi-seller shopping; renegotiation mid-term. The negotiation
+inspector POLISH (dedicated screen) stays v1.1 per the BRIEF.

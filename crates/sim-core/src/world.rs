@@ -22,6 +22,7 @@ pub const MAX_EVENTS_IN_MEMORY: usize = 50_000;
 pub const MAX_TX_IN_MEMORY: usize = 10_000;
 pub const MAX_METRICS_IN_MEMORY: usize = 4_000;
 pub const MAX_DECISIONS_IN_MEMORY: usize = 10_000;
+pub const MAX_NEGOTIATIONS_IN_MEMORY: usize = 2_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SimStatus {
@@ -116,6 +117,11 @@ pub struct Journal {
     /// never read back by simulation logic.
     pub decisions: VecDeque<DecisionRecord>,
     pub next_decision_seq: u64,
+    /// Complete negotiation logs (Phase 3): every offer, counteroffer and
+    /// reason, per the BRIEF. Outputs — surfaced in the contract view's
+    /// history table, never hashed, never read back.
+    pub negotiations: VecDeque<crate::negotiation::NegotiationRecord>,
+    pub next_negotiation_seq: u64,
     /// `(tick, blake3 hex)` pairs on the hash cadence.
     pub manifest: Vec<(u64, String)>,
 }
@@ -148,6 +154,16 @@ impl Journal {
         self.decisions.push_back(record);
         if self.decisions.len() > MAX_DECISIONS_IN_MEMORY {
             self.decisions.pop_front();
+        }
+    }
+
+    /// Journal a complete negotiation, assigning its sequence number.
+    pub fn push_negotiation(&mut self, mut record: crate::negotiation::NegotiationRecord) {
+        record.seq = self.next_negotiation_seq;
+        self.next_negotiation_seq += 1;
+        self.negotiations.push_back(record);
+        if self.negotiations.len() > MAX_NEGOTIATIONS_IN_MEMORY {
+            self.negotiations.pop_front();
         }
     }
 }

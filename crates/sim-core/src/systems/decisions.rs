@@ -276,14 +276,20 @@ fn supply_contract_reviews(state: &mut SimState, journal: &mut Journal, tick: u6
             if !crate::contracts::contractable(good) {
                 continue;
             }
-            type Proposal = (
-                BusinessId,
-                crate::goods::Qty,
-                Money,
-                crate::decision::SupplyContractInputs,
-                AgentId,
-            );
-            let proposal: Option<Proposal> = {
+            /// Everything the table needs, gathered under one immutable
+            /// borrow before the haggle mutates the journal.
+            struct TablePlan {
+                seller: BusinessId,
+                seller_greed: u8,
+                posted: Money,
+                qty: Qty,
+                cap: Money,
+                cover_days: Qty,
+                buyer_owner: AgentId,
+                buyer_greed: u8,
+                buyer_risk_tolerance: u8,
+            }
+            let plan: Option<TablePlan> = {
                 let Some(b) = state.businesses.get(&bid) else {
                     continue;
                 };
@@ -301,9 +307,10 @@ fn supply_contract_reviews(state: &mut SimState, journal: &mut Journal, tick: u6
                 let Some(owner) = state.agents.get(&b.owner) else {
                     continue;
                 };
-                // Cheapest capable seller the owner will deal with. Offers
-                // are price-sorted, so a discounted price above the buyer's
-                // input cap ends the search — everything further costs more.
+                // The buyer sits down with ONE seller a week: the cheapest
+                // capable one it will deal with. If that table ends in
+                // impasse, next week's review tries again at whatever
+                // prices then hold.
                 let mut sellers: Vec<&crate::business::Business> = state
                     .businesses
                     .values()
@@ -312,12 +319,6 @@ fn supply_contract_reviews(state: &mut SimState, journal: &mut Journal, tick: u6
                 sellers.sort_by_key(|s| (s.price, s.id));
                 let mut found = None;
                 for s in sellers {
-                    let unit_price = (s.price
-                        - s.price.mul_bp(crate::contracts::CONTRACT_DISCOUNT_BP))
-                    .max(Money::from_cents(1));
-                    if unit_price > cap {
-                        break;
-                    }
                     // Partial coverage: the delivery is capped at the
                     // contractable share of the seller's bare-handed
                     // capacity per period, net of what it has already
@@ -350,58 +351,103 @@ fn supply_contract_reviews(state: &mut SimState, journal: &mut Journal, tick: u6
                     {
                         continue;
                     }
-                    // The buyer must afford one delivery beyond its
-                    // protected reserves today.
-                    let cost = unit_price.checked_mul_qty(qty).unwrap_or(Money::MAX);
+                    // The buyer must afford one day's take at the posted
+                    // price (the table can only improve on it).
+                    let cost = s.price.checked_mul_qty(qty).unwrap_or(Money::MAX);
                     if market::market_budget(state, b, tick) < cost {
                         continue;
                     }
-                    found = Some((s.id, qty, unit_price));
+                    let seller_greed = state
+                        .agents
+                        .get(&s.owner)
+                        .map(|a| a.traits.greed)
+                        .unwrap_or(50);
+                    found = Some(TablePlan {
+                        seller: s.id,
+                        seller_greed,
+                        posted: s.price,
+                        qty,
+                        cap,
+                        cover_days: b.stock(good) / need,
+                        buyer_owner: b.owner,
+                        buyer_greed: owner.traits.greed,
+                        buyer_risk_tolerance: owner.traits.risk_tolerance,
+                    });
                     break;
                 }
-                found.map(|(seller, qty, unit_price)| {
-                    let inputs = crate::decision::SupplyContractInputs {
-                        discount_bp: crate::contracts::CONTRACT_DISCOUNT_BP,
-                        cover_days: b.stock(good) / need,
-                        greed: owner.traits.greed,
-                        risk_tolerance: owner.traits.risk_tolerance,
-                    };
-                    (seller, qty, unit_price, inputs, b.owner)
-                })
+                found
             };
-            let Some((seller, qty, unit_price, inputs, owner)) = proposal else {
+            let Some(p) = plan else {
                 continue;
+            };
+            // The table: three bounded rounds, every move logged with its
+            // reason (BRIEF: "log every negotiation completely").
+            let table = crate::negotiation::haggle(p.posted, p.cap, p.buyer_greed, p.seller_greed);
+            let Some(agreed) = table.agreed else {
+                journal.push_negotiation(crate::negotiation::NegotiationRecord {
+                    seq: 0,
+                    tick,
+                    buyer: bid,
+                    seller: p.seller,
+                    good,
+                    qty: p.qty,
+                    rounds: table.rounds,
+                    outcome: crate::negotiation::NegotiationOutcome::Impasse,
+                });
+                continue;
+            };
+            // The achieved discount — not a flat constant — is what the
+            // buyer's Sign/StaySpot review weighs: a stingy seller can win
+            // the table and still lose the deal.
+            let inputs = crate::decision::SupplyContractInputs {
+                discount_bp: crate::negotiation::achieved_discount_bp(p.posted, agreed),
+                cover_days: p.cover_days,
+                greed: p.buyer_greed,
+                risk_tolerance: p.buyer_risk_tolerance,
             };
             let (chosen, considered) = crate::decision::choose_contract_action(&inputs);
             journal.push_decision(decision::DecisionRecord {
                 seq: 0,
                 tick,
-                actor: owner,
+                actor: p.buyer_owner,
                 detail: decision::DecisionDetail::SupplyReview {
                     business: bid,
-                    seller,
+                    seller: p.seller,
                     good,
-                    qty,
-                    unit_price,
+                    qty: p.qty,
+                    unit_price: agreed,
                     inputs,
                     considered,
                     chosen,
                 },
             });
-            if chosen == crate::decision::ContractAction::Sign {
-                crate::contracts::sign(
+            let outcome = if chosen == crate::decision::ContractAction::Sign {
+                let cid = crate::contracts::sign(
                     state,
                     journal,
                     tick,
                     crate::contracts::SupplyTerms {
-                        seller,
+                        seller: p.seller,
                         buyer: bid,
                         good,
-                        qty,
-                        unit_price,
+                        qty: p.qty,
+                        unit_price: agreed,
                     },
                 );
-            }
+                crate::negotiation::NegotiationOutcome::Signed { contract: cid }
+            } else {
+                crate::negotiation::NegotiationOutcome::BuyerDeclined { unit_price: agreed }
+            };
+            journal.push_negotiation(crate::negotiation::NegotiationRecord {
+                seq: 0,
+                tick,
+                buyer: bid,
+                seller: p.seller,
+                good,
+                qty: p.qty,
+                rounds: table.rounds,
+                outcome,
+            });
         }
     }
 }
@@ -1235,6 +1281,10 @@ mod tests {
             o.traits.risk_tolerance = 50;
             o.traits.greed = 50;
         }
+        // Pin the mine owner's greed so the haggle is fully determined by
+        // the test, not the worldgen roll.
+        let mine_owner = w.state.businesses[&mine].owner;
+        w.state.agents.get_mut(&mine_owner).unwrap().traits.greed = 50;
         // No seeded cover: supply security matters to a neutral owner.
         w.state
             .businesses
@@ -1253,9 +1303,23 @@ mod tests {
         assert_eq!(signed.len(), 1, "exactly one ore contract");
         let c = signed[0];
         assert_eq!(c.seller, mine, "the cheaper seller wins");
-        // 5% off the $7.00 posted price, toward zero: $6.65.
+        // The haggle at greed 50/50 on a $7.00 posted price: buyer opens
+        // $6.37, seller counters $6.83, split $6.60 misses the $6.65
+        // floor, and the buyer takes the bottom line.
         assert_eq!(c.unit_price, Money::from_cents(665));
         assert!(c.qty >= 1);
+        // The whole exchange is on the record, ending in a signature.
+        let neg = w
+            .journal
+            .negotiations
+            .iter()
+            .find(|n| n.buyer == steelworks && n.seller == mine)
+            .expect("the table was logged");
+        assert!(neg.rounds.len() >= 4, "a real back-and-forth");
+        assert!(matches!(
+            neg.outcome,
+            crate::negotiation::NegotiationOutcome::Signed { .. }
+        ));
         assert!(w
             .journal
             .events
@@ -1402,12 +1466,14 @@ mod tests {
         }
         let buyer_owner = w.state.businesses[&steelworks].owner;
         let mine_owner = w.state.businesses[&mine].owner;
+        let farm_owner = w.state.businesses[&dear_ore].owner;
         {
             let o = w.state.agents.get_mut(&buyer_owner).unwrap();
             o.traits.risk_tolerance = 50;
             o.traits.greed = 50;
             crate::reputation::believe(o, mine_owner, |b| b.reliable = 10);
         }
+        w.state.agents.get_mut(&farm_owner).unwrap().traits.greed = 50;
         w.state
             .businesses
             .get_mut(&steelworks)
