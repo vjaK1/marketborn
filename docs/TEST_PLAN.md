@@ -243,10 +243,15 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   procedure and per-screen results live in `docs/CHECKLIST.md`; the
   desktop lever click stays a recorded ⚠ pending an idle machine) —
   **phase complete**.
-- **Phase 6**: proptest world generators (thousands of ticks, all
-  invariants); failure tests (empty markets, no employers, mass bankruptcy,
-  bank insolvency, resource exhaustion, extreme inflation, corrupted saves,
-  old save versions, 1000-agent worlds); benchmark suite.
+- **Phase 6**: ~~proptest world generators~~ ✅ (session 17, DECISIONS
+  #039: four families × two tiers — money-math exactness vs i128,
+  ledger conservation under arbitrary op sequences, arbitrary worlds
+  green under the nine-invariant sweep, the command surface unable to
+  corrupt the world — plus save/resume hash equality swept in
+  sim-persist; wide tiers in `check:full`); failure tests (empty
+  markets, no employers, mass bankruptcy, bank insolvency, resource
+  exhaustion, extreme inflation, corrupted saves ✅ (garbage + newer
+  schema, since Phase 0), 1000-agent worlds); benchmark suite.
 
 ## Emergence probes — calibration policy
 

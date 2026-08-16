@@ -5,6 +5,58 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 17 — 2026-08-16 — Phase 6 increment 1: the property suite
+
+### Sweep the guarantees, not the examples — DECISIONS #039
+
+- proptest (1.11) in sim-core + sim-persist, four property families ×
+  two speed tiers (fast in `check` ~1 s; `#[ignore]`d wide sweeps in
+  `check:full`, ~1.5 s in release):
+  1. **Money math**: `mul_bp` == exact i128 truncation over the full
+     range; remainders strictly sub-unit; `affordable_units` the exact
+     floor.
+  2. **The ledger never leaks** under arbitrary op sequences
+     (overdrafts, self-transfers, negatives, unknown accounts all
+     failing cleanly). Agent-only by design — books categorization is
+     the call site's duty and fuzzing through businesses would trip
+     exactly the invariants built to catch that.
+  3. **Arbitrary worlds stay green**: any seed × pop 3–100 × up to
+     400 ticks under the every-tick nine-invariant sweep.
+  4. **The command surface cannot corrupt the world**: any lever, any
+     value, any tick — clamps and rejections absorb it all. The formal
+     version of "the player can experiment fearlessly".
+  Plus sim-persist: **any world roundtrips and resumes identically**
+  (save-hash equality + resumed == uninterrupted after 20 more ticks).
+- All tiers green on the FIRST run — five phases of every-tick
+  invariant discipline meant the sweeps found nothing to catch.
+
+### Verification
+
+- `npm run check` exit 0 (now incl. 9 fast properties); `npm run
+  check:full` exit 0 end to end (wide sweeps + release soaks + E2E).
+
+### Exact next task (Phase 6 continues)
+
+1. Session protocol: `npm run check` first.
+2. **The failure-test list** (`crates/sim-core/tests/failures.rs`,
+   staged scenarios per the BRIEF): empty markets (all stock zeroed),
+   no employers (all businesses moribund), mass bankruptcy (drain all
+   business cash), bank insolvency (bank at zero mid-loans), resource
+   exhaustion (inputs starved), extreme inflation (money supply ×100
+   via commands) — each asserting the world DEGRADES WITHOUT HALTING
+   and invariants stay green. Then **1000-agent worlds**: worldgen
+   scaling sanity + a bounded run (also the recorded pop-100
+   decade-health question gets its measurement here — document
+   whatever the bands show; fixing structural scaling is explicitly
+   allowed to be recorded as a known limitation for v1.0 rather than
+   solved, per the phase's hardening framing).
+3. Then the perf pass (profile first; PERFORMANCE_PLAN targets;
+   record in PERF_RESULTS.md), final docs sweep, and the **v1.0
+   tag**.
+4. Soak checkpoints unchanged.
+
+---
+
 ## Session 16 — 2026-08-16 — Phase 5: COMPLETE (packaged smoke + checklist)
 
 ### The packaged app, smoked

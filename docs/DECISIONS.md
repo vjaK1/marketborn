@@ -1394,3 +1394,57 @@ pull) and the per-screen manual checklist.
 **Deferred.** Multi-browser projects (Chromium suffices for a desktop
 webview app); CI wiring (no CI exists — a post-1.0 concern); visual
 regression snapshots.
+
+---
+
+## 039 — The property suite: sweep the guarantees, not the examples
+
+**Context.** Phase 6 opens with the TEST_PLAN's proptest tier. Every
+pinned-seed test proves one trajectory; the guarantees the project
+actually makes — integer math exactness, ledger conservation,
+invariants under ANY world, determinism of save/resume — are
+universally quantified claims, and those want sweeps.
+
+**Decision — four property families, two speed tiers each.** Fast
+tiers run in `npm run check` (~1 s total); `#[ignore]`d wide sweeps
+(more cases, pop up to 100, horizons to 400 ticks) run under
+`check:full`, in release, where they cost ~1.5 s.
+
+1. **Integer money math**: `mul_bp` equals exact i128 truncation
+   toward zero over the full sane range (the definition every
+   remainder-assignment argument rests on); the truncated remainder is
+   strictly sub-unit; `affordable_units` is the exact floor (what it
+   says you can buy, you can pay for — one more would overdraw).
+2. **The ledger under arbitrary op sequences**: transfers, mints and
+   burns — including overdrafts, self-transfers, negatives and unknown
+   accounts, all failing cleanly — never leak a cent. Deliberately
+   AGENT-ONLY: business/bank/government balances carry books
+   identities whose categorization is the CALL SITE's duty, and raw
+   fuzz transfers into them are exactly what those invariants exist to
+   catch; the property isolates the doorway's own guarantees.
+3. **Arbitrary worlds stay green**: any seed × population (3–100) ×
+   horizon ticks under debug's every-tick nine-invariant sweep, no
+   halt, no panic.
+4. **The command surface cannot corrupt the world** (the crown jewel):
+   any lever with any value — negative rates, absurd floors,
+   overdrawing money-supply commands, shock spam — queued at any
+   ticks; clamps and rejections absorb it all and the world never
+   halts or leaks. This is the formal version of "the player can
+   experiment fearlessly".
+
+   Plus, in sim-persist: **any world roundtrips and resumes
+   identically** — save-hash equality and resumed-vs-uninterrupted
+   hash equality after 20 further ticks, swept instead of pinned.
+
+**Verification.** All tiers green on the first run (a fact worth
+recording: five phases of invariant discipline meant the sweeps found
+nothing — the phantom failures they would have caught were caught
+years-of-sim earlier by the every-tick sweeps). `check` +9 tests
+(~1 s); `check:full` +4 wide sweeps and stays fast. Proptest failure
+persistence files (`proptest-regressions/`) get committed if a
+counterexample ever appears.
+
+**Deferred.** Property-based SHRINKING of staged scenario tests (the
+staged tests are examples by design); fuzzing the websocket protocol
+surface (serde rejects malformed frames — the serve test covers the
+error path); the benchmark suite (the perf-pass increment).
