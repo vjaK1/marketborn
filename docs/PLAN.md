@@ -97,7 +97,7 @@ mortgages, and wage negotiation are recorded deferrals with their
 driver phases; food-chain supply contracts return with working-capital
 credit adoption; the dedicated negotiation inspector is v1.1.
 
-## Phase 4 — Government, events and emergence
+## Phase 4 — Government, events and emergence  **[complete — sessions 7–9]**
 
 All policy levers; government budget and debt; deterministic event system
 (shocks modify conditions only); tax reconciliation; delayed-policy-effect
@@ -105,6 +105,28 @@ test; `probe_drought`; `soak_10y`.
 
 *Done when:* all four emergence probes and the soak test pass alongside the
 full invariant suite.
+
+*Delivered:* all four probes (`probe_reputation`, `probe_rate_shock`,
+`probe_drought`, `soak_10y`) and the delayed-policy test green under the
+full invariant suite (now nine invariants incl. `tax_reconciliation`).
+The government kernel: a born-broke treasury, a seller-side sales tax
+collected at both revenue sites with every cent reconciled to a payer,
+and a daily welfare floor — soak-calibrated to 1% after the 3% default
+starved two standing seeds (ADR #029). The deterministic event system:
+shocks modify conditions only, ride the command log, and retire on
+schedule; drought (farms yield half) proves the channel end to end
+(ADR #030). The v1 lever set (ADR #032): sales tax, bank rate, money
+supply/relief, shocks, welfare floor, minimum wage (statutory floor +
+forced compliance), and sovereign debt — the deficit lever, floating at
+the bank's rate, with unpayable interest capitalizing and surplus
+retiring principal. Recorded scope: income/business taxes, subsidies,
+antitrust, enforcement/bankruptcy variation and import/export are tied
+to mechanics v1 does not have; the levers' UI is Phase 5's. Emergence
+found and kept: the mature tax-dole loop redistributes instead of
+contracting (hikes are absorbed); welfare abolition starves on a
+~500-tick fuse; heavy debt plus mass poverty is a self-sustaining trap
+only austerity breaks. The five-run soak matrix is unchanged through
+all three increments — every default is bit-neutral.
 
 ## Phase 5 — UI completion and analytics
 

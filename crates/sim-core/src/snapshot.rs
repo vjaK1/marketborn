@@ -418,6 +418,22 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
             "The welfare office topped {} up with {amount}",
             agent_label(state, *agent)
         ),
+        Event::WelfareFloorSet { old, new } => {
+            format!("The welfare floor moved {old} → {new}")
+        }
+        Event::MinimumWageSet { old, new } => {
+            format!("The minimum wage moved {old} → {new}/day")
+        }
+        Event::DeficitLimitSet { old, new } => {
+            format!("The deficit limit moved {old} → {new}")
+        }
+        Event::GovBorrowed {
+            amount,
+            outstanding,
+        } => format!(
+            "The treasury borrowed {amount} from the bank to cover the dole ({outstanding} outstanding)"
+        ),
+        Event::GovDebtCleared => "The sovereign debt is fully repaid".to_string(),
         Event::AgentHungry { agent, streak } => {
             if *streak <= 1 {
                 format!("{} went hungry today", agent_label(state, *agent))

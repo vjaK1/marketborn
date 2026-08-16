@@ -1024,3 +1024,78 @@ delayed-policy test are green. Remaining phase scope is now purely
 mechanics: the "all policy levers" set (which needs a v1 scoping
 decision — several BRIEF levers ride systems that do not exist) and
 government budget/debt.
+
+---
+
+## 032 — The v1 lever set, sovereign debt, and the poverty-debt trap
+
+**Context.** Phase 4's close-out: the BRIEF asks for "all policy
+levers" and a government that "cannot spend unlimited money without
+explicitly creating debt or money". Several BRIEF levers name systems
+v1 does not have — "all" needs an honest scoping decision, recorded
+here rather than silently shrunk.
+
+**Decision — the v1 lever set.** Shipping: `SetSalesTax` (#029),
+`SetBankRate` (#027), `AdjustMoneySupply` (Phase 0 — and, targeted at
+an account, it IS the BRIEF's "emergency relief"), `TriggerShock`
+(#030), and three new levers: **`SetWelfareFloor`** (0..=$100; the dole
+becomes policy — $0 legally abolishes it), **`SetMinimumWage`**
+($3..=$100; the statute is the wage review's floor, and a
+non-compliant posted wage is forced up on its next review — whether
+the till can afford compliance is the business's problem, which is the
+policy's emergent cost; the statutory minimum can never go below the
+$3.00 mechanical floor it replaces), and **`SetDeficitLimit`**
+(0..=$100,000; see below). Recorded as out of v1 scope, tied to the
+mechanics they need: income/business taxes (additional collection
+sites; the tax ARCHITECTURE is proven end to end), subsidies (a
+spending program beyond welfare), antitrust (no merger mechanics),
+contract-enforcement and bankruptcy-rule variation (the penalty and
+foreclosure parameters exist but as constants — parameterizing them is
+mechanical when a driver appears), import/export (a closed economy by
+design until an external-trade system exists).
+
+**Decision — sovereign debt.** The deficit lever: with
+`debt_limit > 0`, a treasury that cannot cover the day's welfare bill
+draws the shortfall from the BANK — capped by the limit's headroom and
+by the bank's own liquidity floor (a drained bank rations the state
+like any borrower; no money is created). The debt floats at the bank's
+CURRENT base rate (`SetBankRate` prices the deficit too), accruing in
+integer milli-cents like business loans. The fiscal day's fixed order:
+interest first (whatever the treasury cannot pay CAPITALIZES into the
+principal — the state does not default, its debt compounds), then
+borrowing, then the dole, then any surplus retires principal (an
+indebted treasury never hoards). Default `debt_limit` is ZERO — a
+balanced budget, bit-identical to pre-lever behavior. New machinery:
+`SovereignDraw`/`SovereignService` transactions, `GovBorrowed`/
+`GovDebtCleared` events, `govt_debt` metrics column, and
+`tax_reconciliation` extended with the debt identity (outstanding ==
+drawn − repaid + capitalized) plus a cent-for-cent cross-check of the
+bank's sovereign books against the treasury's.
+
+**The poverty-debt trap (found by the cycle test, kept by design).**
+The fiscal-cycle test killed the intake with the lever open (the dole
+ran on credit, interest compounded — all as designed), then restored
+an 8% intake expecting repayment. It never came: the credit era left a
+backlog of destitution whose daily bill consumed every cent of revenue
+before the principal, forever — the dole-first priority turns heavy
+debt plus mass poverty into a self-sustaining trap. This is real
+sovereign-finance behavior emerging from three simple rules, and it
+STAYS: the test's repayment leg now runs an austerity program
+(`SetWelfareFloor{0}` alongside the restored intake) and retires the
+debt in a month, which is itself the tradeoff the BRIEF wants players
+to face.
+
+**Verification.** 140 sim-core unit tests + 22 suites green;
+`fiscal_cycle` covers the full borrow→compound→repay arc, town-wide
+minimum-wage compliance within one review cycle, and every lever's
+clamp through the command channel. The five-run soak matrix is
+UNCHANGED to the agent (13 employed everywhere; hungry 14/15/23/20;
+pop-100 decade at 13) — all three levers default to bit-neutral
+values. Saves break again (Government/BankBooks/TxKind/Event/
+PlayerCommand grew); schema_version stays 1 pre-1.0.
+
+**Deferred.** Government bonds held by households (the bank is the
+sole sovereign creditor in v1); a debt-ceiling invariant (deliberately
+absent — capitalization may push debt past a lowered limit, which only
+gates NEW draws); welfare eligibility rules beyond the cash means
+test; the levers' UI surface (Phase 5).

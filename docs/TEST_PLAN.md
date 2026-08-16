@@ -226,9 +226,11 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   `taxes.rs`: organic collection, contract-site levy, welfare floor,
   `SetSalesTax` clamp — session 7); ~~delayed-policy effects~~ ✅
   (`policy_lag`: welfare abolition starves with a ~500-tick lag; hikes
-  are absorbed in steady state — session 8, DECISIONS #031). All four
-  emergence probes + the soak are green; remaining phase scope is
-  mechanics (levers, government debt), not tests.
+  are absorbed in steady state — session 8, DECISIONS #031); plus
+  `fiscal_cycle` (session 9): the deficit lever's full
+  borrow→compound→repay arc, town-wide minimum-wage compliance within
+  one review cycle, and every lever clamp through the command channel —
+  **phase complete**; recorded scope in DECISIONS #029–#032.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
   inspect agent/business, apply policy, save, load); packaged-app smoke.
 - **Phase 6**: proptest world generators (thousands of ticks, all

@@ -5,6 +5,66 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 9 — 2026-08-16 — Phase 4: COMPLETE (levers + sovereign debt)
+
+### The v1 lever set + sovereign debt — DECISIONS #032
+
+- Three new commands, all bit-neutral at their defaults:
+  `SetWelfareFloor` (0..=$100; $0 legally abolishes the dole),
+  `SetMinimumWage` ($3..=$100; the statute is the wage review's floor
+  and a non-compliant posted wage is forced UP on its next review —
+  affordability is the business's problem, the policy's emergent
+  cost), `SetDeficitLimit` (0..=$100k; default $0 = balanced budget).
+- **Sovereign debt**: a treasury short of the day's welfare bill draws
+  the shortfall from the bank (capped by the limit's headroom and the
+  bank's liquidity floor — the bank rations the state like any
+  borrower). The debt FLOATS at the bank's current base rate;
+  fiscal-day order: interest (unpayable interest capitalizes — the
+  state doesn't default, its debt compounds) → borrowing → dole →
+  surplus retires principal. Extended `tax_reconciliation`: debt
+  identity + the bank's sovereign books mirrored cent for cent.
+- **Found by the cycle test, kept by design: the poverty-debt trap.**
+  After a credit-funded dole era, restored tax revenue is consumed
+  entirely by the destitution backlog before the principal, forever —
+  only austerity (`SetWelfareFloor{0}`) breaks it. `fiscal_cycle`
+  runs the full arc: borrow → compound → austerity → `GovDebtCleared`.
+- Scoping recorded (not silent): income/business taxes, subsidies,
+  antitrust, enforcement/bankruptcy variation, import/export are tied
+  to mechanics v1 doesn't have; `AdjustMoneySupply` at an account IS
+  the BRIEF's emergency relief; levers' UI is Phase 5's.
+
+### Phase 4 declared complete
+
+- All four probes + `soak_10y` + delayed-policy + `tax_reconciliation`
+  green under the full suite (140 unit tests, 22 suites; both gates
+  exit 0 — note: the npm script chain intermittently reports exit 1
+  with all-green output on this machine; every component verified
+  individually and the retry passed; recorded in the memory file).
+- Five-run soak matrix UNCHANGED through all three Phase 4 increments
+  (13 employed everywhere; hungry 14/15/23/20; pop-100 decade at 13
+  employed — the recorded pop-100 issue stays open, now Phase 6
+  failure-test/perf territory alongside 1000-agent worlds).
+- Saves break (Government/BankBooks/TxKind/Event/PlayerCommand grew);
+  schema_version stays 1 pre-1.0. PLAN.md carries the Delivered block.
+
+### Exact next task (Phase 5 — UI completion and analytics)
+
+1. Session protocol: `npm run check` first; read PLAN Phase 5 + the
+   BRIEF's UI section (§User interface, v1.0 screens list).
+2. Suggested first increment: **`sim-cli serve`** — the websocket
+   implementation of the reserved transport protocol (inbound
+   PlayerCommands incl. the Phase 4 levers, outbound throttled
+   snapshots + on-demand detail queries), because Playwright E2E
+   drives the React app against it and every later screen rides it.
+   Then the screen pass in PLAN's order (world overview with the new
+   govt/debt stats, city view, timeline filters, speed controls,
+   save-slot management + autosave cadence, historical charts), each
+   launch-verified; E2E suite last.
+3. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 8 — 2026-08-16 — Phase 4 increments 2–3: shocks + the test skeleton
 
 ### Scenario shocks v1 (`d68169d`) — DECISIONS #030

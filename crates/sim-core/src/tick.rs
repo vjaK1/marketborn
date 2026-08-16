@@ -261,6 +261,39 @@ fn apply_commands(world: &mut World, t: u64) {
                     );
                 }
             }
+            PlayerCommand::SetWelfareFloor { floor } => {
+                let old = world.state.government.welfare_floor;
+                let new = floor.clamp(
+                    crate::money::Money::ZERO,
+                    crate::government::MAX_WELFARE_FLOOR,
+                );
+                world.state.government.welfare_floor = new;
+                world
+                    .journal
+                    .push_event(t, Event::WelfareFloorSet { old, new });
+            }
+            PlayerCommand::SetMinimumWage { wage } => {
+                let old = world.state.government.minimum_wage;
+                let new = wage.clamp(
+                    crate::government::MIN_MINIMUM_WAGE,
+                    crate::government::MAX_MINIMUM_WAGE,
+                );
+                world.state.government.minimum_wage = new;
+                world
+                    .journal
+                    .push_event(t, Event::MinimumWageSet { old, new });
+            }
+            PlayerCommand::SetDeficitLimit { limit } => {
+                let old = world.state.government.debt_limit;
+                let new = limit.clamp(
+                    crate::money::Money::ZERO,
+                    crate::government::MAX_DEFICIT_LIMIT,
+                );
+                world.state.government.debt_limit = new;
+                world
+                    .journal
+                    .push_event(t, Event::DeficitLimitSet { old, new });
+            }
         }
     }
 }

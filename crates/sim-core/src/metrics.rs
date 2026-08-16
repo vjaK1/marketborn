@@ -62,6 +62,8 @@ pub struct MetricsDay {
     pub welfare_paid: Money,
     /// Agents topped up to the welfare floor today.
     pub welfare_recipients: u32,
+    /// Sovereign principal outstanding (the deficit lever's balance).
+    pub govt_debt: Money,
     /// Per-business daily state, for time-series analysis and (later) the
     /// business inspector's historical charts.
     pub businesses: BTreeMap<BusinessId, BizDay>,
@@ -169,6 +171,7 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
         tax_collected: state.government.books.tax_collected,
         welfare_paid: state.government.books.welfare_paid,
         welfare_recipients: acc.welfare_recipients,
+        govt_debt: state.government.debt,
         businesses,
     }
 }

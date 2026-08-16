@@ -133,6 +133,13 @@ pub struct BankBooks {
     pub policy_net: Money,
     /// Debt written off in foreclosures (no cash moved — the equity hole).
     pub written_off: Money,
+    /// Sovereign principal disbursed to the government (Phase 4 deficit
+    /// lever; the government's books mirror these three exactly).
+    pub sovereign_disbursed: Money,
+    /// Sovereign principal repaid by the government.
+    pub sovereign_repaid: Money,
+    /// Sovereign interest received.
+    pub sovereign_interest: Money,
 }
 
 impl BankBooks {
@@ -146,6 +153,9 @@ impl BankBooks {
             liquidation_proceeds: Money::ZERO,
             policy_net: Money::ZERO,
             written_off: Money::ZERO,
+            sovereign_disbursed: Money::ZERO,
+            sovereign_repaid: Money::ZERO,
+            sovereign_interest: Money::ZERO,
         }
     }
 
@@ -157,7 +167,10 @@ impl BankBooks {
             + self.seized_cash
             + self.liquidation_proceeds
             + self.policy_net
+            + self.sovereign_repaid
+            + self.sovereign_interest
             - self.principal_disbursed
+            - self.sovereign_disbursed
     }
 }
 

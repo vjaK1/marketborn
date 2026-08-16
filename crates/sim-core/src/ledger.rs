@@ -65,6 +65,14 @@ pub enum TxKind {
     },
     /// The government tops a destitute agent up to the welfare floor.
     Welfare,
+    /// The treasury draws sovereign principal from the bank (the deficit
+    /// lever, Phase 4).
+    SovereignDraw,
+    /// Daily sovereign debt service: `interest: true` is the interest
+    /// leg, `false` a principal repayment.
+    SovereignService {
+        interest: bool,
+    },
     /// Explicit money creation/destruction via player command.
     MonetaryPolicy {
         memo: String,

@@ -467,6 +467,68 @@ fn tax_reconciliation(state: &SimState, journal: &Journal) -> Result<(), Box<Inv
             Some(AccountId::Government),
         ));
     }
+    if gov.welfare_floor.is_negative()
+        || gov.welfare_floor > crate::government::MAX_WELFARE_FLOOR
+        || gov.minimum_wage < crate::government::MIN_MINIMUM_WAGE
+        || gov.minimum_wage > crate::government::MAX_MINIMUM_WAGE
+        || gov.debt_limit.is_negative()
+        || gov.debt_limit > crate::government::MAX_DEFICIT_LIMIT
+    {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            "levers inside their command clamps",
+            format!(
+                "welfare floor {} minimum wage {} deficit limit {}",
+                gov.welfare_floor, gov.minimum_wage, gov.debt_limit
+            ),
+            "lever outside its clamp",
+            Some(AccountId::Government),
+        ));
+    }
+    // Sovereign debt: the balance must equal what the fiscal books imply,
+    // the sub-cent carry must be sane, and the bank's mirror of every
+    // sovereign flow must match cent for cent.
+    if gov.debt.is_negative()
+        || gov.debt != gov.books.expected_debt()
+        || gov.debt_accrued_milli < 0
+        || (gov.debt == crate::money::Money::ZERO && gov.debt_accrued_milli != 0)
+    {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            format!("debt == books' {}", gov.books.expected_debt()),
+            format!(
+                "debt {} (accrued {} milli)",
+                gov.debt, gov.debt_accrued_milli
+            ),
+            gov.debt - gov.books.expected_debt(),
+            Some(AccountId::Government),
+        ));
+    }
+    let bank = &state.bank.books;
+    if bank.sovereign_disbursed != gov.books.debt_drawn
+        || bank.sovereign_repaid != gov.books.debt_repaid
+        || bank.sovereign_interest != gov.books.debt_interest_paid
+    {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            format!(
+                "bank sovereign books mirror the treasury's: drawn {} repaid {} interest {}",
+                gov.books.debt_drawn, gov.books.debt_repaid, gov.books.debt_interest_paid
+            ),
+            format!(
+                "bank shows disbursed {} repaid {} interest {}",
+                bank.sovereign_disbursed, bank.sovereign_repaid, bank.sovereign_interest
+            ),
+            "sovereign flow mismatch",
+            Some(AccountId::Bank),
+        ));
+    }
     let remitted: crate::money::Money = state.businesses.values().map(|b| b.books.taxes_paid).sum();
     if remitted != gov.books.tax_collected {
         return Err(violation(

@@ -4,10 +4,10 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 4 in progress. The kernel and test skeleton are complete
-(government, shocks, all four emergence probes, `soak_10y`, the
-delayed-policy test); remaining scope is the policy-lever set and
-government budget/debt.
+Status: Phase 4 complete (government, shocks, the v1 lever set,
+sovereign debt, all four emergence probes, `soak_10y`, the
+delayed-policy test — DECISIONS.md #029–#032). Phase 5 (UI completion
+and analytics) is next.
 
 ## Time
 
@@ -28,7 +28,7 @@ Every tick executes exactly this sequence:
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
 | 6 | **Contract settlement** | Every active supply contract due today settles in contract-id order: the buyer takes its current input need up to the contracted daily ceiling at the locked price (goods seller→buyer zero-sum, cash through the ledger); shortfalls are penalized misses; three consecutive misses breach (see §Contracts). |
 | 7 | **Banking** | Every active loan in id order: daily interest accrues (integer milli-cents on the declining balance), the day's service (interest first, then the principal installment) auto-collects; a full shortfall is a counted miss and three consecutive misses default the loan and run foreclosure. Then the bank fire-sells any seized inventory to the market's buyer queue at last prices (see §Banking). |
-| 8 | **Government** | The welfare floor pays out of the treasury: every agent below the floor is topped up, most destitute first, until the treasury runs dry. (Taxes are collected inline at the market and contract-settlement sites, phases 5–6; see §Government. Added by DECISIONS.md #029.) |
+| 8 | **Government** | The fiscal day, in fixed order: sovereign interest accrues and is paid (unpayable interest capitalizes into the principal); the treasury borrows from the bank if the welfare bill exceeds it and the deficit lever allows; the welfare floor pays, most destitute first, until the treasury runs dry; any surplus retires sovereign principal. (Taxes are collected inline at the market and contract-settlement sites, phases 5–6; see §Government. DECISIONS.md #029/#032.) |
 | 9 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
 | 10 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
 | 11 | **Memory, relationships & reputation** | Every memory fades a little (`memory::decay`); forgotten memories drop. On the agent's weekly stagger day: workplace + neighborhood gossip (listener moves ¼ of the gap toward each speaker per subject; neutrality is silence — only intensity ≥ 8 beliefs get spoken), then relations and beliefs drift one step toward neutral; fully-neutral entries drop. Formation/updates happen at event sites, never by reading the journal back. |
@@ -264,18 +264,42 @@ BRIEF's "cannot spend unlimited money" is structural.
   final-demand prop crushing the mill between it and deflation); 100 bp
   holds the baseline's 13 employed on all four through the decade.
 - **Welfare floor** (tick phase 8, after banking): every agent holding
-  less than `WELFARE_FLOOR` ($12.00 ≈ two days of food) is topped up to
-  it — most destitute first (cash, then id) — until the treasury runs
-  dry; the marginal recipient gets whatever is left. Each payment is a
-  ledger transfer plus a `WelfarePaid` event. Steady state at 1%: the
-  treasury pins at zero and ~1 agent/day is caught. A pantry-targeted
-  variant was tried and rejected (no measured relief, more machinery).
-- **Rate policy**: `SetSalesTax` (player command, clamped 0..=10,000 bp)
-  applies from the tick it lands — collections reprice immediately.
+  less than the floor (default $12.00 ≈ two days of food) is topped up
+  to it — most destitute first (cash, then id) — until the treasury
+  runs dry; the marginal recipient gets whatever is left. Each payment
+  is a ledger transfer plus a `WelfarePaid` event. Steady state at 1%:
+  the treasury pins at zero and ~1 agent/day is caught. A
+  pantry-targeted variant was tried and rejected (no measured relief,
+  more machinery).
+- **Sovereign debt** (the deficit lever, DECISIONS.md #032): with
+  `debt_limit > 0`, a treasury short of the day's welfare bill draws
+  the shortfall from the bank — capped by the limit's headroom and the
+  bank's liquidity floor (the bank rations the state like any
+  borrower; no money is created). The debt floats at the bank's
+  CURRENT base rate, accrued daily in integer milli-cents. Fiscal-day
+  order: interest first (unpayable interest CAPITALIZES into the
+  principal — the state does not default, its debt compounds), then
+  borrowing, then the dole, then surplus retires principal (an
+  indebted treasury never hoards). Default limit ZERO = balanced
+  budget, bit-identical to pre-lever behavior. Known emergent regime,
+  kept by design: heavy debt plus mass poverty is a self-sustaining
+  trap — the dole-first priority spends every cent of revenue before
+  the principal, and only austerity (`SetWelfareFloor` down) breaks
+  it.
+- **Levers** (all applied at their tick boundary, all journaled):
+  `SetSalesTax` (0..=10,000 bp — collections reprice immediately),
+  `SetWelfareFloor` (0..=$100.00; $0 legally abolishes the dole),
+  `SetMinimumWage` ($3.00..=$100.00; see §Decisions — the statute is
+  the wage review's floor and non-compliant wages are forced up on
+  their next review), `SetDeficitLimit` (0..=$100,000; lowering it
+  below the outstanding debt stops new draws, the debt stands).
 - **Invariant** (`tax_reconciliation`, every sweep): treasury equals the
-  government's lifetime books (taxes − welfare + policy); fiscal totals
-  non-negative; the rate inside the clamp; and Σ business `taxes_paid`
-  == `tax_collected` — every collected cent has a payer who booked it
+  government's lifetime books (taxes + policy + debt drawn − welfare −
+  debt service); fiscal totals non-negative; every lever inside its
+  command clamp; the debt identity (outstanding == drawn − repaid +
+  capitalized, with a sane sub-cent carry); the bank's sovereign books
+  mirror the treasury's cent for cent; and Σ business `taxes_paid` ==
+  `tax_collected` — every collected cent has a payer who booked it
   (this makes `taxes_paid` globally load-bearing for test staging that
   resyncs books mid-run).
 
@@ -458,7 +482,9 @@ On review day (`(tick + id) % 7 == 0`):
   Fully staffed and the 7-day window ran a loss → cut 3%. Vacancies open
   but **cash below one hire at the posted wage** → cut 3% (an offer the
   till cannot fund is walked down until it becomes hirable-into again).
-  Floor $3.00, ceiling $10,000/day.
+  Floor: the statutory minimum wage (§Government lever, default $3.00 —
+  and a posted wage under the statute is forced UP to it on review day,
+  before any other wage move); ceiling $10,000/day.
 - **Dividend**: cash above `21 days of payroll at target headcount + 7 days
   of input purchases at last observed prices` pays 25% of the excess to the
   owner. The buffer uses *target* headcount so owners cannot strip a
@@ -482,7 +508,7 @@ in later phases, but changes must be recorded (they shift every hash).
 | Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker · lumber camp → 1 wood, 2/worker · brickworks → 1 bricks, 2/worker · construction 6 wood + 6 bricks → 1 home, 1/worker |
 | Business start cash | $1,200.00 each |
 | Bank | capital $70.00 × population (minted at gen) · base rate 1,800 bp/yr · loan term 84 days · liquidity floor 25% of capital |
-| Government | treasury $0.00 (born broke — taxes are the only income) · sales tax 100 bp · welfare floor $12.00/agent |
+| Government | treasury $0.00 (born broke — taxes are the only income) · sales tax 100 bp · welfare floor $12.00/agent · minimum wage $3.00/day · deficit limit $0.00 (balanced budget) |
 | Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
 | Comfort floor | $400.00 cash → second daily meal |
 | Home floor | $600.00 cash → buy one home, paying ≤ half of cash |

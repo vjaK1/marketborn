@@ -174,6 +174,29 @@ pub enum Event {
         agent: AgentId,
         amount: Money,
     },
+    /// Fiscal policy moved the welfare floor.
+    WelfareFloorSet {
+        old: Money,
+        new: Money,
+    },
+    /// Labor policy moved the statutory minimum wage.
+    MinimumWageSet {
+        old: Money,
+        new: Money,
+    },
+    /// Fiscal policy moved the deficit limit.
+    DeficitLimitSet {
+        old: Money,
+        new: Money,
+    },
+    /// The treasury drew sovereign principal from the bank to cover the
+    /// day's welfare bill.
+    GovBorrowed {
+        amount: Money,
+        outstanding: Money,
+    },
+    /// The sovereign debt was fully retired.
+    GovDebtCleared,
     AgentHungry {
         agent: AgentId,
         streak: u32,
@@ -219,6 +242,11 @@ impl Event {
             Event::ShockBegan { .. } => "shock_began",
             Event::ShockEnded { .. } => "shock_ended",
             Event::WelfarePaid { .. } => "welfare_paid",
+            Event::WelfareFloorSet { .. } => "welfare_floor_set",
+            Event::MinimumWageSet { .. } => "minimum_wage_set",
+            Event::DeficitLimitSet { .. } => "deficit_limit_set",
+            Event::GovBorrowed { .. } => "gov_borrowed",
+            Event::GovDebtCleared => "gov_debt_cleared",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",
             Event::CommandRejected { .. } => "command_rejected",

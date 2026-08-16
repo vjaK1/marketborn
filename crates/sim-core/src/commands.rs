@@ -37,6 +37,18 @@ pub enum PlayerCommand {
         kind: crate::shocks::ShockKind,
         days: u32,
     },
+    /// Welfare policy (Phase 4): set the daily top-up floor. Clamped to
+    /// 0..=`MAX_WELFARE_FLOOR` at application.
+    SetWelfareFloor { floor: Money },
+    /// Labor policy (Phase 4): set the statutory minimum wage — the wage
+    /// review's floor; non-compliant posted wages are forced up on their
+    /// next review. Clamped to `MIN_MINIMUM_WAGE..=MAX_MINIMUM_WAGE`.
+    SetMinimumWage { wage: Money },
+    /// Fiscal policy (Phase 4): how far the treasury may borrow from the
+    /// bank to cover welfare shortfalls. Zero = balanced budget. Clamped
+    /// to 0..=`MAX_DEFICIT_LIMIT`; lowering it below the outstanding debt
+    /// stops new draws but the debt stands.
+    SetDeficitLimit { limit: Money },
 }
 
 impl PlayerCommand {
@@ -46,6 +58,9 @@ impl PlayerCommand {
             PlayerCommand::SetBankRate { .. } => "set_bank_rate",
             PlayerCommand::SetSalesTax { .. } => "set_sales_tax",
             PlayerCommand::TriggerShock { .. } => "trigger_shock",
+            PlayerCommand::SetWelfareFloor { .. } => "set_welfare_floor",
+            PlayerCommand::SetMinimumWage { .. } => "set_minimum_wage",
+            PlayerCommand::SetDeficitLimit { .. } => "set_deficit_limit",
         }
     }
 }

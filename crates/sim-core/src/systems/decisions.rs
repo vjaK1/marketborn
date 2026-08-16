@@ -31,7 +31,8 @@ const PRICE_FLOOR: Money = Money::from_cents(10);
 /// numeric absurdity if scarcity persists for years. Documented in
 /// ECONOMIC_RULES.md §Decisions.
 const PRICE_CEILING: Money = Money::from_cents(10_000_000);
-const WAGE_FLOOR: Money = Money::from_cents(300);
+// The wage floor is the government's statutory minimum (Phase 4 lever;
+// defaults to the historical $3.00 mechanical floor).
 const WAGE_CEILING: Money = Money::from_cents(1_000_000);
 const DIVIDEND_BUFFER_PAYROLL_DAYS: i64 = 21;
 /// Strictly above the full production buffer (OUTPUT_TARGET_DAYS + 1 = 5
@@ -765,7 +766,14 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 .wage
                 .checked_mul_qty(crate::systems::labor::HIRING_CASH_DAYS)
                 .unwrap_or(Money::MAX);
-            if b.vacancies() > 0
+            // The statutory minimum wage (Phase 4 lever) is the review's
+            // floor: cuts stop at it, and a posted wage under it is forced
+            // up on review day — whether the till can afford compliance is
+            // the business's problem (the emergent cost of the policy).
+            let min_wage = state.government.minimum_wage;
+            if b.wage < min_wage {
+                new_wage = Some((b.wage, min_wage));
+            } else if b.vacancies() > 0
                 && b.vacancy_days >= REVIEW_PERIOD as u32
                 && window_profit > Money::ZERO
             {
@@ -774,17 +782,17 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 if raised != b.wage {
                     new_wage = Some((b.wage, raised));
                 }
-            } else if b.vacancies() == 0 && window_profit.is_negative() && b.wage > WAGE_FLOOR {
-                let cut = (b.wage - b.wage.mul_bp(WAGE_CUT_BP).max(min_step)).max(WAGE_FLOOR);
+            } else if b.vacancies() == 0 && window_profit.is_negative() && b.wage > min_wage {
+                let cut = (b.wage - b.wage.mul_bp(WAGE_CUT_BP).max(min_step)).max(min_wage);
                 if cut != b.wage {
                     new_wage = Some((b.wage, cut));
                 }
-            } else if b.vacancies() > 0 && b.cash < hire_floor && b.wage > WAGE_FLOOR {
+            } else if b.vacancies() > 0 && b.cash < hire_floor && b.wage > min_wage {
                 // An offer the till cannot fund is not an offer: walk the
                 // posted wage down toward what the business can actually
                 // pay, so a dead firm becomes hirable-into (or cheaply
                 // buyable) again instead of fossilizing at a fantasy wage.
-                let cut = (b.wage - b.wage.mul_bp(WAGE_CUT_BP).max(min_step)).max(WAGE_FLOOR);
+                let cut = (b.wage - b.wage.mul_bp(WAGE_CUT_BP).max(min_step)).max(min_wage);
                 if cut != b.wage {
                     new_wage = Some((b.wage, cut));
                 }
@@ -1264,6 +1272,37 @@ mod tests {
         assert!(
             after < before,
             "an unfundable offer must fall, not ratchet: {before} -> {after}"
+        );
+    }
+
+    #[test]
+    fn the_minimum_wage_forces_compliance_and_floors_cuts() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(4));
+        let bid = *w.state.businesses.keys().next().unwrap();
+        w.state.government.minimum_wage = Money::from_cents(800);
+        // A posted wage under the statute is forced up on review day —
+        // whether the till can afford compliance is the business's problem.
+        w.state.businesses.get_mut(&bid).unwrap().wage = Money::from_cents(500);
+        run(&mut w.state, &mut w.journal, review_tick_for(bid)).unwrap();
+        assert_eq!(w.state.businesses[&bid].wage, Money::from_cents(800));
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, Event::WageChanged { business, .. } if business == bid)));
+        // A loss-making, fully staffed business cuts — but the cut lands
+        // exactly on the statute, never below.
+        {
+            let b = w.state.businesses.get_mut(&bid).unwrap();
+            b.wage = Money::from_cents(810);
+            b.revenue_window = Money::ZERO;
+            b.costs_window = Money::from_cents(1_000);
+        }
+        run(&mut w.state, &mut w.journal, review_tick_for(bid) + 7).unwrap();
+        assert_eq!(
+            w.state.businesses[&bid].wage,
+            Money::from_cents(800),
+            "the cut stops at the statutory minimum"
         );
     }
 

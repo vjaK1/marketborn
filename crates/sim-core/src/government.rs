@@ -48,9 +48,25 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_SALES_TAX_BP: i64 = 100;
 /// The player command's clamp: 0..=100%.
 pub const MAX_SALES_TAX_BP: i64 = 10_000;
-/// The welfare floor: agents are topped up to this daily, treasury
-/// permitting — about two days of food at start prices.
+/// The welfare floor at worldgen: agents are topped up to this daily,
+/// treasury permitting — about two days of food at start prices.
+/// `SetWelfareFloor` moves it (0..=`MAX_WELFARE_FLOOR`).
 pub const WELFARE_FLOOR: Money = Money::from_cents(1_200);
+/// Ceiling on the welfare-floor lever ($100/day — far past any sane
+/// dole; bounds the command, not the imagination).
+pub const MAX_WELFARE_FLOOR: Money = Money::from_cents(10_000);
+/// The statutory minimum wage at worldgen — equal to the wage machinery's
+/// long-standing mechanical floor, so the default changes nothing.
+/// `SetMinimumWage` moves it within
+/// `MIN_MINIMUM_WAGE..=MAX_MINIMUM_WAGE`; the statutory minimum can never
+/// go below the mechanical floor.
+pub const DEFAULT_MINIMUM_WAGE: Money = Money::from_cents(300);
+pub const MIN_MINIMUM_WAGE: Money = DEFAULT_MINIMUM_WAGE;
+/// Ceiling on the minimum-wage lever ($100/day).
+pub const MAX_MINIMUM_WAGE: Money = Money::from_cents(10_000);
+/// Ceiling on the deficit-limit lever ($100,000 — several times the whole
+/// town's money supply; effectively "unlimited" while bounding overflow).
+pub const MAX_DEFICIT_LIMIT: Money = Money::from_cents(10_000_000);
 
 /// The government's lifetime books: cash must always equal what these imply
 /// (the `tax_reconciliation` invariant).
@@ -60,12 +76,30 @@ pub struct GovBooks {
     pub welfare_paid: Money,
     /// Net monetary policy applied directly to the treasury (mint − burn).
     pub policy_net: Money,
+    /// Sovereign principal drawn from the bank (Phase 4 deficit lever).
+    pub debt_drawn: Money,
+    /// Sovereign principal repaid.
+    pub debt_repaid: Money,
+    /// Sovereign interest paid in cash.
+    pub debt_interest_paid: Money,
+    /// Sovereign interest the treasury could not pay, rolled into the
+    /// principal instead (no cash moved — the state does not default, its
+    /// debt compounds).
+    pub debt_capitalized: Money,
 }
 
 impl GovBooks {
     /// The treasury balance these books imply.
     pub fn expected_cash(&self) -> Money {
-        self.tax_collected + self.policy_net - self.welfare_paid
+        self.tax_collected + self.policy_net + self.debt_drawn
+            - self.welfare_paid
+            - self.debt_repaid
+            - self.debt_interest_paid
+    }
+
+    /// The debt balance these books imply.
+    pub fn expected_debt(&self) -> Money {
+        self.debt_drawn + self.debt_capitalized - self.debt_repaid
     }
 }
 
@@ -75,6 +109,19 @@ pub struct Government {
     /// Sales tax in basis points, applied to every goods sale from the
     /// moment it is set (`SetSalesTax`).
     pub sales_tax_bp: i64,
+    /// The welfare floor agents are topped up to daily (`SetWelfareFloor`).
+    pub welfare_floor: Money,
+    /// The statutory minimum wage (`SetMinimumWage`): the wage review's
+    /// floor, and non-compliant posted wages are forced up to it.
+    pub minimum_wage: Money,
+    /// Sovereign principal outstanding, owed to the bank.
+    pub debt: Money,
+    /// The deficit lever (`SetDeficitLimit`): the treasury may borrow from
+    /// the bank to cover welfare shortfalls while `debt` is under this.
+    /// Zero (the default) is a balanced budget — no borrowing, ever.
+    pub debt_limit: Money,
+    /// Sub-cent sovereign interest carry, in milli-cents. Not money.
+    pub debt_accrued_milli: i64,
     pub books: GovBooks,
 }
 
@@ -83,8 +130,20 @@ impl Government {
         Government {
             cash: Money::ZERO,
             sales_tax_bp: DEFAULT_SALES_TAX_BP,
+            welfare_floor: WELFARE_FLOOR,
+            minimum_wage: DEFAULT_MINIMUM_WAGE,
+            debt: Money::ZERO,
+            debt_limit: Money::ZERO,
+            debt_accrued_milli: 0,
             books: GovBooks::default(),
         }
+    }
+
+    /// Today's sovereign interest accrual in milli-cents, at the bank's
+    /// CURRENT base rate — sovereign debt floats, so the bank-rate lever
+    /// prices the government's deficit too (360-day year, like loans).
+    pub fn daily_debt_accrual_milli(&self, bank_rate_bp: i64) -> i64 {
+        self.debt.cents() * bank_rate_bp / 3_600
     }
 }
 
@@ -128,31 +187,104 @@ pub fn collect_sales_tax(
     Ok(tax)
 }
 
-/// Tick phase 8: the welfare floor. Every agent below `WELFARE_FLOOR` is
-/// topped up to it, most destitute first (cash, then id), until the
-/// treasury runs dry — the marginal recipient gets whatever is left.
+/// Tick phase 8, the fiscal day, in a fixed order:
+///
+/// 1. **Sovereign interest** accrues on the debt at the bank's current
+///    base rate (milli-cents; the carry is not money) and the whole cents
+///    due are paid from the treasury — whatever cannot be paid is
+///    CAPITALIZED into the principal (the state does not default, its
+///    debt compounds).
+/// 2. **Borrowing**: if the day's welfare bill exceeds the treasury and
+///    the deficit lever allows it, the treasury draws the shortfall from
+///    the bank — capped by the remaining `debt_limit` headroom and by the
+///    bank's own liquidity floor (a drained bank rations the state like
+///    any other borrower).
+/// 3. **The welfare floor**: every agent below `welfare_floor` is topped
+///    up to it, most destitute first (cash, then id), until the treasury
+///    runs dry — the marginal recipient gets whatever is left.
+/// 4. **Surplus retires principal**: any treasury left after the dole
+///    pays the debt down — an indebted treasury never hoards.
 pub fn run(
     state: &mut SimState,
     journal: &mut Journal,
     tick: u64,
     acc: &mut DayAccumulator,
 ) -> Result<(), LedgerError> {
-    if state.government.cash <= Money::ZERO {
-        return Ok(());
+    // --- 1. Sovereign interest: accrue, pay what the treasury can,
+    // capitalize the rest. ---
+    if state.government.debt > Money::ZERO {
+        let rate_bp = state.bank.base_rate_bp;
+        state.government.debt_accrued_milli += state.government.daily_debt_accrual_milli(rate_bp);
+        let due = Money::from_cents(state.government.debt_accrued_milli / 1_000);
+        if due > Money::ZERO {
+            let payable = due.min(state.government.cash);
+            if payable > Money::ZERO {
+                ledger::transfer(
+                    state,
+                    journal,
+                    tick,
+                    AccountId::Government,
+                    AccountId::Bank,
+                    payable,
+                    TxKind::SovereignService { interest: true },
+                )?;
+                state.government.books.debt_interest_paid += payable;
+                state.bank.books.sovereign_interest += payable;
+            }
+            let capitalized = due - payable;
+            if capitalized > Money::ZERO {
+                state.government.debt += capitalized;
+                state.government.books.debt_capitalized += capitalized;
+            }
+            state.government.debt_accrued_milli -= due.cents() * 1_000;
+        }
     }
+
+    // --- 2. Borrow for the dole, deficit lever permitting. ---
+    let floor = state.government.welfare_floor;
     let mut needy: Vec<(Money, AgentId)> = state
         .agents
         .values()
-        .filter(|a| a.cash < WELFARE_FLOOR)
+        .filter(|a| a.cash < floor)
         .map(|a| (a.cash, a.id))
         .collect();
     needy.sort();
+    let bill: Money = needy.iter().map(|(cash, _)| floor - *cash).sum();
+    let shortfall = (bill - state.government.cash).max(Money::ZERO);
+    if shortfall > Money::ZERO && state.government.debt < state.government.debt_limit {
+        let headroom = state.government.debt_limit - state.government.debt;
+        let lendable = (state.bank.cash - state.bank.liquidity_floor()).max(Money::ZERO);
+        let draw = shortfall.min(headroom).min(lendable);
+        if draw > Money::ZERO {
+            ledger::transfer(
+                state,
+                journal,
+                tick,
+                AccountId::Bank,
+                AccountId::Government,
+                draw,
+                TxKind::SovereignDraw,
+            )?;
+            state.government.debt += draw;
+            state.government.books.debt_drawn += draw;
+            state.bank.books.sovereign_disbursed += draw;
+            journal.push_event(
+                tick,
+                Event::GovBorrowed {
+                    amount: draw,
+                    outstanding: state.government.debt,
+                },
+            );
+        }
+    }
+
+    // --- 3. The welfare floor. ---
     for (cash, aid) in needy {
         let treasury = state.government.cash;
         if treasury <= Money::ZERO {
             break;
         }
-        let payment = (WELFARE_FLOOR - cash).min(treasury);
+        let payment = (floor - cash).min(treasury);
         ledger::transfer(
             state,
             journal,
@@ -171,6 +303,29 @@ pub fn run(
                 amount: payment,
             },
         );
+    }
+
+    // --- 4. Surplus retires principal. ---
+    if state.government.debt > Money::ZERO && state.government.cash > Money::ZERO {
+        let repay = state.government.cash.min(state.government.debt);
+        ledger::transfer(
+            state,
+            journal,
+            tick,
+            AccountId::Government,
+            AccountId::Bank,
+            repay,
+            TxKind::SovereignService { interest: false },
+        )?;
+        state.government.debt -= repay;
+        state.government.books.debt_repaid += repay;
+        state.bank.books.sovereign_repaid += repay;
+        if state.government.debt == Money::ZERO {
+            // The residual sub-cent carry dies with the debt — it never
+            // became money.
+            state.government.debt_accrued_milli = 0;
+            journal.push_event(tick, Event::GovDebtCleared);
+        }
     }
     Ok(())
 }
@@ -301,6 +456,123 @@ mod tests {
             .count();
         assert_eq!(payments, 2);
         assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    /// Stage one destitute agent, everyone else comfortable, and open the
+    /// deficit lever.
+    fn stage_deficit(w: &mut World, limit_cents: i64) -> AgentId {
+        let poor = *w.state.agents.keys().next().unwrap();
+        for a in w.state.agents.values_mut() {
+            a.cash = if a.id == poor {
+                Money::ZERO
+            } else {
+                Money::from_cents(50_000)
+            };
+        }
+        w.state.expected_total_money = w.state.total_cash();
+        w.state.government.debt_limit = Money::from_cents(limit_cents);
+        poor
+    }
+
+    #[test]
+    fn the_deficit_lever_draws_services_and_retires_sovereign_debt() {
+        let mut w = world();
+        let poor = stage_deficit(&mut w, 50_000);
+        let bank_before = w.state.bank.cash;
+        let mut acc = DayAccumulator::default();
+        // Day 1: empty treasury, a $12 dole bill — the treasury borrows.
+        run(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.agents[&poor].cash, WELFARE_FLOOR, "dole on credit");
+        assert_eq!(w.state.government.debt, WELFARE_FLOOR);
+        assert_eq!(w.state.government.books.debt_drawn, WELFARE_FLOOR);
+        assert_eq!(w.state.bank.books.sovereign_disbursed, WELFARE_FLOOR);
+        assert_eq!(w.state.bank.cash, bank_before - WELFARE_FLOOR);
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, Event::GovBorrowed { .. })));
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+        // Fund the treasury; the surplus services interest then retires
+        // the principal.
+        ledger::mint(
+            &mut w.state,
+            &mut w.journal,
+            2,
+            AccountId::Government,
+            Money::from_cents(5_000),
+            "war chest".into(),
+        )
+        .unwrap();
+        run(&mut w.state, &mut w.journal, 3, &mut acc).unwrap();
+        assert_eq!(w.state.government.debt, Money::ZERO, "surplus retires debt");
+        assert_eq!(w.state.government.debt_accrued_milli, 0);
+        assert_eq!(w.state.government.books.debt_repaid, WELFARE_FLOOR);
+        assert_eq!(w.state.bank.books.sovereign_repaid, WELFARE_FLOOR);
+        assert!(w
+            .journal
+            .events
+            .iter()
+            .any(|e| matches!(e.event, Event::GovDebtCleared)));
+        assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn sovereign_interest_capitalizes_when_the_treasury_is_empty() {
+        let mut w = world();
+        stage_deficit(&mut w, 50_000);
+        // A $100 floor makes one draw big enough for whole-cent daily
+        // interest: $100.00 × 1,800 bp / 360 = 5¢/day.
+        w.state.government.welfare_floor = Money::from_cents(10_000);
+        let mut acc = DayAccumulator::default();
+        run(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(w.state.government.debt, Money::from_cents(10_000));
+        // Day 2: no intake, nothing to pay interest with — it compounds.
+        run(&mut w.state, &mut w.journal, 2, &mut acc).unwrap();
+        assert_eq!(
+            w.state.government.debt,
+            Money::from_cents(10_005),
+            "unpayable interest capitalizes into the principal"
+        );
+        assert_eq!(
+            w.state.government.books.debt_capitalized,
+            Money::from_cents(5)
+        );
+        assert_eq!(
+            w.state.government.debt,
+            w.state.government.books.expected_debt()
+        );
+        assert_eq!(w.state.total_cash(), w.state.expected_total_money);
+        crate::invariants::check_all(&w.state, &w.journal).unwrap();
+    }
+
+    #[test]
+    fn the_bank_rations_the_state_at_its_liquidity_floor() {
+        let mut w = world();
+        stage_deficit(&mut w, 1_000_000);
+        // The bank holds only its floor plus $5 — the state gets $5, not
+        // the whole bill.
+        let floor = w.state.bank.liquidity_floor();
+        let excess = w.state.bank.cash - floor - Money::from_cents(500);
+        ledger::burn(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            AccountId::Bank,
+            excess,
+            "stage illiquidity".into(),
+        )
+        .unwrap();
+        let mut acc = DayAccumulator::default();
+        run(&mut w.state, &mut w.journal, 1, &mut acc).unwrap();
+        assert_eq!(
+            w.state.government.debt,
+            Money::from_cents(500),
+            "the draw stops at the bank's liquidity floor"
+        );
+        assert_eq!(w.state.bank.cash, floor);
         crate::invariants::check_all(&w.state, &w.journal).unwrap();
     }
 
