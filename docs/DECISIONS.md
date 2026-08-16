@@ -915,3 +915,58 @@ later Phase 4 increments: government debt/deficits, the remaining
 levers (income/business tax, minimum wage, subsidies, spending
 programs), welfare as a settable lever, and the UI surface (Phase 5 owns
 screens; the shell still has no command channel).
+
+---
+
+## 030 — Scenario shocks: conditions, not outcomes — and where a drought must bind
+
+**Context.** Phase 4's deterministic event system. The BRIEF's contract
+is strict: "events modify underlying conditions, never prescribe
+outcomes — a drought reduces agricultural output; the resulting food
+shortage, inflation and business failures must emerge from normal
+systems." Tick phase 2 has been a reserved slot since Phase 0.
+
+**Decision — the lifecycle.** A shock is a `TriggerShock { kind, days }`
+player command (so scenarios ride the existing command log: queued,
+tick-boundary applied, replayable, deterministic — no new scheduling
+machinery and no RNG). It lives in hashed state (`SimState.shocks`) for
+a fixed span; phase 2 retires it the day it expires, giving exactly
+`days` modified production days. One shock per kind at a time —
+re-triggering is a `CommandRejected`, because silent stacking is how a
+scenario stops meaning what it says. `ShockBegan`/`ShockEnded` journal
+both ends.
+
+**Decision — one mechanical hook.** Shocks touch the economy through a
+single function: `capacity_bp(state, business_kind)` — a production-
+capacity multiplier. Drought: farms × 50% (`DROUGHT_CAPACITY_CUT_BP =
+5_000`). Two sites apply it, deliberately BOTH: the production batch cap
+(the condition itself) and the price review's utilization base — a
+farm producing at half capacity is not idle, and without the second
+site the anti-monopolist idle-capacity cut would fire price CUTS into
+the scarcity the drought just created.
+
+**Decision — where the probe binds.** The first calibration run
+injected the drought at tick 200 and the economy shrugged: output fell
+17%, no price moved — because tick 200 is the post-boom glut, where
+farms run far under capacity and buffers are fat. That is the system
+WORKING (a drought during a glut should be absorbed), but a probe
+wants its channel demonstrable, so `probe_drought` injects at tick 600
+— the mature steady state, production sized to demand — where the cut
+binds hard: output 56% of control, wheat peak +69% over its pre-drought
+mean (control flat), food +28%, 34 food-chain price raises. Thresholds
+frozen with regression margins (≤75%, ≥130%, ≥115%, ≥5). The tick-200
+lesson is recorded in the probe's own comments.
+
+**Verification.** All 19 suites green; the four-seed decade soak
+reproduces the government-kernel endpoints EXACTLY (an untriggered
+shock system is behavior-neutral — phase 2 is a no-op on an empty
+list). Saves break again (SimState grew `shocks`); schema_version
+stays 1 pre-1.0.
+
+**Deferred.** The BRIEF's remaining shock kinds land opportunistically
+with the mechanics they touch (mine collapse → capacity_bp on mines;
+epidemic → labor; export boom → demand side, which needs a second hook
+kind); shock magnitude as a command parameter (constants keep scenarios
+comparable); shocks in the snapshot/overview UI (Phase 5); the contract
+capacity-share check reads nominal capacity — revisit when a
+contractable kind can be shocked.

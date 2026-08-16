@@ -404,6 +404,16 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
         Event::SalesTaxSet { old_bp, new_bp } => {
             format!("The sales tax moved {}% → {}%", old_bp / 100, new_bp / 100)
         }
+        Event::ShockBegan { kind, days } => match kind {
+            crate::shocks::ShockKind::Drought => format!(
+                "A drought grips the farmland — the fields will yield half for {days} days"
+            ),
+        },
+        Event::ShockEnded { kind } => match kind {
+            crate::shocks::ShockKind::Drought => {
+                "The drought has broken — the fields recover".to_string()
+            }
+        },
         Event::WelfarePaid { agent, amount } => format!(
             "The welfare office topped {} up with {amount}",
             agent_label(state, *agent)

@@ -4,10 +4,10 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 4 in progress (government kernel live; deterministic
-events next). Sections marked *[activates: Phase N]* are reserved slots
-in the phase order, documented now so later systems slot in without
-reordering anything.
+Status: Phase 4 in progress (government kernel + scenario shocks live;
+delayed-policy test and `soak_10y` next). Sections marked *[activates:
+Phase N]* are reserved slots in the phase order, documented now so later
+systems slot in without reordering anything.
 
 ## Time
 
@@ -22,7 +22,7 @@ Every tick executes exactly this sequence:
 | # | Phase | Phase 0 behavior |
 |---|-------|------------------|
 | 1 | **Apply queued commands** | All pending commands with `tick ≤ now`, in `(tick, seq)` order. Failures become `CommandRejected` events, never halts. |
-| 2 | Scheduled events | *[activates: Phase 4]* |
+| 2 | **Scheduled events** | Expired scenario shocks retire (with a `ShockEnded` event) before the day's conditions are read; activation is a `TriggerShock` command, phase 1 (see §Shocks; Phase 4). |
 | 3 | **Production** | Businesses run recipes; equipped workers add the tool bonus and wear tools down (see §Production). |
 | 4 | **Labor market** | Job matching, then daily payroll (see §Labor). |
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
@@ -278,6 +278,44 @@ BRIEF's "cannot spend unlimited money" is structural.
   == `tax_collected` — every collected cent has a payer who booked it
   (this makes `taxes_paid` globally load-bearing for test staging that
   resyncs books mid-run).
+
+## Shocks (Phase 4 — the deterministic event system, DECISIONS.md #030)
+
+Scenario shocks modify underlying CONDITIONS, never outcomes (BRIEF):
+the shortage, inflation and failures that follow must emerge from the
+normal systems.
+
+- **Lifecycle**: `TriggerShock { kind, days }` (player command, days
+  clamped 1..=3,600) activates at its tick boundary like any command and
+  pushes an `ActiveShock` into hashed state; tick phase 2 retires it at
+  the start of the day it expires, so a `days`-long shock modifies
+  exactly `days` production days. One shock of a kind at a time —
+  re-triggering an active kind is a `CommandRejected`, never a stack.
+  `ShockBegan`/`ShockEnded` events mark both ends.
+- **The single mechanical hook**: `shocks::capacity_bp(state, kind)` — a
+  production-capacity multiplier per business kind. The production
+  phase's batch cap and the price review's utilization base BOTH apply
+  it, so a throttled business neither produces past its conditions nor
+  mistakes them for idle capacity (which would fire the anti-monopolist
+  price cut against the scarcity).
+- **Drought** (the first kind): farms yield half
+  (`DROUGHT_CAPACITY_CUT_BP = 5,000`) for the duration. `probe_drought`
+  guards the channel end to end on pinned seed 42, shock at tick 600 —
+  the mature steady state, where capacity binds; the same cut at tick
+  200 (the post-boom glut) is simply absorbed, which is the system
+  working. Calibrated once and frozen: output falls to ≤75% of control
+  (measured 56%), wheat peaks ≥130% of its pre-drought mean and of the
+  control's peak (measured 169%/173%), food follows at ≥115% (measured
+  128%/138%), and the food chain visibly reprices (≥5 raises; measured
+  34).
+- **Recorded deferrals**: the BRIEF's remaining shock kinds (mine
+  collapse, resource discovery, population influx, epidemic, trade
+  disruption, bank failure, technology improvement, labour strike,
+  political scandal, fire, war nearby, export boom) each ride their own
+  mechanics and land opportunistically; shocks scale capacity only (no
+  demand/price-side kinds yet); the contract capacity-share check reads
+  nominal capacity (farms are not contractable, so no site reads it
+  under drought today).
 
 ## Production
 

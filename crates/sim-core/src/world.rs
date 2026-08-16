@@ -71,6 +71,9 @@ pub struct SimState {
     /// The government (Phase 4): treasury, sales tax rate, fiscal books.
     /// Born broke — the treasury holds only what taxation collected.
     pub government: Government,
+    /// Active scenario shocks (Phase 4): condition modifiers with a fixed
+    /// lifespan, triggered by command, retired by tick phase 2.
+    pub shocks: Vec<crate::shocks::ActiveShock>,
     pub market: MarketState,
     pub status: SimStatus,
 }

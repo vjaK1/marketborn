@@ -397,6 +397,7 @@ pub fn generate(config: WorldConfig) -> World {
         // The government is born broke: its treasury holds only what the
         // sales tax collects (DECISIONS.md #029). Nothing minted here.
         government: crate::government::Government::new(),
+        shocks: Vec::new(),
         market: MarketState::default(),
         status: SimStatus::Running,
     };

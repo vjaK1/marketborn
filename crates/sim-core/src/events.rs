@@ -160,6 +160,15 @@ pub enum Event {
         old_bp: i64,
         new_bp: i64,
     },
+    /// A scenario shock began modifying conditions (Phase 4).
+    ShockBegan {
+        kind: crate::shocks::ShockKind,
+        days: u32,
+    },
+    /// A scenario shock ran its course; conditions recover.
+    ShockEnded {
+        kind: crate::shocks::ShockKind,
+    },
     /// The welfare floor topped a destitute agent up (Phase 4).
     WelfarePaid {
         agent: AgentId,
@@ -207,6 +216,8 @@ impl Event {
             Event::CollateralSeized { .. } => "collateral_seized",
             Event::BankRateSet { .. } => "bank_rate_set",
             Event::SalesTaxSet { .. } => "sales_tax_set",
+            Event::ShockBegan { .. } => "shock_began",
+            Event::ShockEnded { .. } => "shock_ended",
             Event::WelfarePaid { .. } => "welfare_paid",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",

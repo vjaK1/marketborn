@@ -52,8 +52,9 @@ impl World {
 
         // Phase 1 — apply queued commands.
         apply_commands(self, t);
-        // Phase 2 — scheduled events: activates in project Phase 4 (no
-        // deterministic event types exist yet).
+        // Phase 2 — scheduled events: expired shocks retire before the
+        // day's conditions are read (activation is a command, phase 1).
+        crate::shocks::run(&mut self.state, &mut self.journal, t);
         // Phase 3 — production.
         systems::production::run(&mut self.state);
         // Phase 4 — labor market (matching, payroll).
@@ -246,6 +247,19 @@ fn apply_commands(world: &mut World, t: u64) {
                 world
                     .journal
                     .push_event(t, Event::SalesTaxSet { old_bp, new_bp });
+            }
+            PlayerCommand::TriggerShock { kind, days } => {
+                if let Err(reason) =
+                    crate::shocks::trigger(&mut world.state, &mut world.journal, t, kind, days)
+                {
+                    world.journal.push_event(
+                        t,
+                        Event::CommandRejected {
+                            seq: due.seq,
+                            reason,
+                        },
+                    );
+                }
             }
         }
     }

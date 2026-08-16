@@ -699,8 +699,13 @@ pub fn run(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(),
                 .get(&b.owner)
                 .map(|a| a.traits)
                 .unwrap_or(Traits::NEUTRAL);
-            let capacity_units =
-                b.workers.len() as Qty * b.recipe.batches_per_worker * b.recipe.output.1.max(1);
+            // Shocks scale the possible here exactly as in production:
+            // a drought-throttled farm is not idle (Phase 4).
+            let capacity_units = b.workers.len() as Qty
+                * b.recipe.batches_per_worker
+                * b.recipe.output.1.max(1)
+                * crate::shocks::capacity_bp(state, b.kind)
+                / 10_000;
             // A zero-revenue window extends the dry run; any sale resets it.
             let dry_windows = if b.revenue_window == Money::ZERO {
                 b.dry_windows + 1

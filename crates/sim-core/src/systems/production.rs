@@ -67,8 +67,13 @@ pub fn run(state: &mut SimState) {
             if current >= target {
                 None
             } else {
-                let mut batches =
-                    ceil_div(target - current, out_per_batch).min(b.capacity_batches());
+                // Shocks throttle the possible: a drought withers farm
+                // capacity (Phase 4). The price review's utilization base
+                // applies the same factor, so throttled fields never read
+                // as idle capacity.
+                let capacity =
+                    b.capacity_batches() * crate::shocks::capacity_bp(state, b.kind) / 10_000;
+                let mut batches = ceil_div(target - current, out_per_batch).min(capacity);
                 for (good, per_batch) in &b.recipe.inputs {
                     if *per_batch > 0 {
                         batches = batches.min(b.stock(*good) / per_batch);
@@ -306,6 +311,56 @@ mod tests {
         assert!(bonus > 0, "farm bpw must yield a whole bonus batch");
         assert_eq!(farm.produced_today, base + bonus);
         assert_eq!(farm.tool_wear, workers, "one worker-day of wear each");
+    }
+
+    #[test]
+    fn a_drought_halves_farm_output_but_not_the_mill() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(5));
+        let farm_id = *w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Wheat)
+            .map(|b| &b.id)
+            .unwrap();
+        let full_capacity = {
+            let farm = w.state.businesses.get_mut(&farm_id).unwrap();
+            farm.inventory.clear();
+            farm.sales_ema_milli = 1_000_000; // capacity-bound
+            farm.capacity_batches()
+        };
+        crate::shocks::trigger(
+            &mut w.state,
+            &mut w.journal,
+            0,
+            crate::shocks::ShockKind::Drought,
+            28,
+        )
+        .unwrap();
+        run(&mut w.state);
+        let farm = &w.state.businesses[&farm_id];
+        assert_eq!(
+            farm.produced_today,
+            full_capacity * (10_000 - crate::shocks::DROUGHT_CAPACITY_CUT_BP) / 10_000,
+            "the fields yield the uncut share under drought"
+        );
+        // The mill grinds at full capacity — only agriculture withers.
+        let mill_id = *w
+            .state
+            .businesses
+            .values()
+            .find(|b| b.sells == Good::Flour)
+            .map(|b| &b.id)
+            .unwrap();
+        {
+            let mill = w.state.businesses.get_mut(&mill_id).unwrap();
+            mill.inventory.clear();
+            mill.add_stock(Good::Wheat, 100);
+            mill.sales_ema_milli = 1_000_000;
+        }
+        let mill_capacity = w.state.businesses[&mill_id].capacity_batches();
+        run(&mut w.state);
+        assert_eq!(w.state.businesses[&mill_id].produced_today, mill_capacity);
     }
 
     #[test]

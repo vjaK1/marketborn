@@ -29,6 +29,14 @@ pub enum PlayerCommand {
     /// to every goods sale (market and contract alike) from this tick on.
     /// Clamped to 0..=10_000 bp at application.
     SetSalesTax { rate_bp: i64 },
+    /// Scenario shock (Phase 4): modify underlying conditions for `days`
+    /// (clamped 1..=3,600) — e.g. a drought halves farm capacity. One
+    /// shock of a kind at a time; re-triggering an active kind is
+    /// rejected. Consequences emerge from the normal systems.
+    TriggerShock {
+        kind: crate::shocks::ShockKind,
+        days: u32,
+    },
 }
 
 impl PlayerCommand {
@@ -37,6 +45,7 @@ impl PlayerCommand {
             PlayerCommand::AdjustMoneySupply { .. } => "adjust_money_supply",
             PlayerCommand::SetBankRate { .. } => "set_bank_rate",
             PlayerCommand::SetSalesTax { .. } => "set_sales_tax",
+            PlayerCommand::TriggerShock { .. } => "trigger_shock",
         }
     }
 }

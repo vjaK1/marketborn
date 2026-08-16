@@ -216,11 +216,13 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   ~~`probe_rate_shock`~~ ✅ · ~~debt reconciliation invariant~~ ✅ ·
   ~~negotiation logging~~ ✅ · ~~contract view (launch-verified)~~ ✅ —
   **phase complete**; recorded deferrals in DECISIONS #026–#028.
-- **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy
-  band asserts); ~~tax reconciliation~~ ✅ (`tax_reconciliation`
-  invariant every sweep + `taxes.rs`: organic collection, contract-site
-  levy, welfare floor, `SetSalesTax` clamp — session 7); delayed-policy
-  effects.
+- **Phase 4**: ~~`probe_drought`~~ ✅ (seed 42, drought at tick 600 —
+  where the mature steady state makes the cut bind; output ≤75% of
+  control, wheat ≥130%, food ≥115%, chain repricing — session 8);
+  `soak_10y` (3650 ticks, non-degeneracy band asserts); ~~tax
+  reconciliation~~ ✅ (`tax_reconciliation` invariant every sweep +
+  `taxes.rs`: organic collection, contract-site levy, welfare floor,
+  `SetSalesTax` clamp — session 7); delayed-policy effects.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
   inspect agent/business, apply policy, save, load); packaged-app smoke.
 - **Phase 6**: proptest world generators (thousands of ticks, all
