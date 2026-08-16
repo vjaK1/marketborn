@@ -1448,3 +1448,50 @@ counterexample ever appears.
 staged tests are examples by design); fuzzing the websocket protocol
 surface (serde rejects malformed frames — the serve test covers the
 error path); the benchmark suite (the perf-pass increment).
+
+---
+
+## 040 — The failure suite: every catastrophe degrades, none halt
+
+**Context.** The BRIEF's failure-test list, Phase 6's second tier.
+The hardening claim under test: no staged disaster crashes, panics or
+trips an invariant — the world DEGRADES through its ordinary
+machinery.
+
+**Decision.** `tests/failures.rs`, one staged catastrophe per test,
+each ending in the same three asserts (not halted, money conserved,
+all nine invariants green — on top of debug's every-tick sweep) plus
+scenario-specific evidence: **empty markets** (every shelf and pantry
+bared) → hunger strikes and production RESTARTS; **no employers**
+(every roster cleared, every till and owner broke) → the dole
+machinery survives even as the tax base dies; **mass bankruptcy** →
+payroll misses shed workers via `QuitUnpaid`, cleanly; **bank
+insolvency mid-loan** → new credit refused (`BankIlliquid`), the
+deficit lever finds nothing lendable, collection still works;
+**resource exhaustion** (agriculture erased) → famine, not a crash;
+**extreme inflation** (~×100 money supply by command) → food at least
+doubles through ordinary repricing, ceilings hold. Corrupted saves and
+newer schema versions were already covered in sim-persist (Phase 0).
+Staging discipline the invariants police: cash surgery resyncs books
+carrying `taxes_paid` forward; inventory surgery resyncs the goods
+targets.
+
+**1000-agent worlds — generated, green, and measured.** Worldgen
+scales to exactly the template rule (191 businesses at pop-1000);
+100 ticks green in the fast tier, a full year green in `check:full`.
+The MEASUREMENTS, recorded not hidden: year one runs 367 employed /
+892 hungry (structural — the template scaling creates ~440 jobs for
+1,000 people, so mass unemployment is baked into worldgen at this
+size); the decade decays to 80 employed. And the real finding:
+**175 ticks/s in year one collapses to 13 ticks/s averaged over the
+decade** — per-tick cost grows with world AGE, pointing at unbounded
+accumulations (the terminal-contract map, the loan book, and the
+per-agent relation/belief stores are the suspects). That is the perf
+pass's opening brief: profile first, then fix or bound.
+
+**Consequences.** All seven fast failure tests run in under a second;
+the pop-1000 year rides `check:full`. v1.0 ships with the pop-scaling
+health limitation RECORDED (worldgen's job template is calibrated for
+small towns; a jobs-per-capita rebalance is a design change, not a
+hardening fix) — the aging-perf issue, by contrast, is in scope for
+the perf increment.

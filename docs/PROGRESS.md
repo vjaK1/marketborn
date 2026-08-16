@@ -5,6 +5,57 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 18 — 2026-08-16 — Phase 6 increment 2: the failure suite
+
+### Every catastrophe degrades, none halt — DECISIONS #040
+
+- `tests/failures.rs`: empty markets (production restarts from bare
+  shelves), no employers (the dole machinery outlives its tax base),
+  mass bankruptcy (payrolls shed workers via QuitUnpaid, cleanly),
+  bank insolvency mid-loan (BankIlliquid refusals, deficit lever finds
+  nothing lendable, collection still works), resource exhaustion
+  (famine, not a crash), extreme inflation (~×100 money by command →
+  food at least doubles through ordinary repricing). Each ends with
+  not-halted + conservation + all nine invariants, on top of debug's
+  every-tick sweep. All seven fast tests: 0.91 s, first-run green.
+- **1000-agent worlds**: generate to the template rule exactly (191
+  businesses), tick green (100 ticks fast tier; a full year in
+  `check:full`). Corrupted/newer saves: covered in sim-persist since
+  Phase 0.
+
+### The measurements (recorded, not hidden)
+
+- Pop-1000 seed 42: year one **367 employed / 892 hungry** (structural
+  — the worldgen job templates create ~440 jobs per 1,000 people;
+  small-town calibration, recorded as a v1.0 known limitation, a
+  design rebalance not a hardening fix); decade decays to 80 employed.
+- **The perf finding**: 175 ticks/s (year one) → **13 ticks/s**
+  averaged over the decade at pop-1000 — per-tick cost grows with
+  world AGE. Suspects: the terminal-contract map (never pruned, every
+  active contract filter scans it), the loan book, per-agent
+  relation/belief stores. This is the perf pass's opening brief.
+
+### Exact next task (Phase 6 — the perf pass)
+
+1. Session protocol: `npm run check` first; read PERFORMANCE_PLAN.md
+   (the targets) before touching anything.
+2. **Profile first** (the constitution's rule): time per-phase costs
+   on an AGED pop-1000 world (e.g. instrument a run at ticks 0–100 vs
+   3000–3100, or use a sampling profiler) and find where the 13×
+   slowdown lives. Then fix or bound the accumulations (candidates:
+   prune/index terminal contracts — the ContractId-keyed map can keep
+   an active-ids index or retire terminals to an archive vec; loan
+   book likewise; relation/belief maps are drift-bounded — verify).
+   Every fix must hold the determinism suite + full soak matrix
+   IDENTICAL (pure performance, zero behavior).
+3. Record before/after in PERF_RESULTS.md against PERFORMANCE_PLAN's
+   targets; keep `check` under ~5 min.
+4. Then: final docs sweep (README/BRIEF cross-check, ARCHITECTURE
+   accuracy pass), and the **v1.0 tag**.
+5. Soak checkpoints unchanged.
+
+---
+
 ## Session 17 — 2026-08-16 — Phase 6 increment 1: the property suite
 
 ### Sweep the guarantees, not the examples — DECISIONS #039

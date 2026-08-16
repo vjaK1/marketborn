@@ -248,10 +248,14 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   ledger conservation under arbitrary op sequences, arbitrary worlds
   green under the nine-invariant sweep, the command surface unable to
   corrupt the world — plus save/resume hash equality swept in
-  sim-persist; wide tiers in `check:full`); failure tests (empty
-  markets, no employers, mass bankruptcy, bank insolvency, resource
-  exhaustion, extreme inflation, corrupted saves ✅ (garbage + newer
-  schema, since Phase 0), 1000-agent worlds); benchmark suite.
+  sim-persist; wide tiers in `check:full`); ~~failure tests~~ ✅
+  (session 18, DECISIONS #040: empty markets, no employers, mass
+  bankruptcy, bank insolvency, resource exhaustion, extreme
+  inflation — each degrades without halting; corrupted saves ✅ since
+  Phase 0; 1000-agent worlds generate to the template rule, tick
+  green for a year in `check:full`, health + aging-perf finding
+  recorded); benchmark suite (the perf pass — its opening brief is
+  the measured 175→13 ticks/s decade slowdown at pop-1000).
 
 ## Emergence probes — calibration policy
 
