@@ -1209,3 +1209,49 @@ than deferring) — the packaged-app smoke test (Phase 6) exercises it.
 index (food is the survival good and the honest v1 signal); wealth
 Gini including business equity attributed to owners; per-lever
 confirmation dialogs (commands are reversible by counter-command).
+
+---
+
+## 035 — The city view is presentation, not state — and the timeline gets filters
+
+**Context.** Two BRIEF v1.0 screens: the stylised 2D city map and
+event-timeline filters. The simulation has NO spatial model — nothing
+in `sim-core` knows where anything is, and inventing coordinates in
+hashed state for a picture would be scope masquerading as data.
+
+**Decision — the map is a pure derived view.** `CityView` lays the
+snapshot out deterministically by kind and id: farmland, town,
+industry and works zones of business tiles (name, kind, staffing;
+dead businesses get a red dashed border), a civic column (the bank
+with its rate, the government with its treasury), and a residential
+strip with one house glyph per resident — filled when they own their
+home, hollow when renting, flushed red while hungry. Clicking a house
+opens the agent inspector. No distances, no routes: the BRIEF's
+"transport routes" ride a real spatial model if one ever exists
+(recorded, not faked). Layout wraps by row counts, so pop-100 worlds
+render without code changes.
+
+**Decision — timeline filters are kind groups plus text.** The event
+log gains chips (People / Business / Contracts / Finance /
+Government) mapping the ~30 event kinds into player-meaningful
+groups, plus a free-text filter over the rendered event text (names,
+goods, anything). A kind missing from every group still shows under
+"All" — new event kinds degrade gracefully instead of vanishing.
+Filtering is client-side over the snapshot's event tail; deeper
+history rides the SQLite archive when the replay/archive UI lands.
+
+**Verification.** Launch-verified in the browser against serve at two
+world states: at day 64 the map showed a fully staffed town with the
+hungry cluster matching the stats chip; by day 180 it had LIVE
+emergence on screen — the lumber camp and brickworks dead with red
+dashed borders, the hungry house count grown, the treasury at $0. The
+Government filter chip activated with an honest "nothing matches this
+filter" empty state, and clicking a red filled house opened the
+inspector on exactly a hungry homeowner (Lars Kroll, pantry 0,
+hungry 1d). Both gates green; no sim-core changes at all in this
+increment.
+
+**Deferred.** Clicking a business tile (needs the business inspector
+screen — the next Phase 5 batch alongside historical charts);
+warehouse/route glyphs (no spatial model); map zoom/pan (a static
+overview earns its keep first).

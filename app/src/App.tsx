@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { AgentInspector } from './components/AgentInspector';
 import { AgentTable } from './components/AgentTable';
 import { BusinessTable } from './components/BusinessTable';
+import { CityView } from './components/CityView';
 import { ContractInspector } from './components/ContractInspector';
 import { ContractTable } from './components/ContractTable';
 import { EventLog } from './components/EventLog';
@@ -23,6 +24,7 @@ export default function App() {
   const [inspectedContract, setInspectedContract] = useState<number | null>(
     null,
   );
+  const [cityOpen, setCityOpen] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +74,21 @@ export default function App() {
         <SpeedControls />
       </header>
       <StatsBar stats={snapshot.stats} />
+      <section className="panel city-panel">
+        <h2 className="collapsible" onClick={() => setCityOpen(!cityOpen)}>
+          City {cityOpen ? '▾' : '▸'}
+        </h2>
+        {cityOpen && (
+          <div className="body">
+            <CityView
+              businesses={snapshot.businesses}
+              agents={snapshot.agents}
+              stats={snapshot.stats}
+              onSelectAgent={setInspected}
+            />
+          </div>
+        )}
+      </section>
       <div className="grid">
         <section className="panel">
           <h2>Prices — daily average</h2>

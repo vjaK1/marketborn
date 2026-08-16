@@ -5,6 +5,49 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 12 — 2026-08-16 — Phase 5 increment 3: city view + timeline filters
+
+### Two screens, zero sim-core changes — DECISIONS #035
+
+- **City view**: a pure derived SVG map (the sim has no spatial model
+  and the map never pretends otherwise): farmland/town/industry/works
+  zones of business tiles with staffing, dead businesses in red
+  dashed borders, a civic column (bank + government with live
+  figures), and one house per resident — filled = homeowner, hollow =
+  renter, red = hungry. Click a house → agent inspector. Collapsible
+  panel; layout wraps for pop-100 worlds.
+- **Timeline filters**: chips grouping the ~30 event kinds
+  (People/Business/Contracts/Finance/Government) + free-text filter
+  over event text; unknown kinds still show under "All".
+
+### Verification
+
+- Launch-verified in the browser against serve at two world states:
+  day 64 (staffed town; red-house cluster == the hungry chip) and day
+  180 (live emergence ON THE MAP: lumber camp + brickworks dead with
+  red dashed borders; treasury $0). Government filter chip → honest
+  empty state; clicking a red filled house opened the inspector on a
+  hungry homeowner (Lars Kroll, pantry 0, hungry 1d). `npm run
+  check` exit 0 before and after.
+
+### Exact next task (Phase 5 continues)
+
+1. Session protocol: `npm run check` first.
+2. Next screen batch: **business inspector** (the missing v1.0
+   screen — books/P&L/balance-sheet views exist in BooksRow, plus
+   contracts and loans of the business; wire city business tiles and
+   business-table rows to it), then **historical charts**
+   (employment/hunger/treasury/debt series — needs a metrics series
+   in the snapshot or an on-demand query), then **save-slot
+   management + autosave cadence** (named slots + `--load` for serve
+   and the shell). Each launch-verified.
+3. Then Playwright E2E against serve and the packaged-app smoke test
+   (which owns the deferred desktop lever-pull check).
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 11 — 2026-08-16 — Phase 5 increment 2: macro stats + the policy panel
 
 ### The world overview grows up — DECISIONS #034
