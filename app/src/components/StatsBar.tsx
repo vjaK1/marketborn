@@ -1,4 +1,4 @@
-import { formatMoney, formatMoneyWhole } from '../format';
+import { formatBp, formatBpSigned, formatMoney, formatMoneyWhole } from '../format';
 import type { Stats } from '../types';
 
 export function StatsBar({ stats }: { stats: Stats }) {
@@ -19,6 +19,19 @@ export function StatsBar({ stats }: { stats: Stats }) {
       tone: stats.hungry > 0 ? 'bad' : undefined,
     },
     { label: 'Money supply', value: formatMoneyWhole(stats.money_total_cents) },
+    { label: 'GDP (7d)', value: formatMoneyWhole(stats.gdp_week_cents) },
+    {
+      label: 'Food inflation (90d)',
+      value:
+        stats.food_inflation_90d_bp !== null
+          ? formatBpSigned(stats.food_inflation_90d_bp)
+          : '—',
+      tone:
+        stats.food_inflation_90d_bp !== null && stats.food_inflation_90d_bp > 1_000
+          ? 'warn'
+          : undefined,
+    },
+    { label: 'Cash Gini', value: formatBp(stats.cash_gini_bp) },
     {
       label: 'Food price',
       value:
@@ -27,6 +40,16 @@ export function StatsBar({ stats }: { stats: Stats }) {
           : '—',
     },
     { label: 'Food on shelves', value: String(stats.food_stock) },
+    { label: 'Bank rate', value: `${formatBp(stats.bank_rate_bp)}/yr` },
+    {
+      label: 'Treasury',
+      value: formatMoney(stats.govt_cash_cents),
+    },
+    {
+      label: 'Govt debt',
+      value: formatMoney(stats.govt_debt_cents),
+      tone: stats.govt_debt_cents > 0 ? 'warn' : undefined,
+    },
   ];
   return (
     <div className="stats">

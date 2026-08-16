@@ -80,6 +80,16 @@ export interface Stats {
   money_total_cents: number;
   food_price_cents: number | null;
   food_stock: number;
+  gdp_week_cents: number;
+  food_inflation_90d_bp: number | null;
+  cash_gini_bp: number;
+  bank_rate_bp: number;
+  govt_cash_cents: number;
+  govt_debt_cents: number;
+  sales_tax_bp: number;
+  welfare_floor_cents: number;
+  minimum_wage_cents: number;
+  deficit_limit_cents: number;
 }
 
 export interface AgentRow {

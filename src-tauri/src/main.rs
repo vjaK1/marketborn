@@ -27,6 +27,9 @@ enum ShellMsg {
     AgentDetail(u32, Sender<Option<Value>>),
     /// Contract view detail query: terms, negotiation log, history.
     ContractDetail(u32, Sender<Option<Value>>),
+    /// A player command (the policy levers), queued at the next tick
+    /// boundary — the only channel that mutates the world.
+    QueueCommand(sim_core::PlayerCommand, Sender<Result<(u64, u64), String>>),
 }
 
 struct Shared {
@@ -85,6 +88,23 @@ fn get_contract_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Valu
 }
 
 #[tauri::command]
+fn queue_command(
+    command: sim_core::PlayerCommand,
+    shared: State<'_, Shared>,
+) -> Result<Value, String> {
+    let (reply_tx, reply_rx) = channel();
+    {
+        let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
+        tx.send(ShellMsg::QueueCommand(command, reply_tx))
+            .map_err(|_| "simulation thread is gone".to_string())?;
+    }
+    let (seq, tick) = reply_rx
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|_| "command queue timed out".to_string())??;
+    Ok(serde_json::json!({ "seq": seq, "tick": tick }))
+}
+
+#[tauri::command]
 fn save_game(shared: State<'_, Shared>) -> Result<String, String> {
     let (reply_tx, reply_rx) = channel();
     {
@@ -138,7 +158,7 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
     publish_snapshot(&app, &slot, &world);
 
     let handle_msg =
-        |msg: ShellMsg, world: &World, speed: &mut u8, next_tick: &mut Instant| -> bool {
+        |msg: ShellMsg, world: &mut World, speed: &mut u8, next_tick: &mut Instant| -> bool {
             match msg {
                 ShellMsg::SetSpeed(level) => {
                     *speed = level.min(4);
@@ -163,6 +183,18 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
                         .and_then(|d| serde_json::to_value(&d).ok());
                     let _ = reply.send(detail);
                 }
+                ShellMsg::QueueCommand(cmd, reply) => {
+                    let at = world.state.tick + 1;
+                    let result = world
+                        .queue_command(at, cmd)
+                        .map(|seq| (seq, at))
+                        .map_err(|e| e.to_string());
+                    match &result {
+                        Ok((seq, tick)) => info!("command #{seq} queued for tick {tick}"),
+                        Err(e) => warn!("command refused: {e}"),
+                    }
+                    let _ = reply.send(result);
+                }
             }
             true
         };
@@ -177,7 +209,7 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
                 }
                 match rx.recv_timeout(Duration::from_millis(100)) {
                     Ok(msg) => {
-                        handle_msg(msg, &world, &mut speed, &mut next_tick);
+                        handle_msg(msg, &mut world, &mut speed, &mut next_tick);
                         publish_snapshot(&app, &slot, &world);
                         last_snapshot = Instant::now();
                     }
@@ -187,7 +219,7 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
             }
             Some(interval) => {
                 while let Ok(msg) = rx.try_recv() {
-                    handle_msg(msg, &world, &mut speed, &mut next_tick);
+                    handle_msg(msg, &mut world, &mut speed, &mut next_tick);
                 }
                 if tick_interval(speed).is_none() {
                     continue;
@@ -246,7 +278,8 @@ fn main() {
             set_speed,
             save_game,
             get_agent_detail,
-            get_contract_detail
+            get_contract_detail,
+            queue_command
         ])
         .run(tauri::generate_context!())
         .expect("failed to launch Marketborn");

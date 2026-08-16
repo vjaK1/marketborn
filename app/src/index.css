@@ -501,3 +501,72 @@ td.neg {
   color: var(--serious);
   border-color: currentColor;
 }
+
+/* ---------- Policy panel ---------- */
+
+.policy-budget {
+  display: flex;
+  gap: 18px;
+  padding: 8px 12px;
+  color: var(--muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.policy-budget strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.policy-table td {
+  vertical-align: middle;
+}
+
+.policy-label {
+  color: var(--text-2);
+}
+
+.policy-current {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-input input {
+  width: 76px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.policy-input input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.policy-table button {
+  background: var(--panel);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+
+.policy-table button:hover {
+  background: #274058;
+  border-color: var(--accent);
+  color: #cfe4f7;
+}
+
+.policy-note {
+  color: var(--muted);
+  font-size: 11.5px;
+  max-width: 190px;
+}

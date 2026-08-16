@@ -5,6 +5,61 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 11 — 2026-08-16 — Phase 5 increment 2: macro stats + the policy panel
+
+### The world overview grows up — DECISIONS #034
+
+- Snapshot `Stats` gained the BRIEF's macro block, each defined by
+  what this economy actually measures (documented on the field):
+  GDP (7d) = spot trade value over the last 7 days; food inflation
+  (90d) = 14-day mean vs the window 90 days back, in bp (em-dash
+  until day 97); cash Gini in bp (household cash; sorted-rank
+  formula); bank rate; treasury; sovereign debt; and every lever's
+  current value for readback. Six new stat chips in the UI.
+- **The policy panel**: a Government panel with the budget line and
+  five lever rows (sales tax, bank rate, welfare floor, minimum wage,
+  deficit limit) — current value, unit-labelled input
+  (dollars/percent at the surface, cents/bp on the wire), Enact →
+  `queueCommand`, reply rendered as "enacted — takes effect day N".
+- **Both transports now carry the full protocol**: the desktop shell
+  gained `queue_command` (`ShellMsg::QueueCommand`; the sim loop's
+  handler closure widened to `&mut World`).
+
+### Verification
+
+- Launch-verified in the browser against serve: enacted the sales tax
+  1% → 5% from the panel — readback updated on the next snapshot,
+  "takes effect day 123" note, treasury growth visibly steepened, and
+  the welfare floor showed up in the agent table (two destitute
+  agents pinned at exactly $12.00 — the dole visible in the UI for
+  the first time). All suites green: `npm run check` exit 0, 140 unit
+  tests, 16 vitest (store fixture grew the ten stat fields).
+- The desktop shell's command channel is compile-verified (identical
+  pattern to its four proven handlers); its interactive check was
+  deliberately skipped — the machine was in active use during
+  verification, and fighting the user's foreground window is worse
+  than deferring. The packaged-app smoke (Phase 6) exercises it.
+
+### Exact next task (Phase 5 continues)
+
+1. Session protocol: `npm run check` first.
+2. Remaining screens, in rough order: **city view** (the stylised 2D
+   SVG map — residential/farm/industry/bank/government tiles driven by
+   snapshot data), **event-timeline filters** (by kind/entity on the
+   event log), **historical charts** (employment/hunger/treasury/debt
+   series from the metrics ring — needs a snapshot series or an
+   on-demand metrics query), **save-slot management + autosave
+   cadence** (named slots over the save protocol + `--load` for serve
+   and the shell). Each launch-verified.
+3. Then the Playwright E2E suite against serve (new world, speed,
+   inspect agent + business, apply policy, save, load) and the
+   packaged-app smoke test — which also owns the deferred desktop
+   lever-pull check.
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 10 — 2026-08-16 — Phase 5 increment 1: the websocket transport
 
 ### `sim-cli serve` — DECISIONS #033

@@ -6,6 +6,7 @@ import { ContractInspector } from './components/ContractInspector';
 import { ContractTable } from './components/ContractTable';
 import { EventLog } from './components/EventLog';
 import { MarketTable } from './components/MarketTable';
+import { PolicyPanel } from './components/PolicyPanel';
 import { PriceChart } from './components/PriceChart';
 import { SpeedControls } from './components/SpeedControls';
 import { StatsBar } from './components/StatsBar';
@@ -89,6 +90,12 @@ export default function App() {
             <h2>Markets</h2>
             <div className="body">
               <MarketTable markets={snapshot.markets} />
+            </div>
+          </section>
+          <section className="panel">
+            <h2>Government</h2>
+            <div className="body">
+              <PolicyPanel stats={snapshot.stats} />
             </div>
           </section>
           <section className="panel">

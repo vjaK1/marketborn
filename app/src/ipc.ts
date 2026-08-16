@@ -181,9 +181,8 @@ export async function queueCommand(
   command: Record<string, unknown>,
 ): Promise<{ seq: number; tick: number }> {
   if (isTauri()) {
-    // The desktop shell gains its command channel with the policy screen
-    // (Phase 5); until then commands are a serve-transport feature.
-    throw new Error('commands are not yet wired in the desktop shell');
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<{ seq: number; tick: number }>('queue_command', { command });
   }
   if (socket) {
     return wsRequest<{ seq: number; tick: number }>({

@@ -1154,3 +1154,58 @@ events streaming in the log.
 increment); TLS/remote binding (localhost-only by design);
 backpressure beyond the OS socket buffer (snapshots are ~tens of KB at
 pop 29 — revisit with the 1000-agent perf pass).
+
+---
+
+## 034 — The macro stats and the policy panel (what "GDP" and "inflation" mean here)
+
+**Context.** The BRIEF's world overview names macro indicators the
+snapshot never carried — GDP, inflation, wealth inequality, interest
+rate, government budget — and the Phase 4 levers existed only as
+CLI/test commands. Phase 5's first screen work: make the macro picture
+visible and the levers pullable.
+
+**Decision — honest definitions over textbook ones.** Each stat is
+defined by what this economy actually measures, documented on the
+field: **GDP (7d)** = spot-market trade value summed over the last
+seven metric days (reconstructed as Σ volume × daily VWAP; contract
+deliveries settle off-market and are excluded — a derived view, never
+read by simulation logic). **Food inflation (90d)** = mean traded food
+price over the last 14 days vs the 14-day window ending 90 days ago,
+in basis points; `None` until both windows have trades, so the UI
+shows an honest em-dash for the first 97 days. **Wealth inequality** =
+Gini of household cash in basis points (sorted-rank formula, exact
+zero on perfect equality; business equity stays on the business
+table). Interest rate, treasury, sovereign debt and every lever value
+are direct state reads — the panel's readbacks come from the same
+snapshot the world pushes, so an enacted lever visibly changes its own
+row.
+
+**Decision — the policy panel.** One "Government" panel: budget line
+(treasury + sovereign debt) and five lever rows (sales tax, bank rate,
+welfare floor, minimum wage, deficit limit), each showing the current
+value, a unit-labelled input (dollars/percent at the surface, integer
+cents/bp on the wire), and an Enact button that calls `queueCommand` —
+the reply's tick renders as "enacted — takes effect day N", the same
+next-tick-boundary contract every mutation obeys. The desktop shell
+gained the matching `queue_command` Tauri command (`ShellMsg::
+QueueCommand`, the sim loop's `&World` closure widened to `&mut`), so
+both transports now carry the full protocol.
+
+**Verification.** Launch-verified in the browser against serve, end to
+end: the sales-tax lever enacted 1% → 5% from the panel, the readback
+updated on the next snapshot, the note reported "takes effect day
+123", and the treasury's growth visibly steepened — with the welfare
+floor pinning two destitute agents at exactly $12.00 on the agent
+table, the first time the dole is visible in the UI. All suites green
+(140 unit / 16 vitest; the store fixture grew the ten new stat
+fields). The desktop shell's channel is compile-verified with the
+identical handler pattern as its four proven commands; its interactive
+check was deliberately skipped because the machine was in active use
+during verification (fighting the user's foreground window is worse
+than deferring) — the packaged-app smoke test (Phase 6) exercises it.
+
+**Deferred.** A GDP that counts contract-settled flow; a basket price
+index (food is the survival good and the honest v1 signal); wealth
+Gini including business equity attributed to owners; per-lever
+confirmation dialogs (commands are reversible by counter-command).

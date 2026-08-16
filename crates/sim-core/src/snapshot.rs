@@ -83,6 +83,28 @@ pub struct Stats {
     pub food_price_cents: Option<i64>,
     /// Food currently on business shelves.
     pub food_stock: i64,
+    /// Spot-market trade value summed over the last 7 days — the BRIEF's
+    /// "GDP" line (contract deliveries settle off-market and are not in
+    /// it; derived view only).
+    pub gdp_week_cents: i64,
+    /// Food-price inflation: mean traded price over the last 14 days vs
+    /// the 14-day window ending 90 days ago, in basis points. `None`
+    /// until both windows have trades.
+    pub food_inflation_90d_bp: Option<i64>,
+    /// Gini coefficient of household cash, in basis points (0 = perfect
+    /// equality) — the BRIEF's wealth-inequality line. Household cash
+    /// only; business equity is on the business table.
+    pub cash_gini_bp: i64,
+    /// The bank's base rate on new lending (and the sovereign float).
+    pub bank_rate_bp: i64,
+    // --- The government block: budget plus every lever's current value
+    // (the policy panel reads these back). ---
+    pub govt_cash_cents: i64,
+    pub govt_debt_cents: i64,
+    pub sales_tax_bp: i64,
+    pub welfare_floor_cents: i64,
+    pub minimum_wage_cents: i64,
+    pub deficit_limit_cents: i64,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -198,6 +220,86 @@ fn contract_parties(state: &SimState, id: crate::ids::ContractId) -> (String, St
             )
         })
         .unwrap_or_else(|| (id.to_string(), id.to_string()))
+}
+
+/// Spot trade value over the journal's last 7 metric days, reconstructed
+/// as Σ volume × daily average price per good (exact up to VWAP rounding).
+/// Derived view only — never read by simulation logic.
+fn gdp_week_cents(world: &crate::world::World) -> i64 {
+    world
+        .journal
+        .metrics
+        .iter()
+        .rev()
+        .take(7)
+        .map(|m| {
+            m.volume
+                .iter()
+                .map(|(good, vol)| {
+                    m.avg_price
+                        .get(good)
+                        .copied()
+                        .flatten()
+                        .map(|p| p.cents().saturating_mul(*vol))
+                        .unwrap_or(0)
+                })
+                .sum::<i64>()
+        })
+        .sum()
+}
+
+/// Mean traded food price over the last 14 days vs the 14-day window
+/// ending 90 days ago, as a basis-point change. `None` until both windows
+/// have trades (or before day 97).
+fn food_inflation_bp(world: &crate::world::World, tick: u64) -> Option<i64> {
+    let mean = |from: u64, to: u64| -> Option<i64> {
+        let (mut sum, mut n) = (0i64, 0i64);
+        for m in world.journal.metrics.iter().rev() {
+            if m.tick < from {
+                break; // the ring is tick-ordered
+            }
+            if m.tick > to {
+                continue;
+            }
+            if let Some(Some(p)) = m.avg_price.get(&Good::Food) {
+                sum += p.cents();
+                n += 1;
+            }
+        }
+        (n > 0).then(|| sum / n)
+    };
+    if tick < 97 {
+        return None;
+    }
+    let now = mean(tick - 13, tick)?;
+    let then = mean(tick - 97, tick - 84)?;
+    if then <= 0 {
+        return None;
+    }
+    Some(((now - then) * 10_000) / then)
+}
+
+/// Gini coefficient of household cash in basis points, by the sorted-rank
+/// formula (0 = everyone holds the same). All-equal cash lands on exactly
+/// zero because both truncated terms floor identically.
+fn cash_gini_bp(state: &SimState) -> i64 {
+    let mut xs: Vec<i128> = state
+        .agents
+        .values()
+        .map(|a| i128::from(a.cash.cents()))
+        .collect();
+    xs.sort_unstable();
+    let n = xs.len() as i128;
+    let total: i128 = xs.iter().sum();
+    if n == 0 || total <= 0 {
+        return 0;
+    }
+    let weighted: i128 = xs
+        .iter()
+        .enumerate()
+        .map(|(i, x)| (i as i128 + 1) * x)
+        .sum();
+    (((20_000 * weighted) / (n * total) - (10_000 * (n + 1)) / n) as i64).max(0)
 }
 
 /// Human-readable rendering of an event against current state.
@@ -648,6 +750,16 @@ impl WorldSnapshot {
                 money_total_cents: state.total_cash().cents(),
                 food_price_cents: state.market.last_prices.get(&Good::Food).map(|p| p.cents()),
                 food_stock: state.businesses.values().map(|b| b.stock(Good::Food)).sum(),
+                gdp_week_cents: gdp_week_cents(world),
+                food_inflation_90d_bp: food_inflation_bp(world, tick),
+                cash_gini_bp: cash_gini_bp(state),
+                bank_rate_bp: state.bank.base_rate_bp,
+                govt_cash_cents: state.government.cash.cents(),
+                govt_debt_cents: state.government.debt.cents(),
+                sales_tax_bp: state.government.sales_tax_bp,
+                welfare_floor_cents: state.government.welfare_floor.cents(),
+                minimum_wage_cents: state.government.minimum_wage.cents(),
+                deficit_limit_cents: state.government.debt_limit.cents(),
             },
             agents,
             businesses,

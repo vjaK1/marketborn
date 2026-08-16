@@ -33,3 +33,16 @@ export function formatTickLabel(tick: number): string {
 export function goodLabel(good: string): string {
   return good.length === 0 ? good : good[0]!.toUpperCase() + good.slice(1);
 }
+
+/** Basis points as a percentage string, e.g. 1800 → "18%", 125 → "1.25%". */
+export function formatBp(bp: number): string {
+  const pct = bp / 100;
+  const rounded = Math.round(pct * 100) / 100;
+  return `${rounded.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`;
+}
+
+/** Signed basis points for change readouts, e.g. −250 → "−2.5%". */
+export function formatBpSigned(bp: number): string {
+  const sign = bp > 0 ? '+' : '';
+  return `${sign}${formatBp(bp)}`;
+}
