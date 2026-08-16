@@ -25,6 +25,9 @@ enum ShellMsg {
     /// Inspector detail query: fetch one agent by id (ARCHITECTURE.md
     /// on-demand protocol — the 10 Hz snapshot stays lean).
     AgentDetail(u32, Sender<Option<Value>>),
+    /// Business inspector detail query: books, balance sheet, credit,
+    /// contracts, history.
+    BusinessDetail(u32, Sender<Option<Value>>),
     /// Contract view detail query: terms, negotiation log, history.
     ContractDetail(u32, Sender<Option<Value>>),
     /// A player command (the policy levers), queued at the next tick
@@ -67,6 +70,19 @@ fn get_agent_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Value>,
     {
         let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
         tx.send(ShellMsg::AgentDetail(id, reply_tx))
+            .map_err(|_| "simulation thread is gone".to_string())?;
+    }
+    reply_rx
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|_| "detail query timed out".to_string())
+}
+
+#[tauri::command]
+fn get_business_detail(id: u32, shared: State<'_, Shared>) -> Result<Option<Value>, String> {
+    let (reply_tx, reply_rx) = channel();
+    {
+        let tx = shared.tx.lock().map_err(|_| "shell channel poisoned")?;
+        tx.send(ShellMsg::BusinessDetail(id, reply_tx))
             .map_err(|_| "simulation thread is gone".to_string())?;
     }
     reply_rx
@@ -178,6 +194,11 @@ fn sim_thread(app: AppHandle, rx: Receiver<ShellMsg>, slot: Arc<Mutex<Option<Val
                         .and_then(|d| serde_json::to_value(&d).ok());
                     let _ = reply.send(detail);
                 }
+                ShellMsg::BusinessDetail(id, reply) => {
+                    let detail = sim_core::BusinessDetail::capture(world, sim_core::BusinessId(id))
+                        .and_then(|d| serde_json::to_value(&d).ok());
+                    let _ = reply.send(detail);
+                }
                 ShellMsg::ContractDetail(id, reply) => {
                     let detail = sim_core::ContractDetail::capture(world, sim_core::ContractId(id))
                         .and_then(|d| serde_json::to_value(&d).ok());
@@ -278,6 +299,7 @@ fn main() {
             set_speed,
             save_game,
             get_agent_detail,
+            get_business_detail,
             get_contract_detail,
             queue_command
         ])

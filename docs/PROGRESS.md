@@ -5,6 +5,60 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 13 — 2026-08-16 — Phase 5 increment 4: the business inspector
+
+### The last missing v1.0 inspector — DECISIONS #036
+
+- `BusinessDetail::capture` on the on-demand protocol (third client):
+  identity/staffing, pricing and expectations, the FULL lifetime books
+  as signed categorized flows, a balance sheet at market valuation
+  (asserted to balance in the unit test), credit standing ("the bank
+  remembers" prior defaults), contracts on both sides, and the newest
+  40 events touching the business (contract events resolved through
+  their parties). Cash-basis books ARE the cash flow — no separate
+  statement (recorded).
+- Reachable from business-table rows AND city-map tiles; both
+  transports carry `business_detail` (serve message + `get_business_
+  detail` Tauri command). A `.expanded` panel class fixes the
+  four-panel stack squeeze — an open inspector takes the column's
+  slack.
+
+### Verification
+
+- Unit test (seed 42, day 200): staffed, revenue booked, balance
+  sheet balances, history capped, missing id → None. 141 unit tests,
+  16 vitest, both gates exit 0 (one transient Windows linker lock,
+  green on retry).
+- Launch-verified via a city-tile click: Stonebridge Mill's inspector
+  rendered live with staffing, week/lifetime profit, and the balance
+  sheet down to "on hand: 15 wheat · 21 flour". Final capture via
+  `PrintWindow` BACKGROUND capture — the machine was in active use
+  and one automation click landed in the user's editor (caret move
+  only, nothing changed): **rule for future sessions — the moment
+  the user is active, foreground automation stops; use background
+  window capture instead** (it works, see the memory file).
+
+### Exact next task (Phase 5 continues)
+
+1. Session protocol: `npm run check` first.
+2. **Historical charts**: employment/hunger/treasury/debt (and
+   per-business sparklines if cheap) — the data is in
+   `journal.metrics`; add either a compact series to the snapshot
+   (bounded tail like price_history) or an on-demand `metrics_series`
+   query; render with the existing ECharts setup. Then **save-slot
+   management + autosave cadence**: named slots over the save
+   protocol, a load command (needs a `LoadWorld` path in both
+   transports — the sim thread swaps the world), `--load` for serve,
+   autosave every N ticks from the shell/serve loop (never inside
+   sim-core).
+3. Then Playwright E2E against serve (new world, speed, inspect
+   agent + business, apply policy, save, load) and the packaged-app
+   smoke test (owns the deferred desktop lever-pull check).
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 12 — 2026-08-16 — Phase 5 increment 3: city view + timeline filters
 
 ### Two screens, zero sim-core changes — DECISIONS #035

@@ -1255,3 +1255,49 @@ increment.
 screen — the next Phase 5 batch alongside historical charts);
 warehouse/route glyphs (no spatial model); map zoom/pan (a static
 overview earns its keep first).
+
+---
+
+## 036 — The business inspector: the books, made a screen
+
+**Context.** The last missing v1.0 inspector. The BRIEF's business
+model names P&L, balance sheet, cash flow, valuation — and every one
+of those already EXISTS in state as the lifetime cash-basis `Books`
+(reconciled every sweep by `business_books`), the market-valued
+inventory helper (the same number takeovers pay), and the bank's loan
+book. The screen's job is presentation, not new accounting.
+
+**Decision.** `BusinessDetail::capture` on the established on-demand
+protocol (its third client): identity and staffing; pricing and
+expectations; the FULL lifetime books as signed categorized flows
+(inflows positive, outflows negative — dividends, tax remitted,
+interest, seizures all visible); a balance sheet at market valuation
+(cash + inventory = assets, loan outstanding = liabilities, equity
+the difference — asserted equal in the unit test); credit standing
+(active loan terms and misses, or prior defaults — "the bank
+remembers"); contracts on both sides with roles; and the newest 40
+events touching the business (`event_touches_business` resolves
+contract events through their parties; JobSwitched matches either
+side). Cash flow gets no separate statement: cash-basis books ARE the
+cash flow (recorded, not missing). Reachable three ways: business
+table rows, city map tiles, and (later) anywhere else a business is
+named. A `.expanded` panel class gives an open inspector the stack's
+slack — the four-panel column had squeezed every body to zero height
+once the city panel took the top of the viewport.
+
+**Verification.** Unit test (seed 42, day 200): staffed, revenue on
+the books, the balance sheet balances, history capped and present,
+missing id → None. Launch-verified in the browser via a city-tile
+click: Stonebridge Mill's inspector rendered live — "3/3 staff at
+$4.61/day · week $22.59 · lifetime $4,399.94", balance sheet "cash
+$595.39 · inventory $297.84 · assets $893.23 = equity", "on hand: 15
+wheat · 21 flour". Final capture taken by `PrintWindow` BACKGROUND
+capture: the machine was in active use again mid-verification, and
+one automation click landed in the user's editor (caret move only) —
+foreground automation stops the moment the user is active, full
+stop; background window capture is the polite tool and it worked.
+Both gates green (141 unit tests).
+
+**Deferred.** Historical per-business charts (BizDay series exist in
+metrics — next batch); linking inspector contract rows to the
+contract inspector across panels; wage/price history sparklines.

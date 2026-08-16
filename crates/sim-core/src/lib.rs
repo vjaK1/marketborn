@@ -51,7 +51,7 @@ pub use events::{Event, EventRecord};
 pub use goods::{Good, Qty};
 pub use government::Government;
 pub use ids::{AccountId, AgentId, BusinessId, ContractId, LoanId};
-pub use inspect::{AgentDetail, ContractDetail};
+pub use inspect::{AgentDetail, BusinessDetail, ContractDetail};
 pub use invariants::InvariantViolation;
 pub use ledger::{Transaction, TxKind};
 pub use money::Money;

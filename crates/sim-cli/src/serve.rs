@@ -101,6 +101,10 @@ enum ClientMsg {
         id: u32,
         req: Option<u64>,
     },
+    BusinessDetail {
+        id: u32,
+        req: Option<u64>,
+    },
     ContractDetail {
         id: u32,
         req: Option<u64>,
@@ -316,6 +320,13 @@ fn sim_thread(cfg: WorldConfig, save_dir: PathBuf, rx: Receiver<SimMsg>) {
                         let detail = sim_core::AgentDetail::capture(world, sim_core::AgentId(id))
                             .and_then(|d| serde_json::to_value(&d).ok())
                             .unwrap_or(Value::Null);
+                        reply(req, Ok(detail))
+                    }
+                    ClientMsg::BusinessDetail { id, req } => {
+                        let detail =
+                            sim_core::BusinessDetail::capture(world, sim_core::BusinessId(id))
+                                .and_then(|d| serde_json::to_value(&d).ok())
+                                .unwrap_or(Value::Null);
                         reply(req, Ok(detail))
                     }
                     ClientMsg::ContractDetail { id, req } => {

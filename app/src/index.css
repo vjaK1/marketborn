@@ -297,11 +297,18 @@ tr.clickable:hover td {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  overflow: auto;
 }
 
 .stack .panel {
   flex: 1;
-  min-height: 0;
+  min-height: 110px;
+}
+
+/* A panel hosting an open inspector takes the stack's slack. */
+.stack .panel.expanded {
+  flex: 3;
+  min-height: 260px;
 }
 
 .panel > h2 {
@@ -659,10 +666,18 @@ td.neg {
   letter-spacing: 0.08em;
 }
 
+.city-tile {
+  cursor: pointer;
+}
+
 .city-tile rect {
   fill: var(--panel);
   stroke: var(--border);
   transition: stroke 120ms;
+}
+
+.city-tile:hover rect {
+  stroke: var(--accent);
 }
 
 .city-tile .city-name {
@@ -725,4 +740,23 @@ td.neg {
 .city-hungry.city-owned polygon,
 .city-hungry.city-owned rect {
   fill: #4a2b33;
+}
+
+/* ---------- Business inspector books ---------- */
+
+.books-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  max-width: 340px;
+}
+
+.flow-in {
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-out {
+  color: var(--critical);
+  font-variant-numeric: tabular-nums;
 }

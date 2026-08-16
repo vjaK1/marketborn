@@ -1,7 +1,13 @@
 import { formatMoney, goodLabel } from '../format';
 import type { BusinessRow } from '../types';
 
-export function BusinessTable({ businesses }: { businesses: BusinessRow[] }) {
+export function BusinessTable({
+  businesses,
+  onSelect,
+}: {
+  businesses: BusinessRow[];
+  onSelect: (id: number) => void;
+}) {
   return (
     <table>
       <thead>
@@ -24,7 +30,7 @@ export function BusinessTable({ businesses }: { businesses: BusinessRow[] }) {
           const profit = b.last_window_profit_cents;
           const lifetime = b.books.lifetime_profit_cents;
           return (
-            <tr key={b.id}>
+            <tr key={b.id} className="clickable" onClick={() => onSelect(b.id)}>
               <td title={b.kind}>{b.name}</td>
               <td className={`num${short ? ' workers-short' : ''}`}>
                 {b.workers}/{b.target_workers}

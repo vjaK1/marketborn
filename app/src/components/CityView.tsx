@@ -41,13 +41,23 @@ function layout(
   return { placed, bottom: y0 + rows * (TILE_H + GAP) };
 }
 
-function BusinessTile({ b, x, y }: Placed) {
+function BusinessTile({
+  b,
+  x,
+  y,
+  onSelect,
+}: Placed & { onSelect: (id: number) => void }) {
   const dead = b.workers === 0;
   const title = `${b.name} — ${b.kind}\n${b.workers}/${b.target_workers} workers · ${formatMoney(
     b.cash_cents,
   )} cash`;
   return (
-    <g className={`city-tile${dead ? ' city-dead' : ''}`}>
+    <g
+      className={`city-tile${dead ? ' city-dead' : ''}`}
+      onClick={() => onSelect(b.id)}
+      role="button"
+      aria-label={b.name}
+    >
       <title>{title}</title>
       <rect x={x} y={y} width={TILE_W} height={TILE_H} rx={7} />
       <text className="city-name" x={x + 8} y={y + 18}>
@@ -109,11 +119,13 @@ export function CityView({
   agents,
   stats,
   onSelectAgent,
+  onSelectBusiness,
 }: {
   businesses: BusinessRow[];
   agents: AgentRow[];
   stats: Stats;
   onSelectAgent: (id: number) => void;
+  onSelectBusiness: (id: number) => void;
 }) {
   const zoneTop = 26;
   let zonesBottom = zoneTop;
@@ -165,7 +177,7 @@ export function CityView({
         </text>
       ))}
       {tiles.map((p) => (
-        <BusinessTile key={p.b.id} {...p} />
+        <BusinessTile key={p.b.id} {...p} onSelect={onSelectBusiness} />
       ))}
       {civic.map((c, i) => (
         <CivicTile

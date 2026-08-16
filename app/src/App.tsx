@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AgentInspector } from './components/AgentInspector';
 import { AgentTable } from './components/AgentTable';
+import { BusinessInspector } from './components/BusinessInspector';
 import { BusinessTable } from './components/BusinessTable';
 import { CityView } from './components/CityView';
 import { ContractInspector } from './components/ContractInspector';
@@ -21,6 +22,9 @@ export default function App() {
     'connecting',
   );
   const [inspected, setInspected] = useState<number | null>(null);
+  const [inspectedBusiness, setInspectedBusiness] = useState<number | null>(
+    null,
+  );
   const [inspectedContract, setInspectedContract] = useState<number | null>(
     null,
   );
@@ -85,6 +89,7 @@ export default function App() {
               agents={snapshot.agents}
               stats={snapshot.stats}
               onSelectAgent={setInspected}
+              onSelectBusiness={setInspectedBusiness}
             />
           </div>
         )}
@@ -97,10 +102,24 @@ export default function App() {
           </div>
         </section>
         <div className="stack">
-          <section className="panel">
-            <h2>Businesses</h2>
+          <section
+            className={`panel${inspectedBusiness !== null ? ' expanded' : ''}`}
+          >
+            <h2>
+              {inspectedBusiness === null ? 'Businesses' : 'Business inspector'}
+            </h2>
             <div className="body">
-              <BusinessTable businesses={snapshot.businesses} />
+              {inspectedBusiness === null ? (
+                <BusinessTable
+                  businesses={snapshot.businesses}
+                  onSelect={setInspectedBusiness}
+                />
+              ) : (
+                <BusinessInspector
+                  id={inspectedBusiness}
+                  onBack={() => setInspectedBusiness(null)}
+                />
+              )}
             </div>
           </section>
           <section className="panel">
@@ -115,7 +134,9 @@ export default function App() {
               <PolicyPanel stats={snapshot.stats} />
             </div>
           </section>
-          <section className="panel">
+          <section
+            className={`panel${inspectedContract !== null ? ' expanded' : ''}`}
+          >
             <h2>
               {inspectedContract === null ? 'Contracts' : 'Contract inspector'}
             </h2>

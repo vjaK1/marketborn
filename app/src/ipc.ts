@@ -12,7 +12,12 @@
  *   be overridden with a `?ws=` query parameter.
  */
 
-import type { AgentDetail, ContractDetail, WorldSnapshot } from './types';
+import type {
+  AgentDetail,
+  BusinessDetail,
+  ContractDetail,
+  WorldSnapshot,
+} from './types';
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -156,6 +161,19 @@ export async function getAgentDetail(id: number): Promise<AgentDetail | null> {
     return invoke<AgentDetail | null>('get_agent_detail', { id });
   }
   if (socket) return wsRequest<AgentDetail | null>({ kind: 'agent_detail', id });
+  return null;
+}
+
+export async function getBusinessDetail(
+  id: number,
+): Promise<BusinessDetail | null> {
+  if (isTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<BusinessDetail | null>('get_business_detail', { id });
+  }
+  if (socket) {
+    return wsRequest<BusinessDetail | null>({ kind: 'business_detail', id });
+  }
   return null;
 }
 

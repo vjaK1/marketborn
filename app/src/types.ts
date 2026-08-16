@@ -57,6 +57,53 @@ export interface NegotiationRow {
   because: string;
 }
 
+export interface BusinessDetail {
+  id: number;
+  name: string;
+  kind: string;
+  owner: string;
+  owner_id: number;
+  sells: string;
+  price_cents: number;
+  wage_cents: number;
+  workers: string[];
+  target_headcount: number;
+  expected_daily_sales: number;
+  stockout_days: number;
+  last_window_profit_cents: number;
+  lifetime_profit_cents: number;
+  inventory: { good: string; qty: number }[];
+  cash_cents: number;
+  inventory_value_cents: number;
+  assets_cents: number;
+  liabilities_cents: number;
+  equity_cents: number;
+  books: { name: string; cents: number }[];
+  spoiled_units: number;
+  seized_units: number;
+  loan: {
+    id: number;
+    principal_cents: number;
+    outstanding_cents: number;
+    rate_bp: number;
+    missed_payments: number;
+    start_tick: number;
+  } | null;
+  prior_defaults: number;
+  contracts: {
+    id: number;
+    role: string;
+    counterparty: string;
+    good: string;
+    qty: number;
+    unit_price_cents: number;
+    state: string;
+    delivered: number;
+    deliveries: number;
+  }[];
+  history: { tick: number; text: string }[];
+}
+
 export interface MarketRow {
   good: string;
   last_price_cents: number | null;
