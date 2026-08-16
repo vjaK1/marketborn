@@ -254,8 +254,12 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   inflation — each degrades without halting; corrupted saves ✅ since
   Phase 0; 1000-agent worlds generate to the template rule, tick
   green for a year in `check:full`, health + aging-perf finding
-  recorded); benchmark suite (the perf pass — its opening brief is
-  the measured 175→13 ticks/s decade slowdown at pop-1000).
+  recorded); ~~benchmark suite~~ ✅ (session 19: the PERFORMANCE_PLAN
+  measurement set — throughput at three scales, save/load/replay
+  timings, memory bounds — recorded in PERF_RESULTS.md with every
+  v1.0 target met; the 175→13 ticks/s aging regression was profiled
+  to one call site and fixed 88×, DECISIONS #041) — **phase
+  complete**.
 
 ## Emergence probes — calibration policy
 

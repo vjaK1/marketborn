@@ -160,12 +160,36 @@ compile-verified in the shell, pending an interactive desktop check
 when the machine is idle. The negotiation-inspector polish stays v1.1
 per the BRIEF.
 
-## Phase 6 — Hardening and release (v1.0)
+## Phase 6 — Hardening and release (v1.0)  **[complete — sessions 17–20]**
 
 Property-based tests (proptest); the full failure-test list; performance pass
 against every target in PERFORMANCE_PLAN.md (profile first); packaged Windows
 build via the Tauri bundler; packaged-app smoke test; final docs; tagged
 v1.0.
+
+*Delivered:* the property suite (ADR #039: money-math exactness vs i128,
+the ledger under arbitrary op sequences, arbitrary worlds green under
+the nine-invariant sweep, the command surface unable to corrupt the
+world, save/resume hash equality swept — all first-run green); the
+failure suite (ADR #040: every BRIEF catastrophe degrades without
+halting; 1000-agent worlds generate, tick green, and carry their
+recorded health limitation); the perf pass (ADR #041: profiled first,
+one 15-line memoization, pop-1000 decade 268.7 s → 3.06 s, every
+PERFORMANCE_PLAN target met with headroom, recorded in
+PERF_RESULTS.md); the NSIS-packaged 1.0.0 build with its smoke test
+(session 16) and the per-screen checklist; the release README.
+
+**BRIEF definition-of-done cross-check** — all three production
+chains ✓ · full agent society (decisions with explanations, memory,
+relationships, reputation) ✓ · contracts and logged negotiation ✓ ·
+banking and debt ✓ · government and policy ✓ · deterministic
+save/load/replay with CLI diff tooling ✓ · the full v1.0 screen set ✓ ·
+the complete test suite (unit, integration, property, determinism,
+failure, four emergence probes, soaks, E2E, packaged smoke) ✓ ·
+recorded benchmarks ✓ · packaged Windows build ✓. Known limitations
+carried openly: pop-scaling health (ADR #040), the desktop lever-click
+⚠ (CHECKLIST.md), cross-platform bit-exactness out of scope by
+contract.
 
 ## v1.1 backlog (strictly after the v1.0 tag)
 

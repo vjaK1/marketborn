@@ -4,10 +4,8 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 4 complete (government, shocks, the v1 lever set,
-sovereign debt, all four emergence probes, `soak_10y`, the
-delayed-policy test — DECISIONS.md #029–#032). Phase 5 (UI completion
-and analytics) is next.
+Status: v1.0 — every mechanic below is shipped and guarded by the test
+suite (phases 0–6 complete; the decision trail is DECISIONS.md #001–#041).
 
 ## Time
 

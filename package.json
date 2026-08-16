@@ -1,7 +1,7 @@
 {
   "name": "marketborn-root",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Marketborn workspace orchestration: quality gates and app scripts",
   "scripts": {
     "check": "npm run check:fmt && npm run build:app && npm run check:clippy && npm run check:cargo-test && npm run check:ts && npm run check:vitest",

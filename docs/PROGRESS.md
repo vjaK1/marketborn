@@ -5,6 +5,44 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 20 — 2026-08-16 — v1.0.0 — RELEASED
+
+### The close-out
+
+- **Docs sweep**: release-grade README (feature set, screenshot at
+  `docs/screenshot.png`, current CLI verbs incl. `serve`/`metrics`,
+  all npm scripts); ECONOMIC_RULES status → v1.0; the accuracy greps
+  over ARCHITECTURE/AGENT_DESIGN/DATA_MODEL found nothing stale.
+- **Version 1.0.0** across the workspace (Cargo workspace, both
+  package.json, tauri.conf) →
+  `target/release/bundle/nsis/Marketborn_1.0.0_x64-setup.exe` builds
+  clean.
+- **PLAN.md**: Phase 6 Delivered block + the BRIEF definition-of-done
+  cross-check — every DoD item shipped. Known limitations carried
+  openly: pop-scaling health (ADR #040), the desktop lever-click ⚠
+  (machine was in active use at every desktop-verification window;
+  CHECKLIST.md holds the opportunistic re-check), cross-platform
+  bit-exactness out of scope by contract.
+- Final gates green; tagged **v1.0.0** and pushed.
+
+### Where things stand
+
+Phases 0–6 complete in 20 sessions. The standing verification
+harness for any future work: `npm run check` (fast, ~3 min) and
+`npm run check:full` (soaks, wide property sweeps, E2E); the soak
+matrix seeds 42/7/123/6 at 3650 + pop-100/pop-1000; the four
+emergence probes; 41 ADRs in DECISIONS.md.
+
+### Next (v1.1 backlog — strictly opt-in from here)
+
+Scenario branching + comparison dashboard · replay inspector UI ·
+relationship network graph · negotiation inspector polish · optional
+feature-flagged LLM narrative layer. Also parked: the pop-scaling
+jobs-per-capita rebalance (a design project), Tauri updater/signing,
+CI wiring.
+
+---
+
 ## Session 19 — 2026-08-16 — Phase 6 increment 3: the perf pass
 
 ### One cache, eighty-eight times faster — DECISIONS #041
