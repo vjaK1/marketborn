@@ -13,3 +13,11 @@ path = "src/main.rs"
 sim-core = { path = "../sim-core" }
 sim-persist = { path = "../sim-persist" }
 clap = { workspace = true }
+tungstenite = "0.30.0"
+serde_json.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

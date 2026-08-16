@@ -44,8 +44,10 @@ export default function App() {
         {backend === 'browser' && !isTauri() ? (
           <p>
             No simulation backend. Launch the desktop app
-            (<code>npm run app:desktop</code>) — this page only renders the UI
-            shell in a plain browser.
+            (<code>npm run app:desktop</code>), or start{' '}
+            <code>sim-cli serve</code> and reload — in a browser this page
+            connects to <code>ws://127.0.0.1:17771</code> (override with{' '}
+            <code>?ws=</code>).
           </p>
         ) : (
           <p>Waiting for the simulation…</p>

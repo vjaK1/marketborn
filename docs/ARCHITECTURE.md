@@ -76,9 +76,10 @@ UI (React) ──invoke──▶ tauri commands ──mpsc──▶ sim thread
    └────── `snapshot` events (≤10 Hz) ◀───emit────┘
 ```
 
-- Inbound `ShellMsg`: `SetSpeed(0..=4)`, `Save(reply)`. Player commands will
-  flow through the same channel as `PlayerCommand`s and are queued at tick
-  boundaries (machinery exists in core; Phase 0 exposes no command UI).
+- Inbound `ShellMsg`: `SetSpeed(0..=4)`, `Save(reply)`, and the on-demand
+  detail queries `AgentDetail`/`ContractDetail`. Player commands flow
+  through the same channel when the policy screen lands (the serve
+  transport already carries them; DECISIONS.md #033).
 - Outbound: `WorldSnapshot` (compact summary: stats, agent/business rows,
   price history tail, event tail — never the full world) throttled to 10 Hz.
   A `get_snapshot` command pulls the latest on startup.
@@ -87,13 +88,42 @@ UI (React) ──invoke──▶ tauri commands ──mpsc──▶ sim thread
   clock — never inside sim-core.
 - Saves go to `<app-data>/saves/quicksave.mbsave` via sim-persist.
 
-`sim-cli serve` (websocket, Phase 5) will implement this same protocol for
-Playwright E2E; the frontend is transport-agnostic behind `app/src/ipc.ts`.
+## Websocket transport (`sim-cli serve`, Phase 5)
+
+The same protocol over JSON text frames on `ws://127.0.0.1:17771`
+(`--port`; `0` = OS-assigned), for the browser dev preview and Playwright
+E2E. Same thread shape as the shell: one sim thread owns the `World`, an
+accept thread, and one polling thread per client (no locks — each client
+thread pumps its outbound queue and reads under a 50 ms timeout).
+
+Client → server (any message may carry a `req` id for a correlated
+reply); server → client is `snapshot` pushes plus `reply` frames:
+
+```json
+{"kind":"set_speed","level":2,"req":1}
+{"kind":"save","req":2}
+{"kind":"agent_detail","id":3,"req":3}
+{"kind":"contract_detail","id":0,"req":4}
+{"kind":"queue_command","command":{"SetSalesTax":{"rate_bp":500}},"req":5}
+
+{"kind":"snapshot","data":{...WorldSnapshot...}}
+{"kind":"reply","req":5,"ok":true,"data":{"seq":0,"tick":120}}
+{"kind":"reply","req":5,"ok":false,"error":"..."}
+```
+
+`queue_command` accepts any `PlayerCommand` (serde external tagging) and
+queues it for the next tick boundary — currently a serve-only superset:
+the desktop shell gains its command channel with the Phase 5 policy
+screen (DECISIONS.md #033). A snapshot goes to every client after each
+handled message, so drivers see effects without waiting out the 10 Hz
+throttle; a new client gets the current snapshot on connect.
 
 ## Frontend (app)
 
-- `ipc.ts` — the only module that talks to Tauri (dynamic imports so the
-  bundle also loads in a plain browser and in vitest).
+- `ipc.ts` — the only module that talks to a backend; transport-agnostic:
+  the Tauri shell via dynamic imports, or the serve websocket in a plain
+  browser (`?ws=` overrides the URL). Request/reply correlation and
+  disconnect rejection are vitest-covered against a scripted fake socket.
 - `store.ts` — Zustand store: latest snapshot, connection state, speed.
 - `App.tsx` — dashboard: header (date, speed controls, save), stat chips,
   price chart (ECharts, palette validated for the dark surface), business

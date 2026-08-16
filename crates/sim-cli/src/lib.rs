@@ -1,4 +1,7 @@
-//! Library half of sim-cli: pure helpers, unit-testable without a binary.
+//! Library half of sim-cli: pure helpers, unit-testable without a binary,
+//! plus the websocket `serve` transport.
+
+pub mod serve;
 
 /// First tick present in both manifests whose hashes differ. `None` means
 /// the common range agrees everywhere.

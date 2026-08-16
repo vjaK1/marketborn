@@ -1099,3 +1099,58 @@ sole sovereign creditor in v1); a debt-ceiling invariant (deliberately
 absent — capitalization may push debt past a lowered limit, which only
 gates NEW draws); welfare eligibility rules beyond the cash means
 test; the levers' UI surface (Phase 5).
+
+---
+
+## 033 — `sim-cli serve`: the websocket transport, sync and thread-per-client
+
+**Context.** Phase 5 opens with the reserved second transport: the
+Playwright E2E suite drives the React app in a real browser, so the
+browser needs a real backend. ARCHITECTURE.md reserved a websocket
+implementation of the shell's protocol since Phase 0.
+
+**Decision — sync, no async runtime.** `tungstenite` (blocking) over
+std threads, mirroring the desktop shell's shape exactly: one sim
+thread owns the `World` (sim-core stays single-threaded), one accept
+thread, one thread per client. The per-client thread avoids locked or
+split sockets entirely: it pumps its outbound mpsc queue and polls the
+socket under a 50 ms read timeout in one loop. A tokio stack for a
+local dev/E2E tool would be three dependencies of ceremony for zero
+benefit; if serve ever needs hundreds of clients it earns a runtime
+then.
+
+**Decision — the wire shape.** JSON text frames; client messages carry
+an optional `req` id and get a correlated `{kind:"reply", req, ok,
+data|error}`; snapshots push as `{kind:"snapshot", data}` — on
+connect, at the 10 Hz throttle while running, and to every client
+after each handled message so a driver sees its effect immediately. A
+malformed message answers with `ok:false` echoing whatever `req` the
+envelope carried (a driver's request fails; it never hangs).
+
+**Decision — the command channel ships here first.** `queue_command`
+accepts any `PlayerCommand` via serde's external tagging and queues it
+for the next tick boundary — the transport-level superset the Phase 5
+policy screen and E2E "apply a policy" step need. The desktop shell
+gains the same channel when that screen lands; until then serve is
+deliberately ahead of it (recorded, not drifting).
+
+**The client half.** `app/src/ipc.ts` is now genuinely
+transport-agnostic: Tauri via dynamic imports, or the serve websocket
+in any plain browser (default `ws://127.0.0.1:17771`, `?ws=`
+override), with request/reply correlation and reject-on-disconnect —
+vitest-covered against a scripted fake socket (5 tests). The app's
+no-backend screen now says how to start serve.
+
+**Verification.** A Rust integration test drives the full protocol
+with a real websocket client (ephemeral port): snapshot-on-connect,
+speed change, tick advance, `SetSalesTax` queued at the next boundary,
+a malformed command refused without hanging, agent detail, save to a
+temp dir, and a second client's immediate snapshot. Launch-verified in
+a real Edge browser against `serve` + vite: the world ran to Y2·D231
+live over the socket — stats, chart, tables, and the Phase 4 welfare
+events streaming in the log.
+
+**Deferred.** Loading a save into serve (`--load`, with the save-slot
+increment); TLS/remote binding (localhost-only by design);
+backpressure beyond the OS socket buffer (snapshots are ~tens of KB at
+pop 29 — revisit with the 1000-agent perf pass).

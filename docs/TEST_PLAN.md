@@ -233,6 +233,10 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   **phase complete**; recorded scope in DECISIONS #029–#032.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
   inspect agent/business, apply policy, save, load); packaged-app smoke.
+  Groundwork landed (session 10): the serve transport has a Rust
+  integration test driving the full protocol with a real ws client, and
+  the app's transport layer has 5 vitest cases (correlation, failure
+  paths) — E2E rides these once the screens land.
 - **Phase 6**: proptest world generators (thousands of ticks, all
   invariants); failure tests (empty markets, no employers, mass bankruptcy,
   bank insolvency, resource exhaustion, extreme inflation, corrupted saves,

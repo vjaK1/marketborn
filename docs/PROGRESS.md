@@ -5,6 +5,63 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 10 — 2026-08-16 — Phase 5 increment 1: the websocket transport
+
+### `sim-cli serve` — DECISIONS #033
+
+- The reserved second transport is live: `sim-cli serve` hosts a fresh
+  world over JSON websocket frames on 127.0.0.1 (default port 17771,
+  `--port 0` = ephemeral), speaking the shell's protocol — snapshot
+  pushes (on connect, ≤10 Hz, and after every handled message), speed
+  control, save, the on-demand agent/contract detail queries — PLUS
+  the `queue_command` channel (any `PlayerCommand`, serde external
+  tagging, queued at the next tick boundary): the superset the policy
+  screen and E2E's "apply a policy" need. Sync `tungstenite`, no async
+  runtime: one sim thread, one accept thread, one polling thread per
+  client (50 ms read timeout, no locks). Malformed messages answer
+  `ok:false` echoing the envelope's `req` — drivers fail, never hang.
+- `app/src/ipc.ts` is now transport-agnostic: Tauri via dynamic
+  imports, or the websocket in any plain browser (`?ws=` override),
+  with request/reply correlation and reject-on-disconnect. The
+  no-backend screen explains how to start serve. `queueCommand` is
+  exported for the policy screen; the desktop shell gains its command
+  channel when that screen lands (recorded superset, not drift).
+
+### Verification
+
+- Rust integration test (`crates/sim-cli/tests/serve.rs`): a real ws
+  client drives the whole protocol on an ephemeral port — snapshot on
+  connect, speed 4 → ticks advance, pause, `SetSalesTax` queued,
+  malformed command refused with an error, agent detail, save lands in
+  a temp dir, second client gets its own snapshot. 5 new vitest cases
+  for the client half against a scripted fake socket (16 total).
+- **Launch-verified in a real browser**: `serve` + vite dev + Edge —
+  the world ran live to Y2·D231 over the socket with stats, price
+  chart, business/market/agent tables, the contract table, and the
+  Phase 4 welfare events streaming in the event log.
+- `npm run check` exit 0 (140 unit + all suites incl. serve; tsc;
+  vitest 16). New dep: tungstenite 0.30 (sim-cli only).
+
+### Exact next task (Phase 5 continues)
+
+1. Session protocol: `npm run check` first.
+2. **The screen pass**, in PLAN's order, each launch-verified. Start
+   with the world overview upgrades: the BRIEF's stat list (GDP,
+   inflation, unemployment, wealth inequality, interest rate,
+   government budget — the govt/debt/welfare numbers now exist in
+   MetricsDay but not in the snapshot Stats), then the **policy
+   panel** (the levers over `queueCommand`; wire the desktop shell's
+   command channel at the same time so both transports carry it),
+   then city view / timeline filters / historical charts / save-slot
+   management + autosave cadence.
+3. Then the Playwright E2E suite against serve (new world, speed,
+   inspect agent + business, apply policy, save, load) and the
+   packaged-app smoke test.
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 9 — 2026-08-16 — Phase 4: COMPLETE (levers + sovereign debt)
 
 ### The v1 lever set + sovereign debt — DECISIONS #032

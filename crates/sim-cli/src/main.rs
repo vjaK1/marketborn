@@ -64,6 +64,23 @@ enum Cmd {
         #[arg(long)]
         csv: Option<PathBuf>,
     },
+    /// Host a fresh world over the websocket transport protocol
+    /// (`docs/ARCHITECTURE.md`) for the browser UI and Playwright E2E.
+    Serve {
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        #[arg(long, default_value_t = 29)]
+        population: u32,
+        /// Hash cadence in ticks.
+        #[arg(long, default_value_t = 50)]
+        hash_every: u64,
+        /// Port on 127.0.0.1 (0 = OS-assigned, printed at startup).
+        #[arg(long, default_value_t = 17771)]
+        port: u16,
+        /// Directory the `save` message writes `quicksave.mbsave` into.
+        #[arg(long, default_value = ".")]
+        save_dir: PathBuf,
+    },
 }
 
 fn main() -> ExitCode {
@@ -81,6 +98,13 @@ fn main() -> ExitCode {
         Cmd::Hash { save, at } => cmd_hash(&save, at),
         Cmd::Diff { a, b, context } => cmd_diff(&a, &b, context),
         Cmd::Metrics { save, csv } => cmd_metrics(&save, csv.as_deref()),
+        Cmd::Serve {
+            seed,
+            population,
+            hash_every,
+            port,
+            save_dir,
+        } => cmd_serve(seed, population, hash_every, port, save_dir),
     };
     match result {
         Ok(code) => code,
@@ -245,6 +269,32 @@ fn cmd_hash(save: &Path, at: Option<u64>) -> Result<ExitCode, String> {
             println!("tick {:>6}  {hash}", world.state.tick);
         }
     }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn cmd_serve(
+    seed: u64,
+    population: u32,
+    hash_every: u64,
+    port: u16,
+    save_dir: PathBuf,
+) -> Result<ExitCode, String> {
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .init();
+    let handle = sim_cli::serve::start(sim_cli::serve::ServeConfig {
+        seed,
+        population,
+        hash_every,
+        port,
+        save_dir,
+    })
+    .map_err(|e| format!("could not bind 127.0.0.1:{port}: {e}"))?;
+    println!(
+        "marketborn serve: seed {seed}, population {population}, ws://127.0.0.1:{}",
+        handle.port
+    );
+    handle.join();
     Ok(ExitCode::SUCCESS)
 }
 
