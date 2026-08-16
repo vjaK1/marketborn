@@ -4,10 +4,10 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 4 in progress (government kernel + scenario shocks live;
-delayed-policy test and `soak_10y` next). Sections marked *[activates:
-Phase N]* are reserved slots in the phase order, documented now so later
-systems slot in without reordering anything.
+Status: Phase 4 in progress. The kernel and test skeleton are complete
+(government, shocks, all four emergence probes, `soak_10y`, the
+delayed-policy test); remaining scope is the policy-lever set and
+government budget/debt.
 
 ## Time
 

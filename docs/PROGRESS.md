@@ -5,6 +5,85 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 8 — 2026-08-16 — Phase 4 increments 2–3: shocks + the test skeleton
+
+### Scenario shocks v1 (`d68169d`) — DECISIONS #030
+
+- `shocks.rs`: deterministic condition modifiers riding the existing
+  command log — `TriggerShock { kind, days }` (clamped 1..=3,600)
+  activates at its tick boundary, lives in hashed state, and the
+  long-reserved tick phase 2 retires it the day it expires (exactly
+  `days` modified production days). One shock per kind; re-triggering
+  is a `CommandRejected`. `ShockBegan`/`ShockEnded` events.
+- ONE mechanical hook: `capacity_bp(state, kind)`, applied at BOTH the
+  production batch cap and the price review's utilization base — a
+  drought-throttled farm neither overproduces nor reads its withered
+  fields as idle capacity (which would fire price CUTS into the
+  scarcity). Drought: farms yield half.
+- **`probe_drought` ✅** (pinned seed 42): injected at tick 600 — the
+  mature steady state, where the cut BINDS. Calibrated and frozen:
+  output 56% of control (guard ≤75%), wheat peak +69% over its
+  pre-drought mean while control stays flat (guard ≥130% of both),
+  food +28% (guard ≥115%), 34 food-chain price raises (guard ≥5).
+  First calibration at tick 200 was absorbed by the post-boom glut —
+  recorded as the system working, and why the probe binds at 600.
+
+### The Phase 4 test skeleton is complete — DECISIONS #031
+
+- **`soak_10y` ✅** (check:full): 3,650 command-free ticks, every-tick
+  invariants, non-degeneracy bands calibrated to the real steady
+  state: food produced and trading at the end; ≥1 staple repricing in
+  the last 500 ticks (wheat: 3 distinct prices); ≥1 roster death + ≥1
+  revival across the decade (actual 12/6 — "exit and entry" mapped to
+  the economy's real churn channels, since v1 never founds/deletes
+  businesses); employment in band (actual 13/6). Runs in ~0.8s.
+- **`policy_lag` ✅** (the delayed-policy-effect test): the honest
+  delayed effect is welfare ABOLITION, not a hike — in the mature
+  steady state both seed 42 and marginal seed 123 absorb even a 9%
+  sales tax indefinitely (the dole recycles the whole take into final
+  demand; business cash ends HIGHER — redistribution, not
+  contraction). `SetSalesTax{0}` at tick 600: the dole stops in days,
+  hunger stays within +0.15 of control for a quarter, then climbs
+  +5.7 by [1100,1500) — the no-welfare equilibrium arriving on a
+  ~500-tick fuse. Frozen: ≤1.0 divergence through the first quarter,
+  ≥3.0 by year three.
+- Both gates exit 0 (136 sim-core unit tests; check:full incl.
+  soak_1500 + soak_10y). The four-seed decade soak reproduces session
+  7's endpoints EXACTLY — an untriggered shock system is
+  behavior-neutral. Saves break again (SimState grew `shocks`).
+
+### Phase 4 scorecard
+
+- Done-when: ~~probe_reputation~~ ✓ · ~~probe_rate_shock~~ ✓ ·
+  ~~probe_drought~~ ✓ · ~~soak_10y~~ ✓ — **all four probes + soak
+  green**, plus tax reconciliation and the delayed-policy test.
+- Remaining phase scope (mechanics, not tests): the "all policy
+  levers" set and government budget/debt.
+
+### Exact next task (Phase 4 close-out)
+
+1. Session protocol: `npm run check` first.
+2. **Scope "all policy levers" for v1** (a DECISIONS entry): the BRIEF
+   lists business/income/sales tax, interest rate, spending, subsidies,
+   welfare, minimum wage, antitrust, contract enforcement, bankruptcy
+   rules, import/export, emergency relief. Existing: sales tax, bank
+   rate, money supply, shocks. Suggested v1 close-out set — welfare
+   floor as a settable lever (`SetWelfareFloor`), minimum wage
+   (`SetMinimumWage`, floors the wage walk-down), and **government
+   budget/debt** (the phase's named scope: let the treasury borrow
+   from the bank or issue debt so spending can exceed intake — with
+   the delayed-policy machinery already proven, a deficit lever
+   completes the fiscal loop). Levers whose mechanics don't exist
+   (import/export, antitrust, bankruptcy-rule variation) get recorded
+   as post-1.0 or Phase-6-failure-test scope.
+3. Then declare Phase 4 complete (check:full + soak matrix + PLAN.md
+   Delivered block), and Phase 5 (UI completion + `sim-cli serve` +
+   Playwright E2E) opens.
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 7 — 2026-08-16 — Phase 4 increment 1: the government kernel
 
 ### Government kernel v1 — DECISIONS #029

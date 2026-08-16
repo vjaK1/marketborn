@@ -219,10 +219,16 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
 - **Phase 4**: ~~`probe_drought`~~ ✅ (seed 42, drought at tick 600 —
   where the mature steady state makes the cut bind; output ≤75% of
   control, wheat ≥130%, food ≥115%, chain repricing — session 8);
-  `soak_10y` (3650 ticks, non-degeneracy band asserts); ~~tax
+  ~~`soak_10y`~~ ✅ (3650 ticks in check:full; non-degeneracy bands:
+  food alive, a staple still repricing, ≥1 roster death + ≥1 revival,
+  employment in band — session 8, DECISIONS #031); ~~tax
   reconciliation~~ ✅ (`tax_reconciliation` invariant every sweep +
   `taxes.rs`: organic collection, contract-site levy, welfare floor,
-  `SetSalesTax` clamp — session 7); delayed-policy effects.
+  `SetSalesTax` clamp — session 7); ~~delayed-policy effects~~ ✅
+  (`policy_lag`: welfare abolition starves with a ~500-tick lag; hikes
+  are absorbed in steady state — session 8, DECISIONS #031). All four
+  emergence probes + the soak are green; remaining phase scope is
+  mechanics (levers, government debt), not tests.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
   inspect agent/business, apply policy, save, load); packaged-app smoke.
 - **Phase 6**: proptest world generators (thousands of ticks, all

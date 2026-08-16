@@ -970,3 +970,57 @@ kind); shock magnitude as a command parameter (constants keep scenarios
 comparable); shocks in the snapshot/overview UI (Phase 5); the contract
 capacity-share check reads nominal capacity — revisit when a
 contractable kind can be shocked.
+
+---
+
+## 031 — soak_10y and the delayed effect this economy actually has
+
+**Context.** Phase 4's last two test deliverables: the decade soak with
+non-degeneracy bands, and the BRIEF's delayed-policy-effect test
+("policies have costs, tradeoffs and delayed effects").
+
+**Decision — what "business exit and entry" means here.** The BRIEF's
+soak asks for "at least one business exit and one entry", but v1 never
+founds or deletes businesses (worldgen creates them; the takeover
+machinery recycles them — pinned since Phase 1). `soak_10y` therefore
+asserts the economy's ACTUAL churn channels: an exit is a staffed
+roster emptying (death), an entry is a dead roster staffing back up
+(injection/takeover/rehiring revival). Calibrated on seed 42's decade:
+12 deaths, 6 revivals — both channels demonstrably alive. The other
+bands, calibrated to the real steady state and frozen: food produced
+and trading at the end; at least one staple repricing within the last
+500 ticks (wheat takes 3 distinct prices while food rests at its
+equilibrium — a fully frozen tape is the degenerate state guarded
+against); ≥8 employed / ≤14 unemployed at the end (actual 13/6).
+
+**Decision — which delayed effect to pin.** The obvious scenario (hike
+the sales tax, watch the contraction arrive late) turned out to be
+WRONG about this economy, and the finding is worth the record: in the
+mature steady state both seed 42 and the marginal seed 123 absorb even
+a 9% sales tax indefinitely — employment pinned at 13, hunger flat,
+business cash HIGHER under the hike — because the welfare floor
+recycles the entire take straight back into final demand. Taxation
+plus a full-recycling dole redistributes; it does not contract. (ADR
+#029's collapses happened at 300 bp from tick 0 — the wedge is lethal
+only in the fragile consolidation era, before the steady state forms.
+WHEN a policy lands matters as much as its size.)
+
+The delayed effect this economy genuinely exhibits runs the other
+direction: **abolish the welfare state and nothing happens — for a
+season.** `policy_lag` pins that shape on seed 42: `SetSalesTax { 0 }`
+at tick 600 stops the dole within days (cause immediate: 100 payments
+per 100 days → 0), yet the first fortnight and the first quarter read
+within +0.15 and +0.10 hungry of control — floats, pantries and
+standing prices carry the poor for a while. The cost arrives on a
+~500-tick fuse: by [1100, 1500) the abolished run averages +5.7 hungry
+(20.1 vs 14.3) — the no-welfare equilibrium of the E0 calibration
+reappearing on schedule. Frozen guards: ≤1.0 divergence through the
+first quarter, ≥3.0 by year three.
+
+**Consequences.** Phase 4's test skeleton is complete: all four
+emergence probes (`probe_reputation`, `probe_rate_shock`,
+`probe_drought`, `soak_10y`) plus `tax_reconciliation` and the
+delayed-policy test are green. Remaining phase scope is now purely
+mechanics: the "all policy levers" set (which needs a v1 scoping
+decision — several BRIEF levers ride systems that do not exist) and
+government budget/debt.
