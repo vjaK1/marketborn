@@ -60,6 +60,16 @@ struct ReviewPlan {
 /// seeker; the buyer leaves any wage job to run the firm.
 fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(), LedgerError> {
     let agent_ids: Vec<AgentId> = state.agents.keys().copied().collect();
+    // The live-demand gate below is this scan's hot path: `depth()` walks
+    // every offer and order in the market, and in an aged large town most
+    // businesses are moribund, so reviewers × dead businesses × depth()
+    // dominated the whole tick (profiled at 98% of tick time at pop-1000,
+    // DECISIONS.md #041). Between state mutations the answer is a pure
+    // function of (good, state), so it is memoized per tick and the cache
+    // is dropped whenever an executed takeover mutates state — decisions
+    // stay bit-identical.
+    let mut live_demand: std::collections::BTreeMap<crate::goods::Good, bool> =
+        std::collections::BTreeMap::new();
     for aid in agent_ids {
         if !(tick + u64::from(aid.0)).is_multiple_of(REVIEW_PERIOD) {
             continue;
@@ -108,9 +118,11 @@ fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(
                 // (DECISIONS.md #021). Contract-committed flow counts as
                 // demand — a good bought entirely under contract is a live
                 // market the revived firm can compete for (#026).
-                if crate::market::depth(state, b.sells, tick).demand_qty == 0
-                    && crate::contracts::town_committed(state, b.sells) == 0
-                {
+                let live = *live_demand.entry(b.sells).or_insert_with(|| {
+                    crate::market::depth(state, b.sells, tick).demand_qty != 0
+                        || crate::contracts::town_committed(state, b.sells) != 0
+                });
+                if !live {
                     continue;
                 }
                 // Equity = assets (cash on hand + inventory at market).
@@ -186,6 +198,9 @@ fn takeovers(state: &mut SimState, journal: &mut Journal, tick: u64) -> Result<(
                 price,
             },
         );
+        // The executed deal mutated state (cash, rosters, ownership):
+        // every cached demand answer is stale.
+        live_demand.clear();
     }
     Ok(())
 }

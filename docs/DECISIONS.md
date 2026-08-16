@@ -1495,3 +1495,52 @@ health limitation RECORDED (worldgen's job template is calibrated for
 small towns; a jobs-per-capita rebalance is a design change, not a
 hardening fix) — the aging-perf issue, by contrast, is in scope for
 the perf increment.
+
+---
+
+## 041 — The perf pass: one cache, eighty-eight times faster
+
+**Context.** The failure suite measured pop-1000 over a decade at
+268.7 s — 4.5× over PERFORMANCE_PLAN's 60 s target — and AGING: 175
+ticks/s in year one decaying to 13 average. The constitution's rule:
+profile before optimizing.
+
+**The profile.** Temporary per-phase instrumentation (Instants in
+tick.rs, printed every 500 ticks, removed before commit — sim-core
+keeps its no-wall-clock contract). Verdict at t2000: the DECISIONS
+phase was 74,209 µs of a ~75,500 µs tick — 98% — while every suspect
+from the failure-suite analysis measured innocent (contracts pinned at
+80 entries, loans 262, market 123 µs, hashing 264 µs). The aging
+correlated with the dead-business count: each weekly takeover
+reviewer's live-demand gate called `market::depth()` — a full walk of
+every offer and order in town (~1,200 entities at pop-1000) — once
+per MORIBUND business. A staffed town short-circuits before the gate;
+a dying one (170 of 191 dead by year 3) pays reviewers × corpses ×
+depth every day.
+
+**The fix.** Memoize the gate: one `BTreeMap<Good, bool>` per tick in
+`takeovers()` — between state mutations the answer is a pure function
+of (good, state), so the first reviewer pays for each good and the
+rest hit the cache; an EXECUTED takeover mutates state (cash, rosters,
+ownership), so it clears the cache. Deterministic (BTreeMap, same
+iteration order) and bit-identical by construction — and verified
+empirically three ways: the full business-level dump at pop-1000
+t2000 identical pre/post to the cent; the standing pop-29 matrix
+endpoints unchanged (13 employed; hungry 14/15/23/20); the seed-42
+decade metrics identical in every shared column against the session-7
+baseline CSV (the one differing column is `govt_debt`, added in
+session 9 — format evolution, not behavior).
+
+**The numbers** (PERF_RESULTS.md): pop-1000 decade **268.7 s →
+3.06 s** (13 → ~1,190 ticks/s, 88×; target ≤60 s now has 20×
+headroom); load 0.64 s and save 0.63 s at pop-1000 (target ≤2 s);
+replay verifies the decade at ~1,106 ticks/s (93% of headless max —
+the delta is per-cadence hash verification — and 22× any paced live
+speed). Every target met.
+
+**Consequences.** One data structure, ~15 lines, zero behavior change,
+full battery green (`check` + `check:full` incl. wide property sweeps,
+soaks, E2E). The remaining scaling watch item — per-tick cost grows
+with business count through market clearing — sits far from any
+target and stays a watch item, per the plan's "watch, don't
+pre-optimize".

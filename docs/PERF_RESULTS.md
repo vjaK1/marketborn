@@ -58,3 +58,39 @@ economy, not an unemployment proxy.
 
 Cost grows roughly with business count (market clearing and reviews are
 per-business); still far from any target — no profiling warranted.
+
+## Phase 6 perf pass — 2026-08-16
+
+The full simulation now (phases 2–5 content: decisions, contracts,
+bank, government, shocks). The failure-suite measurement found the
+first real regression: pop-1000 decade at **268.7 s (13 ticks/s
+average)** — 4.5× OVER the 60 s target, and aging (175 t/s in year one
+decaying as businesses died).
+
+**Profiled first** (temporary per-phase instrumentation, DECISIONS
+#041): the decisions phase was 98% of tick time (74,209 µs of ~75,500
+at t2000) and grew with the dead-business count. Root cause: each
+weekly takeover reviewer's live-demand gate called `market::depth()` —
+a full walk of every offer and order — per moribund business; cheap
+while the town is staffed, quadratic once most of a 191-business town
+is dead. Fix: memoize the per-good demand answer per tick, invalidated
+whenever an executed takeover mutates state — decisions bit-identical
+(verified: identical business-level dumps pre/post at pop-1000 t2000,
+identical pop-29 matrix endpoints, shared metrics columns identical
+through the decade).
+
+| Measurement | Result | v1.0 target |
+|-------------|--------|-------------|
+| 29 agents, 3,650 ticks | 0.10–0.15 s (~30k ticks/s) | — |
+| 1,000 agents / 191 businesses, 3,650 ticks | **3.06 s** (~1,190 ticks/s) — was 268.7 s | ≤ 60 s ✅ (~20× headroom) |
+| Load at 1,000 agents (13.6 MB decade save, incl. re-hash) | **0.64 s** | ≤ 2 s ✅ |
+| Save at 1,000 agents | **0.63 s** | ≤ 2 s ✅ |
+| Replay 3,650 ticks at 1,000 agents (verify vs manifest) | 3.30 s sim (~1,106 ticks/s) | ≥ live ✅ — 93% of headless max (the delta is per-cadence hash verification), 22× any paced live speed |
+| Memory | ring-bounded by construction; decade pop-1000 save = 13.6 MB | bounded ✅ |
+| UI snapshot cadence | 10 Hz shell/serve throttle by construction | ✅ |
+
+Remaining watch item (not near target): per-tick cost still scales
+with business count via market clearing; the terminal contract/loan
+maps measured small (80 / 262 entries after a pop-1000 decade) — the
+suspected accumulation was innocent, the takeover×depth interaction
+was the whole story.

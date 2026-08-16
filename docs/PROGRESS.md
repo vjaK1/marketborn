@@ -5,6 +5,56 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 19 — 2026-08-16 — Phase 6 increment 3: the perf pass
+
+### One cache, eighty-eight times faster — DECISIONS #041
+
+- **Profiled first** (temporary phase instrumentation, removed before
+  commit): the decisions phase was 98% of tick time at pop-1000 and
+  grew with the dead-business count. Every failure-suite suspect
+  measured innocent (contracts 80 entries, loans 262, market 123 µs,
+  hashing 264 µs). Root cause: the takeover live-demand gate called
+  `market::depth()` (a full offers+orders walk) per reviewer per
+  MORIBUND business — quadratic once most of a 191-business town died.
+- **The fix**: memoize the per-good demand answer per tick in
+  `takeovers()`, cleared whenever an executed takeover mutates state.
+  ~15 lines, bit-identical decisions — verified three ways (identical
+  pop-1000 business dumps pre/post, identical pop-29 matrix endpoints,
+  identical shared metrics columns vs the session-7 baseline CSV).
+- **Every PERFORMANCE_PLAN target met** (PERF_RESULTS.md): pop-1000
+  decade 268.7 s → **3.06 s** (~1,190 t/s; ≤60 s target, 20×
+  headroom); load 0.64 s / save 0.63 s at pop-1000 (≤2 s); replay
+  verifies the decade at ~1,106 t/s; memory ring-bounded (13.6 MB
+  decade save).
+
+### Verification
+
+- `npm run check` exit 0; `npm run check:full` exit 0 on retry (one
+  npm-chain phantom, per the memory file's known quirk) — wide
+  property sweeps, release soaks, failure suite, E2E all green with
+  the cache in place.
+
+### Exact next task (Phase 6 close-out → v1.0)
+
+1. Session protocol: `npm run check` first.
+2. **The final docs sweep**: README (does one exist? create the
+   repo-front README: what Marketborn is, how to build/run/play,
+   screenshot); accuracy pass over ARCHITECTURE.md / ECONOMIC_RULES.md
+   / AGENT_DESIGN.md / DATA_MODEL.md against the shipped code (stale
+   references, phase-status lines); CHECKLIST ⚠ re-check if the
+   machine is idle (the desktop lever click).
+3. **Declare Phase 6 complete and tag v1.0**: PLAN.md Delivered
+   block; final `check:full` green; `git tag v1.0.0` + push the tag.
+   BRIEF's DoD cross-check before tagging: all three chains, agent
+   society, contracts+banking, government+policy, deterministic
+   save/load/replay + diff tooling, full UI screen set, test suite,
+   recorded benchmarks, packaged Windows build — all delivered.
+4. After the tag: v1.1 backlog only (scenario branching, replay
+   inspector UI, relationship graph, negotiation inspector polish,
+   optional LLM narrative layer).
+
+---
+
 ## Session 18 — 2026-08-16 — Phase 6 increment 2: the failure suite
 
 ### Every catastrophe degrades, none halt — DECISIONS #040
