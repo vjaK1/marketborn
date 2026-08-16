@@ -14,7 +14,16 @@ export interface WorldSnapshot {
   markets: MarketRow[];
   contracts: ContractRow[];
   price_history: PriceHistory;
+  macro_history: MacroHistory;
   events: EventRow[];
+}
+
+export interface MacroHistory {
+  ticks: number[];
+  employed: number[];
+  hungry: number[];
+  govt_cash_cents: number[];
+  govt_debt_cents: number[];
 }
 
 export interface ContractRow {

@@ -5,6 +5,57 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 14 — 2026-08-16 — Phase 5 increment 5: history + save slots
+
+### The world learns to rewind — DECISIONS #037
+
+- **Historical charts**: `MacroHistory` (employment, hunger, treasury,
+  sovereign debt) rides the snapshot over the same window as
+  `price_history`; `MacroChart` renders it on a second tab of the
+  chart panel (counts left, money right, same dataviz idiom).
+- **Named save slots**: sanitized filename slots on both transports —
+  `save {slot}`, `load {slot}` (swaps the sim thread's world; the next
+  push shows every client the rewound state), `list_saves` (slot +
+  saved tick via `read_meta`). `serve --load <path>` starts from a
+  save. Hostile slot names refused. The Save button became a Saves
+  menu: three player slots + load-only rows for autosave/quicksave.
+- **Autosave**: wall-clock 60 s from the shell/serve loops (never in
+  sim-core, never per tick), skipped while the tick hasn't advanced,
+  into the "autosave" slot.
+
+### Verification
+
+- The serve integration test runs the full arc over a real websocket:
+  save "alpha" → run forward → load "alpha" → the snapshot REWINDS to
+  the saved tick; listing carries both slots; "../evil" refused. All
+  suites green (141 unit, 16 vitest, tsc; both gates exit 0).
+- In-browser: both surfaces mount and render (tabs + Saves button;
+  background `PrintWindow` capture — machine in active use, foreground
+  automation correctly aborted twice, Edge has no child HWND for
+  background clicks). The Saves click-through and the Society canvas
+  are two of the exact steps the Playwright suite automates next —
+  deferred to it, recorded.
+
+### Exact next task (Phase 5 close-out)
+
+1. Session protocol: `npm run check` first.
+2. **The Playwright E2E suite** against `sim-cli serve` (the BRIEF's
+   list): new world visible, change speed, inspect an agent, inspect a
+   business, apply a policy (the sales-tax lever), save + load (the
+   rewind), plus the two deferred click-throughs (Society chart tab,
+   Saves menu). Wire an `npm run e2e` script (start serve on an
+   ephemeral port + vite preview or dev, run Playwright headless) and
+   keep it OUT of `npm run check` (its own script + check:full entry
+   per TEST_PLAN's transport policy).
+3. Then the packaged Tauri smoke test (launch, create world, ticks
+   advance, save — and the deferred desktop lever pull), the
+   per-screen manual checklist (PLAN's done-when), and Phase 5's
+   Delivered block.
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 13 — 2026-08-16 — Phase 5 increment 4: the business inspector
 
 ### The last missing v1.0 inspector — DECISIONS #036

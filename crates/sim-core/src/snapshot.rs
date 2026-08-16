@@ -33,6 +33,9 @@ pub struct WorldSnapshot {
     /// fetches full detail (negotiation log, delivery history) by id.
     pub contracts: Vec<ContractRow>,
     pub price_history: PriceHistory,
+    /// Society and fiscal series over the same window as `price_history` —
+    /// the historical-charts screen (employment, hunger, treasury, debt).
+    pub macro_history: MacroHistory,
     pub events: Vec<EventRow>,
 }
 
@@ -173,6 +176,15 @@ pub struct PriceHistory {
 pub struct GoodSeries {
     pub good: String,
     pub points: Vec<Option<i64>>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct MacroHistory {
+    pub ticks: Vec<u64>,
+    pub employed: Vec<u32>,
+    pub hungry: Vec<u32>,
+    pub govt_cash_cents: Vec<i64>,
+    pub govt_debt_cents: Vec<i64>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -698,6 +710,13 @@ impl WorldSnapshot {
                     .collect(),
             })
             .collect();
+        let macro_history = MacroHistory {
+            ticks: window.iter().map(|m| m.tick).collect(),
+            employed: window.iter().map(|m| m.employed).collect(),
+            hungry: window.iter().map(|m| m.hungry).collect(),
+            govt_cash_cents: window.iter().map(|m| m.govt_cash.cents()).collect(),
+            govt_debt_cents: window.iter().map(|m| m.govt_debt.cents()).collect(),
+        };
 
         let contracts = state
             .contracts
@@ -766,6 +785,7 @@ impl WorldSnapshot {
             markets,
             contracts,
             price_history: PriceHistory { ticks, series },
+            macro_history,
             events,
         }
     }

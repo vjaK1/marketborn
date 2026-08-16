@@ -146,13 +146,39 @@ export async function sendSpeed(level: number): Promise<void> {
   if (socket) await wsRequest<null>({ kind: 'set_speed', level });
 }
 
-export async function saveGame(): Promise<string> {
+export async function saveGame(slot?: string): Promise<string> {
   if (isTauri()) {
     const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<string>('save_game');
+    return invoke<string>('save_game', { slot: slot ?? null });
   }
-  if (socket) return wsRequest<string>({ kind: 'save' });
+  if (socket) return wsRequest<string>({ kind: 'save', slot: slot ?? null });
   throw new Error('no backend connected');
+}
+
+export async function loadGame(slot: string): Promise<number> {
+  if (isTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<number>('load_game', { slot });
+  }
+  if (socket) {
+    const r = await wsRequest<{ tick: number }>({ kind: 'load', slot });
+    return r.tick;
+  }
+  throw new Error('no backend connected');
+}
+
+export interface SaveSlot {
+  slot: string;
+  tick: number | null;
+}
+
+export async function listSaves(): Promise<SaveSlot[]> {
+  if (isTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<SaveSlot[]>('list_saves');
+  }
+  if (socket) return wsRequest<SaveSlot[]>({ kind: 'list_saves' });
+  return [];
 }
 
 export async function getAgentDetail(id: number): Promise<AgentDetail | null> {

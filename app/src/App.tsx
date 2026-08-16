@@ -7,6 +7,7 @@ import { CityView } from './components/CityView';
 import { ContractInspector } from './components/ContractInspector';
 import { ContractTable } from './components/ContractTable';
 import { EventLog } from './components/EventLog';
+import { MacroChart } from './components/MacroChart';
 import { MarketTable } from './components/MarketTable';
 import { PolicyPanel } from './components/PolicyPanel';
 import { PriceChart } from './components/PriceChart';
@@ -29,6 +30,7 @@ export default function App() {
     null,
   );
   const [cityOpen, setCityOpen] = useState(true);
+  const [chartTab, setChartTab] = useState<'prices' | 'society'>('prices');
 
   useEffect(() => {
     let cancelled = false;
@@ -96,9 +98,28 @@ export default function App() {
       </section>
       <div className="grid">
         <section className="panel">
-          <h2>Prices — daily average</h2>
+          <h2 className="tabbed">
+            <button
+              type="button"
+              className={chartTab === 'prices' ? 'active' : ''}
+              onClick={() => setChartTab('prices')}
+            >
+              Prices — daily average
+            </button>
+            <button
+              type="button"
+              className={chartTab === 'society' ? 'active' : ''}
+              onClick={() => setChartTab('society')}
+            >
+              Society & treasury
+            </button>
+          </h2>
           <div className="body">
-            <PriceChart history={snapshot.price_history} />
+            {chartTab === 'prices' ? (
+              <PriceChart history={snapshot.price_history} />
+            ) : (
+              <MacroChart history={snapshot.macro_history} />
+            )}
           </div>
         </section>
         <div className="stack">

@@ -33,6 +33,13 @@ function fakeSnapshot(tick: number): WorldSnapshot {
     markets: [],
     contracts: [],
     price_history: { ticks: [], series: [] },
+    macro_history: {
+      ticks: [],
+      employed: [],
+      hungry: [],
+      govt_cash_cents: [],
+      govt_debt_cents: [],
+    },
     events: [],
   };
 }

@@ -1301,3 +1301,51 @@ Both gates green (141 unit tests).
 **Deferred.** Historical per-business charts (BizDay series exist in
 metrics — next batch); linking inspector contract rows to the
 contract inspector across panels; wage/price history sparklines.
+
+---
+
+## 037 — Historical charts and named save slots (the world learns to rewind)
+
+**Context.** Phase 5's last two feature screens: historical charts and
+save-slot management with an autosave cadence. The metrics journal
+already held every series; sim-persist already knew how to save, load
+and read a save's meta. The work was surface and protocol, not new
+state.
+
+**Decision — the macro chart rides the snapshot.** `MacroHistory`
+(employment, hunger, treasury, sovereign debt) over the same bounded
+window as `price_history`, rendered by `MacroChart` on a second tab of
+the chart panel — counts on the left axis, money on the right, same
+dataviz idiom as the price chart. No on-demand query needed at this
+window size; per-business historical charts stay deferred.
+
+**Decision — slots are files, the protocol stays symmetric.** A slot
+name is a sanitized filename (alphanumeric/dash/underscore, ≤32; a
+hostile "../evil" is refused with an error). Both transports carry
+`save {slot}`, `load {slot}` and `list_saves` (slot + saved tick via
+`read_meta`); loading swaps the sim thread's world in place and the
+next push shows every client the rewound state. `sim-cli serve
+--load <path>` starts from a save. Autosave is WALL-CLOCK, 60 s, from
+the shell/serve loops (never inside sim-core, never per tick —
+CLAUDE.md), skipped while paused via a tick-unchanged check, into the
+"autosave" slot. The UI's Save button became a Saves menu: three
+player slots (save/load, saved date shown) plus load-only rows for
+autosave/quicksave/anything else on disk. Loading rewinds; determinism
+means replaying forward from the same save reproduces the same run —
+the existing save/resume equality tests already guard exactly that.
+
+**Verification.** The serve integration test now runs the full arc
+over a real websocket: save to "alpha" → run forward at max speed →
+load "alpha" → the snapshot REWINDS to the saved tick; the listing
+carries both slots; the hostile slot name is refused. All suites green
+(141 unit, 16 vitest, tsc). In-browser: both new surfaces mount and
+render (background `PrintWindow` capture — the machine was in active
+use, both foreground attempts were correctly aborted, and Edge
+exposes no child HWND for background clicks). The Saves panel's
+click-through and the Society tab's canvas are exactly two of the
+steps the Playwright E2E suite (next increment) automates — recorded
+as deferred to it, not skipped silently.
+
+**Deferred.** Save-file deletion/renaming from the UI; autosave
+rotation (one slot suffices at these file sizes); cloud/scenario
+export; per-business chart series.

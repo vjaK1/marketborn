@@ -69,6 +69,7 @@ fn the_websocket_transport_speaks_the_full_protocol() {
         hash_every: 50,
         port: 0, // ephemeral
         save_dir: dir.path().to_path_buf(),
+        load: None,
     })
     .expect("bind");
     let mut ws = connect(handle.port);
@@ -128,6 +129,43 @@ fn the_websocket_transport_speaks_the_full_protocol() {
     let saved = read_reply(&mut ws, 6);
     assert_eq!(saved["ok"], json!(true), "{saved}");
     assert!(dir.path().join("quicksave.mbsave").exists());
+
+    // --- Named slots: save, advance, load back — the world rewinds. ---
+    send(&mut ws, json!({"kind": "save", "slot": "alpha", "req": 7}));
+    assert_eq!(read_reply(&mut ws, 7)["ok"], json!(true));
+    let tick_saved = wait_snapshot(&mut ws, |_| true)["data"]["tick"]
+        .as_u64()
+        .unwrap();
+    send(&mut ws, json!({"kind": "set_speed", "level": 4, "req": 8}));
+    assert_eq!(read_reply(&mut ws, 8)["ok"], json!(true));
+    wait_snapshot(&mut ws, |d| {
+        d["tick"].as_u64().unwrap_or(0) > tick_saved + 5
+    });
+    send(&mut ws, json!({"kind": "set_speed", "level": 0, "req": 9}));
+    assert_eq!(read_reply(&mut ws, 9)["ok"], json!(true));
+    send(&mut ws, json!({"kind": "load", "slot": "alpha", "req": 10}));
+    let loaded = read_reply(&mut ws, 10);
+    assert_eq!(loaded["ok"], json!(true), "{loaded}");
+    assert_eq!(loaded["data"]["tick"], json!(tick_saved));
+    wait_snapshot(&mut ws, |d| d["tick"] == json!(tick_saved));
+
+    // The slot listing knows both saves; a hostile slot name is refused.
+    send(&mut ws, json!({"kind": "list_saves", "req": 11}));
+    let listing = read_reply(&mut ws, 11);
+    assert_eq!(listing["ok"], json!(true));
+    let slots: Vec<String> = listing["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["slot"].as_str().unwrap().to_string())
+        .collect();
+    assert!(slots.contains(&"alpha".to_string()), "{slots:?}");
+    assert!(slots.contains(&"quicksave".to_string()), "{slots:?}");
+    send(
+        &mut ws,
+        json!({"kind": "save", "slot": "../evil", "req": 12}),
+    );
+    assert_eq!(read_reply(&mut ws, 12)["ok"], json!(false));
 
     // A second client gets its own snapshot immediately.
     let mut ws2 = connect(handle.port);

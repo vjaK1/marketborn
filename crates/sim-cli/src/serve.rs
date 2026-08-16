@@ -48,6 +48,9 @@ use tracing::{error, info, warn};
 
 const SNAPSHOT_INTERVAL: Duration = Duration::from_millis(100); // 10 Hz
 const CLIENT_POLL: Duration = Duration::from_millis(50);
+/// Wall-clock autosave cadence — never per tick (CLAUDE.md); skipped
+/// while the tick hasn't advanced since the last autosave.
+const AUTOSAVE_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Clone, Debug)]
 pub struct ServeConfig {
@@ -57,8 +60,11 @@ pub struct ServeConfig {
     /// Port to bind on 127.0.0.1; 0 asks the OS for an ephemeral port
     /// (the bound port is reported in [`ServeHandle::port`]).
     pub port: u16,
-    /// Directory the `save` message writes `quicksave.mbsave` into.
+    /// Directory save slots live in (`<slot>.mbsave`).
     pub save_dir: PathBuf,
+    /// Start from this save instead of a fresh world (seed/population are
+    /// ignored when set).
+    pub load: Option<PathBuf>,
 }
 
 /// A running server: the bound port and the accept-thread handle. Threads
@@ -95,6 +101,15 @@ enum ClientMsg {
         req: Option<u64>,
     },
     Save {
+        /// Named slot (sanitized); defaults to "quicksave".
+        slot: Option<String>,
+        req: Option<u64>,
+    },
+    Load {
+        slot: String,
+        req: Option<u64>,
+    },
+    ListSaves {
         req: Option<u64>,
     },
     AgentDetail {
@@ -124,6 +139,41 @@ enum SimMsg {
     Client(ClientMsg, Sender<String>),
 }
 
+/// A slot name is a filename: short, alphanumeric plus dash/underscore.
+fn slot_path(save_dir: &std::path::Path, slot: &str) -> Result<std::path::PathBuf, String> {
+    let ok = !slot.is_empty()
+        && slot.len() <= 32
+        && slot
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !ok {
+        return Err(format!("invalid slot name '{slot}'"));
+    }
+    Ok(save_dir.join(format!("{slot}.mbsave")))
+}
+
+/// Every `.mbsave` in the save dir with its saved tick (slots whose meta
+/// cannot be read are listed with `tick: null` rather than hidden).
+fn list_saves(save_dir: &std::path::Path) -> Value {
+    let mut slots: Vec<Value> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(save_dir) {
+        let mut names: Vec<std::path::PathBuf> = entries
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| p.extension().is_some_and(|x| x == "mbsave"))
+            .collect();
+        names.sort();
+        for path in names {
+            let slot = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let tick = sim_persist::read_meta(&path).ok().map(|m| m.tick);
+            slots.push(json!({ "slot": slot, "tick": tick }));
+        }
+    }
+    Value::Array(slots)
+}
+
 fn reply(req: Option<u64>, result: Result<Value, String>) -> Option<String> {
     let req = req?;
     let body = match result {
@@ -140,15 +190,19 @@ pub fn start(cfg: ServeConfig) -> io::Result<ServeHandle> {
     let port = listener.local_addr()?.port();
     let (sim_tx, sim_rx) = channel::<SimMsg>();
 
-    let world_cfg = WorldConfig {
-        master_seed: cfg.seed,
-        population: cfg.population,
-        hash_every: cfg.hash_every,
+    let world = match &cfg.load {
+        Some(path) => sim_persist::load(path)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("{path:?}: {e}")))?,
+        None => World::from_config(WorldConfig {
+            master_seed: cfg.seed,
+            population: cfg.population,
+            hash_every: cfg.hash_every,
+        }),
     };
     let save_dir = cfg.save_dir.clone();
     std::thread::Builder::new()
         .name("marketborn-sim".into())
-        .spawn(move || sim_thread(world_cfg, save_dir, sim_rx))?;
+        .spawn(move || sim_thread(world, save_dir, sim_rx))?;
 
     let accept_thread = std::thread::Builder::new()
         .name("marketborn-accept".into())
@@ -276,11 +330,11 @@ fn publish(clients: &mut Vec<Sender<String>>, text: &str) {
     clients.retain(|c| c.send(text.to_string()).is_ok());
 }
 
-fn sim_thread(cfg: WorldConfig, save_dir: PathBuf, rx: Receiver<SimMsg>) {
-    let mut world = World::from_config(cfg);
+fn sim_thread(mut world: World, save_dir: PathBuf, rx: Receiver<SimMsg>) {
     info!(
-        "world ready: seed {}, {} agents, {} businesses",
+        "world ready: seed {}, tick {}, {} agents, {} businesses",
         world.state.config.master_seed,
+        world.state.tick,
         world.state.agents.len(),
         world.state.businesses.len()
     );
@@ -288,6 +342,8 @@ fn sim_thread(cfg: WorldConfig, save_dir: PathBuf, rx: Receiver<SimMsg>) {
     let mut speed: u8 = 1;
     let mut next_tick = Instant::now();
     let mut last_snapshot = Instant::now();
+    let mut last_autosave = Instant::now();
+    let mut last_autosaved_tick = world.state.tick;
 
     let handle = |msg: SimMsg,
                   world: &mut World,
@@ -309,13 +365,29 @@ fn sim_thread(cfg: WorldConfig, save_dir: PathBuf, rx: Receiver<SimMsg>) {
                         info!("speed set to {}", *speed);
                         reply(req, Ok(Value::Null))
                     }
-                    ClientMsg::Save { req } => {
-                        let path = save_dir.join("quicksave.mbsave");
-                        let result = sim_persist::save(world, &path)
-                            .map(|_| Value::String(path.display().to_string()))
-                            .map_err(|e| format!("save failed: {e}"));
+                    ClientMsg::Save { slot, req } => {
+                        let result = slot_path(&save_dir, slot.as_deref().unwrap_or("quicksave"))
+                            .and_then(|path| {
+                                sim_persist::save(world, &path)
+                                    .map(|_| Value::String(path.display().to_string()))
+                                    .map_err(|e| format!("save failed: {e}"))
+                            });
                         reply(req, result)
                     }
+                    ClientMsg::Load { slot, req } => {
+                        let result = slot_path(&save_dir, &slot).and_then(|path| {
+                            sim_persist::load(&path)
+                                .map_err(|e| format!("load failed: {e}"))
+                                .map(|loaded| {
+                                    let tick = loaded.state.tick;
+                                    *world = loaded;
+                                    info!("loaded slot '{slot}' at tick {tick}");
+                                    json!({ "tick": tick })
+                                })
+                        });
+                        reply(req, result)
+                    }
+                    ClientMsg::ListSaves { req } => reply(req, Ok(list_saves(&save_dir))),
                     ClientMsg::AgentDetail { id, req } => {
                         let detail = sim_core::AgentDetail::capture(world, sim_core::AgentId(id))
                             .and_then(|d| serde_json::to_value(&d).ok())
@@ -401,6 +473,20 @@ fn sim_thread(cfg: WorldConfig, save_dir: PathBuf, rx: Receiver<SimMsg>) {
                         publish(&mut clients, &snap);
                     }
                     last_snapshot = Instant::now();
+                }
+                if last_autosave.elapsed() >= AUTOSAVE_INTERVAL
+                    && world.state.tick != last_autosaved_tick
+                {
+                    match slot_path(&save_dir, "autosave")
+                        .and_then(|p| sim_persist::save(&world, &p).map_err(|e| e.to_string()))
+                    {
+                        Ok(()) => {
+                            last_autosaved_tick = world.state.tick;
+                            info!("autosaved at tick {}", world.state.tick);
+                        }
+                        Err(e) => warn!("autosave failed: {e}"),
+                    }
+                    last_autosave = Instant::now();
                 }
             }
         }

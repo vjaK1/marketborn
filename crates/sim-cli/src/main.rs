@@ -80,6 +80,9 @@ enum Cmd {
         /// Directory the `save` message writes `quicksave.mbsave` into.
         #[arg(long, default_value = ".")]
         save_dir: PathBuf,
+        /// Start from this save instead of a fresh world.
+        #[arg(long)]
+        load: Option<PathBuf>,
     },
 }
 
@@ -104,7 +107,8 @@ fn main() -> ExitCode {
             hash_every,
             port,
             save_dir,
-        } => cmd_serve(seed, population, hash_every, port, save_dir),
+            load,
+        } => cmd_serve(seed, population, hash_every, port, save_dir, load),
     };
     match result {
         Ok(code) => code,
@@ -278,6 +282,7 @@ fn cmd_serve(
     hash_every: u64,
     port: u16,
     save_dir: PathBuf,
+    load: Option<PathBuf>,
 ) -> Result<ExitCode, String> {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
@@ -288,8 +293,9 @@ fn cmd_serve(
         hash_every,
         port,
         save_dir,
+        load,
     })
-    .map_err(|e| format!("could not bind 127.0.0.1:{port}: {e}"))?;
+    .map_err(|e| format!("could not start serve on 127.0.0.1:{port}: {e}"))?;
     println!(
         "marketborn serve: seed {seed}, population {population}, ws://127.0.0.1:{}",
         handle.port
