@@ -128,7 +128,7 @@ contracting (hikes are absorbed); welfare abolition starves on a
 only austerity breaks. The five-run soak matrix is unchanged through
 all three increments — every default is bit-neutral.
 
-## Phase 5 — UI completion and analytics
+## Phase 5 — UI completion and analytics  **[complete — sessions 10–16]**
 
 All v1.0 screens polished (world overview, city view, agent inspector,
 business inspector, market view, contract view, event timeline); speed
@@ -137,6 +137,28 @@ timeline filters; `sim-cli serve` (websocket protocol); Playwright E2E suite.
 
 *Done when:* E2E green and a written per-screen manual checklist verified in
 the running app.
+
+*Delivered:* both done-when criteria met. `sim-cli serve` implements the
+reserved websocket protocol (sync tungstenite, thread-per-client, the
+command channel included) with a Rust protocol test and a
+transport-agnostic `ipc.ts` (5 vitest cases); the world overview grew
+the BRIEF's macro block (GDP-7d, food inflation-90d, cash Gini, bank
+rate, treasury, debt — each honestly defined, ADR #034); the policy
+panel enacts all five levers over both transports; the city view is a
+pure derived map (no invented spatial state, ADR #035) with live
+death/hunger/ownership glyphs; the business inspector presents the
+reconciled books, a balancing balance sheet, credit and contracts (ADR
+#036); the event timeline gained kind-group + text filters; historical
+charts ride the snapshot (society + treasury tab); named save slots
+with load-rewind and a 60 s wall-clock autosave on both transports (ADR
+#037); the Playwright suite runs the BRIEF's whole journey in ~8 s and
+closes `check:full` (ADR #038); the NSIS-packaged exe passed the smoke
+(launch, world, ticks Y1→Y6, autosave persists) and
+`docs/CHECKLIST.md` records the per-screen verification. One ⚠ carried
+forward there: the desktop shell's lever click is verified over serve +
+compile-verified in the shell, pending an interactive desktop check
+when the machine is idle. The negotiation-inspector polish stays v1.1
+per the BRIEF.
 
 ## Phase 6 — Hardening and release (v1.0)
 

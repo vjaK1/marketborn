@@ -5,6 +5,57 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 16 — 2026-08-16 — Phase 5: COMPLETE (packaged smoke + checklist)
+
+### The packaged app, smoked
+
+- `npm run app:package`: bundling enabled (NSIS target, existing
+  icon), @tauri-apps/cli added → `target/release/bundle/nsis/
+  Marketborn_0.1.0_x64-setup.exe` builds clean.
+- **Smoke (BRIEF: launch, create world, ticks advance, save)** — all
+  four verified on the release exe with background `PrintWindow`
+  captures (machine in use, zero foreground touches): the world
+  launched at Y1·D14 with every screen rendering, ran to **Y6·D301**
+  between captures (welfare events streaming in the log at year six),
+  and the 60 s autosave wrote `%APPDATA%\com.marketborn.app\saves\
+  autosave.mbsave` (1.27 MB) hands-free — the same save path the
+  button uses.
+- **`docs/CHECKLIST.md`**: the written per-screen walk (PLAN's second
+  done-when), every v1.0 screen verified with evidence pointers. One
+  recorded ⚠: the desktop shell's lever CLICK (its `queue_command`
+  glue is compile-verified, pattern-identical to four runtime-proven
+  handlers, and the same React code is E2E-tested over serve) —
+  re-check opportunistically when the machine is idle.
+
+### Phase 5 declared complete
+
+- Both done-when criteria met: E2E green (in `check:full`) + the
+  checklist verified. PLAN.md carries the Delivered block. Sessions
+  10–16: serve transport → macro stats + policy panel → city view +
+  timeline filters → business inspector → historical charts + save
+  slots + autosave → Playwright journey → packaged smoke.
+
+### Exact next task (Phase 6 — hardening and release)
+
+1. Session protocol: `npm run check` first; read PLAN Phase 6 +
+   PERFORMANCE_PLAN.md (targets) + the BRIEF's failure-test list.
+2. Suggested first increment: **proptest property suite** (the
+   phase's named test tier): world generators (seed/population
+   sweeps) driving N-tick runs that assert the nine invariants + no
+   panics; property tests for the integer money/bp math (mul_bp
+   rounding, remainder assignment, conservation under arbitrary
+   transfer sequences). Wire behind `check:full` (slow tier).
+3. Then the failure-test list (empty markets, no employers, mass
+   bankruptcy, bank insolvency, resource exhaustion, extreme
+   inflation, corrupted saves, old save versions, 1000-agent worlds —
+   which owns the open pop-100 decade issue), then the perf pass
+   (profile first, then optimize against PERFORMANCE_PLAN, record in
+   PERF_RESULTS.md), final docs, and the **v1.0 tag**.
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 15 — 2026-08-16 — Phase 5 increment 6: the Playwright E2E suite
 
 ### One journey, real browser, real backend — DECISIONS #038

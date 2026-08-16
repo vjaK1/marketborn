@@ -14,6 +14,7 @@
     "e2e": "cargo build --release -p sim-cli && npm --prefix app run e2e",
     "build:app": "npm --prefix app run build",
     "app:dev": "npm --prefix app run dev",
-    "app:desktop": "npm run build:app && cargo run -p marketborn"
+    "app:desktop": "npm run build:app && cargo run -p marketborn",
+    "app:package": "npm run build:app && npm --prefix app exec -- tauri build"
   }
 }

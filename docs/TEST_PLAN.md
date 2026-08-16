@@ -237,8 +237,12 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   the date rewinding, chart tab, city house click; `npm run e2e`, and
   `check:full` ends with it — DECISIONS #038). Groundwork (session
   10): serve's Rust protocol test + 5 transport vitest cases.
-  Remaining: packaged-app smoke (launch, ticks, save, the deferred
-  desktop lever pull).
+  ~~Packaged-app smoke~~ ✅ (session 16: `npm run app:package` builds
+  the NSIS installer; the release exe launched, created a world, ran
+  Y1·D14→Y6·D301, and autosaved to app-data hands-free — the manual
+  procedure and per-screen results live in `docs/CHECKLIST.md`; the
+  desktop lever click stays a recorded ⚠ pending an idle machine) —
+  **phase complete**.
 - **Phase 6**: proptest world generators (thousands of ticks, all
   invariants); failure tests (empty markets, no employers, mass bankruptcy,
   bank insolvency, resource exhaustion, extreme inflation, corrupted saves,
