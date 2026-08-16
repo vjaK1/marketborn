@@ -15,3 +15,7 @@ app/dist/
 # Editor / OS
 .DS_Store
 Thumbs.db
+
+# Playwright artifacts
+app/test-results/
+app/playwright-report/

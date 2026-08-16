@@ -231,12 +231,14 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   borrow→compound→repay arc, town-wide minimum-wage compliance within
   one review cycle, and every lever clamp through the command channel —
   **phase complete**; recorded scope in DECISIONS #029–#032.
-- **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
-  inspect agent/business, apply policy, save, load); packaged-app smoke.
-  Groundwork landed (session 10): the serve transport has a Rust
-  integration test driving the full protocol with a real ws client, and
-  the app's transport layer has 5 vitest cases (correlation, failure
-  paths) — E2E rides these once the screens land.
+- **Phase 5**: ~~Playwright E2E against `sim-cli serve`~~ ✅ (session
+  15: one serial journey covering the BRIEF's list — new world, speed,
+  both inspectors, policy enact + effect + event, save/run/load with
+  the date rewinding, chart tab, city house click; `npm run e2e`, and
+  `check:full` ends with it — DECISIONS #038). Groundwork (session
+  10): serve's Rust protocol test + 5 transport vitest cases.
+  Remaining: packaged-app smoke (launch, ticks, save, the deferred
+  desktop lever pull).
 - **Phase 6**: proptest world generators (thousands of ticks, all
   invariants); failure tests (empty markets, no employers, mass bankruptcy,
   bank insolvency, resource exhaustion, extreme inflation, corrupted saves,

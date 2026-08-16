@@ -10,7 +10,8 @@
     "check:cargo-test": "cargo test --workspace",
     "check:ts": "npm --prefix app run typecheck",
     "check:vitest": "npm --prefix app run test:run",
-    "check:full": "npm run check && cargo test --workspace --release -- --include-ignored",
+    "check:full": "npm run check && cargo test --workspace --release -- --include-ignored && npm run e2e",
+    "e2e": "cargo build --release -p sim-cli && npm --prefix app run e2e",
     "build:app": "npm --prefix app run build",
     "app:dev": "npm --prefix app run dev",
     "app:desktop": "npm run build:app && cargo run -p marketborn"

@@ -5,6 +5,57 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 15 — 2026-08-16 — Phase 5 increment 6: the Playwright E2E suite
+
+### One journey, real browser, real backend — DECISIONS #038
+
+- `npm run e2e`: builds release sim-cli, Playwright's `webServer`
+  array launches serve (TCP-probed on 17771) + vite dev, and one
+  serial journey with `test.step` chapters covers the BRIEF's whole
+  list in ~8 s: new world visible and advancing → speed races and
+  pauses it → agent inspector → business inspector (balance sheet +
+  books) → sales-tax lever enacted 1%→5%, readback changes only after
+  the next tick boundary, "The sales tax moved" in the Government
+  event filter → save slot-1 → run at max → load → **the date
+  rewinds** → society chart canvas → city house → its resident.
+- `check:full` now ends with the E2E run (kept out of the fast
+  `check`: needs a browser). Playwright artifacts gitignored; e2e
+  saves land in `target/e2e-saves`. New dev deps: @playwright/test +
+  Chromium.
+- The one honest failure en route: the Saves menu is a toggle and the
+  test had left it open — its second "open" closed it. Fixed in the
+  test with an explicit close+hidden assert. The kind of truth only a
+  real browser finds.
+
+### Verification
+
+- `npm run e2e` green (8.2 s). **`npm run check:full` green end to
+  end** — fmt, clippy, all cargo suites incl. release soaks, tsc,
+  vitest, E2E. Session gate green before work.
+
+### Exact next task (Phase 5 close-out, then Phase 6)
+
+1. Session protocol: `npm run check` first.
+2. **The packaged Tauri smoke test**: `cargo tauri build` (or the
+   bundler via npm), launch the packaged exe, verify ticks advance +
+   save works + one lever pull (the deferred desktop check) — as a
+   scripted smoke (spawn exe, poke via UI automation if the machine
+   is idle, else at minimum launch + log/window checks), documented
+   in TEST_PLAN. NOTE: if the machine is in active use, do the
+   packaged launch headless-ish and defer pixel checks — the memory
+   file's PrintWindow technique works on the Tauri window too.
+3. **The per-screen manual checklist** (PLAN's done-when): write
+   docs/CHECKLIST.md walking every v1.0 screen with what to look at;
+   verify each against the running app; record results. Then declare
+   Phase 5 complete (Delivered block in PLAN.md).
+4. Phase 6 opens: proptest generators, the failure-test list, the
+   perf pass (PERFORMANCE_PLAN targets, profile first), packaged
+   build + final docs + the v1.0 tag.
+5. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 14 — 2026-08-16 — Phase 5 increment 5: history + save slots
 
 ### The world learns to rewind — DECISIONS #037

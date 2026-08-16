@@ -1349,3 +1349,48 @@ as deferred to it, not skipped silently.
 **Deferred.** Save-file deletion/renaming from the UI; autosave
 rotation (one slot suffices at these file sizes); cloud/scenario
 export; per-business chart series.
+
+---
+
+## 038 — The E2E suite is one journey, not twenty fragments
+
+**Context.** The TEST_PLAN's E2E transport: Playwright drives the React
+app in a real Chromium against `sim-cli serve`. The BRIEF's list —
+new world, speed, inspect agent, inspect business, apply policy, save,
+load — plus the two click-throughs deferred from session 14.
+
+**Decision — one serial journey.** The backend is ONE living world, so
+the suite is one test with `test.step` chapters rather than isolated
+fragments pretending independence: the world appears and advances,
+speed races and pauses it, both inspectors open from their tables, the
+sales-tax lever enacts at 1%→5% and the readback changes only after
+the next tick boundary (the test unpauses to let it — the same
+contract everything else obeys), the Government event filter shows
+"The sales tax moved", the world saves to slot-1, runs forward at max,
+loads back and the DATE REWINDS, the society chart tab renders its
+canvas, and a city house opens its resident. 8 seconds wall clock.
+
+**Decision — orchestration by TCP probe.** Playwright's `webServer`
+array launches both processes: serve (probed by TCP connect on 17771 —
+it speaks no HTTP, and tungstenite's failed handshake on a probe is a
+warn-and-continue) and vite dev (5173). `npm run e2e` at the root
+builds the release sim-cli first; `check:full` ends with the E2E run.
+The suite stays OUT of the fast `npm run check` (it needs a browser
+and ~17 s). Saves land in `target/e2e-saves`; Playwright artifacts are
+gitignored.
+
+**The one honest failure.** First run hung at the load click: the
+Saves menu is a TOGGLE, the test had left it open after saving, and
+its second "open" closed it. The test now closes the menu explicitly
+and asserts it hidden — the kind of UI truth only a real browser
+finds, which is the point of the suite.
+
+**Verification.** `npm run e2e` green (8.2 s); `npm run check:full`
+green end to end — fmt, clippy, all cargo suites incl. release soaks,
+tsc, vitest, E2E. Remaining for Phase 5: the packaged Tauri smoke
+test (launch, ticks advance, save — and the deferred desktop lever
+pull) and the per-screen manual checklist.
+
+**Deferred.** Multi-browser projects (Chromium suffices for a desktop
+webview app); CI wiring (no CI exists — a post-1.0 concern); visual
+regression snapshots.
