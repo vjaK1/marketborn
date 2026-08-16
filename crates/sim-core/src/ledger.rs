@@ -58,6 +58,13 @@ pub enum TxKind {
         qty: Qty,
         unit_price: Money,
     },
+    /// The seller remits sales tax on a goods sale (market trade or
+    /// contract delivery) to the government (Phase 4).
+    SalesTax {
+        good: Good,
+    },
+    /// The government tops a destitute agent up to the welfare floor.
+    Welfare,
     /// Explicit money creation/destruction via player command.
     MonetaryPolicy {
         memo: String,
@@ -111,6 +118,7 @@ pub fn balance(state: &SimState, account: AccountId) -> Result<Money, LedgerErro
             .map(|b| b.cash)
             .ok_or(LedgerError::UnknownAccount(account)),
         AccountId::Bank => Ok(state.bank.cash),
+        AccountId::Government => Ok(state.government.cash),
     }
 }
 
@@ -127,6 +135,7 @@ fn cash_mut(state: &mut SimState, account: AccountId) -> Result<&mut Money, Ledg
             .map(|b| &mut b.cash)
             .ok_or(LedgerError::UnknownAccount(account)),
         AccountId::Bank => Ok(&mut state.bank.cash),
+        AccountId::Government => Ok(&mut state.government.cash),
     }
 }
 
@@ -210,6 +219,7 @@ pub fn mint(
             }
         }
         AccountId::Bank => state.bank.books.policy_net += amount,
+        AccountId::Government => state.government.books.policy_net += amount,
         AccountId::Agent(_) => {}
     }
     record(
@@ -258,6 +268,7 @@ pub fn burn(
             }
         }
         AccountId::Bank => state.bank.books.policy_net -= amount,
+        AccountId::Government => state.government.books.policy_net -= amount,
         AccountId::Agent(_) => {}
     }
     record(

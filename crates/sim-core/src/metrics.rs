@@ -20,6 +20,7 @@ pub struct DayAccumulator {
     pub contract_deliveries: u32,
     pub contract_misses: u32,
     pub loan_defaults: u32,
+    pub welfare_recipients: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,6 +54,14 @@ pub struct MetricsDay {
     pub loans_active: u32,
     /// Loans that defaulted today.
     pub loan_defaults: u32,
+    /// The government's treasury balance.
+    pub govt_cash: Money,
+    /// Lifetime sales tax collected (cumulative — diff for the daily take).
+    pub tax_collected: Money,
+    /// Lifetime welfare paid out (cumulative).
+    pub welfare_paid: Money,
+    /// Agents topped up to the welfare floor today.
+    pub welfare_recipients: u32,
     /// Per-business daily state, for time-series analysis and (later) the
     /// business inspector's historical charts.
     pub businesses: BTreeMap<BusinessId, BizDay>,
@@ -74,6 +83,7 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
     let household_cash: Money = state.agents.values().map(|a| a.cash).sum();
     let business_cash: Money = state.businesses.values().map(|b| b.cash).sum();
     let bank_cash = state.bank.cash;
+    let govt_cash = state.government.cash;
     let mut employed = 0u32;
     let mut unemployed = 0u32;
     let mut owners = 0u32;
@@ -126,7 +136,7 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
         .collect();
     MetricsDay {
         tick,
-        money_total: household_cash + business_cash + bank_cash,
+        money_total: household_cash + business_cash + bank_cash + govt_cash,
         household_cash,
         business_cash,
         employed,
@@ -155,6 +165,10 @@ pub fn capture(state: &SimState, acc: &DayAccumulator, tick: u64) -> MetricsDay 
             .filter(|l| l.state == crate::bank::LoanState::Active)
             .count() as u32,
         loan_defaults: acc.loan_defaults,
+        govt_cash,
+        tax_collected: state.government.books.tax_collected,
+        welfare_paid: state.government.books.welfare_paid,
+        welfare_recipients: acc.welfare_recipients,
         businesses,
     }
 }

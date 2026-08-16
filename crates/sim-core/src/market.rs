@@ -330,6 +330,9 @@ fn execute_orders(
                 seller.revenue_window += cost;
                 seller.books.revenue += cost;
             }
+            // Sales tax on the gross receipt, remitted right where revenue
+            // is booked — the seller always holds at least the tax it owes.
+            crate::government::collect_sales_tax(state, journal, tick, offer.seller, good, cost)?;
             match order.buyer {
                 AccountId::Agent(id) => {
                     if let Some(agent) = state.agents.get_mut(&id) {
@@ -357,8 +360,9 @@ fn execute_orders(
                     }
                 }
                 // The bank never places market orders (it sells seized
-                // goods through its own liquidation channel).
-                AccountId::Bank => {}
+                // goods through its own liquidation channel), and the
+                // government buys nothing in v1.
+                AccountId::Bank | AccountId::Government => {}
             }
             *acc.trade_volume.entry(good).or_insert(0) += take;
             *acc.trade_value.entry(good).or_insert(Money::ZERO) += cost;
@@ -449,7 +453,7 @@ pub(crate) fn bank_liquidation(
                     }
                 }
             }
-            AccountId::Bank => {}
+            AccountId::Bank | AccountId::Government => {}
         }
         remaining -= take;
         proceeds += cost;

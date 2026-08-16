@@ -51,15 +51,17 @@ id_type!(
 /// Ordering note: the derived order (`Business` before `Agent`) is part of
 /// the deterministic buyer ordering in the market phase — businesses buy
 /// production inputs before households buy consumption goods within the same
-/// urgency tier. Documented in `docs/ECONOMIC_RULES.md`. `Bank` is appended
-/// last (Phase 3) and never places market orders, so the pre-bank ordering
-/// is unchanged.
+/// urgency tier. Documented in `docs/ECONOMIC_RULES.md`. `Bank` (Phase 3)
+/// and `Government` (Phase 4) are appended last, in that order, and neither
+/// places market orders, so the pre-existing ordering is unchanged.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
 pub enum AccountId {
     Business(BusinessId),
     Agent(AgentId),
     /// The town's single bank (Phase 3).
     Bank,
+    /// The government's treasury (Phase 4).
+    Government,
 }
 
 impl fmt::Display for AccountId {
@@ -68,6 +70,7 @@ impl fmt::Display for AccountId {
             AccountId::Business(id) => write!(f, "business {id}"),
             AccountId::Agent(id) => write!(f, "agent {id}"),
             AccountId::Bank => write!(f, "the bank"),
+            AccountId::Government => write!(f, "the government"),
         }
     }
 }

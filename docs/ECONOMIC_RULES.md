@@ -4,9 +4,10 @@ Binding specification of the simulation's economic mechanics. The tick phase
 order and every cadence here are **part of the determinism contract** — change
 them only with a DECISIONS.md entry and a save `schema_version` review.
 
-Status: Phase 3 in progress (contract kernel live; bank next). Sections
-marked *[activates: Phase N]* are reserved slots in the phase order,
-documented now so later systems slot in without reordering anything.
+Status: Phase 4 in progress (government kernel live; deterministic
+events next). Sections marked *[activates: Phase N]* are reserved slots
+in the phase order, documented now so later systems slot in without
+reordering anything.
 
 ## Time
 
@@ -27,10 +28,11 @@ Every tick executes exactly this sequence:
 | 5 | **Goods markets** | Posted-price clearing per good, in `Good::ALL` order: wheat → flour → food → iron ore → steel → tools → wood → bricks → home (see §Markets). |
 | 6 | **Contract settlement** | Every active supply contract due today settles in contract-id order: the buyer takes its current input need up to the contracted daily ceiling at the locked price (goods seller→buyer zero-sum, cash through the ledger); shortfalls are penalized misses; three consecutive misses breach (see §Contracts). |
 | 7 | **Banking** | Every active loan in id order: daily interest accrues (integer milli-cents on the declining balance), the day's service (interest first, then the principal installment) auto-collects; a full shortfall is a counted miss and three consecutive misses default the loan and run foreclosure. Then the bank fire-sells any seized inventory to the market's buyer queue at last prices (see §Banking). |
-| 8 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
-| 9 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
-| 10 | **Memory, relationships & reputation** | Every memory fades a little (`memory::decay`); forgotten memories drop. On the agent's weekly stagger day: workplace + neighborhood gossip (listener moves ¼ of the gap toward each speaker per subject; neutrality is silence — only intensity ≥ 8 beliefs get spoken), then relations and beliefs drift one step toward neutral; fully-neutral entries drop. Formation/updates happen at event sites, never by reading the journal back. |
-| 11 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
+| 8 | **Government** | The welfare floor pays out of the treasury: every agent below the floor is topped up, most destitute first, until the treasury runs dry. (Taxes are collected inline at the market and contract-settlement sites, phases 5–6; see §Government. Added by DECISIONS.md #029.) |
+| 9 | **Consumption** | Each agent eats 1 food or goes hungry; the wealthy take a second, comfort meal; then perishable stocks spoil (see §Consumption). |
+| 10 | **Agent decisions** | Phase 0: business owner decisions — emergency staffing daily; price/wage/dividend review weekly (see §Decisions). |
+| 11 | **Memory, relationships & reputation** | Every memory fades a little (`memory::decay`); forgotten memories drop. On the agent's weekly stagger day: workplace + neighborhood gossip (listener moves ¼ of the gap toward each speaker per subject; neutrality is silence — only intensity ≥ 8 beliefs get spoken), then relations and beliefs drift one step toward neutral; fully-neutral entries drop. Formation/updates happen at event sites, never by reading the journal back. |
+| 12 | **Bookkeeping** | Sales EMAs update; metrics captured; invariants checked (every tick in debug, on the hash cadence in release); state hash appended to the manifest on the cadence. |
 
 ## Cadences
 
@@ -40,6 +42,8 @@ Every tick executes exactly this sequence:
 | Contract deliveries | every tick (daily) — the town runs on a one-day cadence; weekly lumps starved it (DECISIONS.md #026) |
 | Contract formation & underwater review | on the buyer business's weekly review stagger |
 | Loan interest accrual + service collection | every tick (daily) |
+| Sales tax collection | at every taxed sale (market execution + contract settlement) |
+| Welfare floor payments | every tick (daily), treasury permitting |
 | Distressed-borrowing consideration | daily when triggered; declines/refusals journal on the weekly stagger |
 | Business review (price, wage, dividend, window profit) | every 7 ticks, staggered: a business reviews when `(tick + id) % 7 == 0` |
 | Emergency downsizing check | every tick |
@@ -238,6 +242,43 @@ are recorded deferrals.
   sane counters and terminal states; the loan book's sums equal the
   bank's aggregates; bank inventory non-negative.
 
+## Government (Phase 4 — the fiscal kernel, DECISIONS.md #029)
+
+One government, a first-class ledger account (`AccountId::Government`),
+**born broke** — the treasury holds only what taxation collected, so the
+BRIEF's "cannot spend unlimited money" is structural.
+
+- **Sales tax**: a seller-side levy of `sales_tax_bp` (default 100 = 1%)
+  on every goods sale — market executions and contract deliveries alike,
+  so contracting is never a tax dodge. Collected at the same ledger site
+  that books the seller's revenue: `tax = value × rate / 10,000` rounded
+  toward zero, the sub-cent remainder explicitly staying with the
+  seller; booked as `Books.taxes_paid` (an operating cost in the cash
+  identity, `lifetime_profit`, and the review window's costs). Exempt:
+  liquidation fire-sales, contract penalties, wages, dividends, business
+  sales (income/capital taxation are future levers).
+- **Cascading wedge** (why 1%): a turnover tax hits each chain stage, so
+  the cumulative wedge on food's final value is ≈ 3× the rate. Soak
+  calibration: 300 bp starved two of the four standing seeds into dead
+  towns by year 4 (seed 6 of the wedge alone; seed 123 of the dole's
+  final-demand prop crushing the mill between it and deflation); 100 bp
+  holds the baseline's 13 employed on all four through the decade.
+- **Welfare floor** (tick phase 8, after banking): every agent holding
+  less than `WELFARE_FLOOR` ($12.00 ≈ two days of food) is topped up to
+  it — most destitute first (cash, then id) — until the treasury runs
+  dry; the marginal recipient gets whatever is left. Each payment is a
+  ledger transfer plus a `WelfarePaid` event. Steady state at 1%: the
+  treasury pins at zero and ~1 agent/day is caught. A pantry-targeted
+  variant was tried and rejected (no measured relief, more machinery).
+- **Rate policy**: `SetSalesTax` (player command, clamped 0..=10,000 bp)
+  applies from the tick it lands — collections reprice immediately.
+- **Invariant** (`tax_reconciliation`, every sweep): treasury equals the
+  government's lifetime books (taxes − welfare + policy); fiscal totals
+  non-negative; the rate inside the clamp; and Σ business `taxes_paid`
+  == `tax_collected` — every collected cent has a payer who booked it
+  (this makes `taxes_paid` globally load-bearing for test staging that
+  resyncs books mid-run).
+
 ## Production
 
 Per business, in id order: `desired = planned_daily_sales × (OUTPUT_TARGET_DAYS
@@ -309,8 +350,10 @@ when a meal would still remain afterward, so comfort never causes hunger.
 This is the channel that returns idle household savings to circulation: in a
 closed loop where consumption is otherwise fixed at 1 food/day, every wage
 surplus accumulates forever and aggregate demand decays into a deflationary
-collapse (DECISIONS.md #014). There is still no mortality or welfare;
-structural unemployment produces visible hunger — by design.
+collapse (DECISIONS.md #014). There is still no mortality; structural
+unemployment produces visible hunger, softened only as far as the welfare
+floor's treasury reaches (§Government — at the default 1% tax, about one
+destitute agent a day).
 
 **Spoilage** (end of the consumption phase). Every holder loses
 `spoilage_bp` of each perishable stock per day — food: 400 bp (4%) — with
@@ -401,6 +444,7 @@ in later phases, but changes must be recorded (they shift every hash).
 | Recipes | farm → 1 wheat, 2 batches/worker · mill 1 wheat → 1 flour, 6/worker · bakery 1 flour → 2 food, 4/worker · mine → 1 ore, 1/worker · steelworks 1 ore → 1 steel, 1/worker · factory 1 steel → 1 tool, 1/worker · lumber camp → 1 wood, 2/worker · brickworks → 1 bricks, 2/worker · construction 6 wood + 6 bricks → 1 home, 1/worker |
 | Business start cash | $1,200.00 each |
 | Bank | capital $70.00 × population (minted at gen) · base rate 1,800 bp/yr · loan term 84 days · liquidity floor 25% of capital |
+| Government | treasury $0.00 (born broke — taxes are the only income) · sales tax 100 bp · welfare floor $12.00/agent |
 | Tools | +50% batches per equipped worker · life 6 worker-days · buyer cap 90% of marginal product |
 | Comfort floor | $400.00 cash → second daily meal |
 | Home floor | $600.00 cash → buy one home, paying ≤ half of cash |

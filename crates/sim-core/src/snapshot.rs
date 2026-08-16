@@ -182,6 +182,7 @@ fn account_label(state: &SimState, account: AccountId) -> String {
         AccountId::Agent(id) => agent_label(state, id),
         AccountId::Business(id) => business_label(state, id),
         AccountId::Bank => "the bank".to_string(),
+        AccountId::Government => "the government".to_string(),
     }
 }
 
@@ -400,6 +401,13 @@ pub fn event_text(state: &SimState, event: &Event) -> String {
         Event::BankRateSet { old_bp, new_bp } => {
             format!("The bank's base rate moved {}% → {}%", old_bp / 100, new_bp / 100)
         }
+        Event::SalesTaxSet { old_bp, new_bp } => {
+            format!("The sales tax moved {}% → {}%", old_bp / 100, new_bp / 100)
+        }
+        Event::WelfarePaid { agent, amount } => format!(
+            "The welfare office topped {} up with {amount}",
+            agent_label(state, *agent)
+        ),
         Event::AgentHungry { agent, streak } => {
             if *streak <= 1 {
                 format!("{} went hungry today", agent_label(state, *agent))

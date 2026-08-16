@@ -828,3 +828,90 @@ market's reservation-wage machinery is negotiation-shaped already);
 seller-side personality beyond greed (desperation should widen the
 floor); multi-seller shopping; renegotiation mid-term. The negotiation
 inspector POLISH (dedicated screen) stays v1.1 per the BRIEF.
+
+---
+
+## 029 — Government kernel v1: a cascading sales tax, a welfare floor, and the 300 bp lesson
+
+**Context.** Phase 4 opens with the fiscal kernel: a government account,
+ONE tax end to end, a budget that spends on something real, and the
+command plumbing (PROGRESS session 6's exact next task). The BRIEF binds
+two constraints: the government "cannot spend unlimited money", and tax
+collections must reconcile. The phase order is pinned in CLAUDE.md, so a
+new fiscal phase is itself a recorded decision.
+
+**Decision — the account.** `SimState.government` with
+`AccountId::Government` appended after `Bank` (neither places market
+orders; buyer ordering is untouched). Unlike the bank it is **born
+broke**: the treasury holds only what taxation collected — no worldgen
+minting, so the budget constraint is structural, not policed. Its
+lifetime `GovBooks` (tax_collected, welfare_paid, policy_net) must imply
+the treasury exactly.
+
+**Decision — the tax.** A seller-side sales tax in integer basis points,
+collected at BOTH revenue sites — market execution and contract
+settlement (contracting must never be a tax dodge) — at the same ledger
+statement that books the seller's revenue, so the seller always holds at
+least the tax it owes. `tax = value × rate / 10000` rounded toward zero;
+the sub-cent remainder explicitly stays with the seller. Exempt by
+design: liquidation fire-sales (distress recovery, not commerce),
+contract penalties (damages), wages, dividends, business sales
+(income/capital taxation are separate future levers). `Books.taxes_paid`
+joins the business cash identity and `lifetime_profit`;
+`PlayerCommand::SetSalesTax` clamps to 0..=10,000 bp and reprices from
+the tick it applies.
+
+**Decision — the spending.** A daily welfare floor in a new tick phase 8
+(banking → **government** → consumption; CLAUDE.md's pinned order and
+ECONOMIC_RULES both updated): every agent below `WELFARE_FLOOR` ($12.00
+≈ two days of food) is topped up to it, most destitute first (cash,
+then id), until the treasury runs dry — the dole covers eating, nothing
+else, and the marginal recipient gets whatever is left.
+
+**Decision — the invariant.** `tax_reconciliation`: treasury == books;
+non-negative fiscal totals; rate inside the clamp; and Σ business
+`taxes_paid` == government `tax_collected` — every collected cent has a
+payer who booked it. That last sum makes `taxes_paid` globally
+load-bearing: scenario surgery that resyncs a business's books mid-run
+must carry it forward (probe_reputation's staging now does, re-basing
+starting cash — the invariant caught it on first contact).
+
+**The 300 bp lesson (options weighed by experiment, not argument).** The
+first calibration (300 bp, floor always-on) collapsed two of the four
+standing seeds to dead towns by year 4 — while the same build at rate 0
+reproduced the baseline exactly on all four. Bisecting with
+welfare disabled isolated two distinct failure modes:
+
+1. *The wedge*: a seller-side turnover tax **cascades** down a chain —
+   wheat, flour and food each pay, so 300 bp ≈ a 9% wedge on food's
+   final value, more than the calibrated margins bear. Seed 6 died of
+   the tax alone.
+2. *The recycling distortion*: the always-on floor recycles the entire
+   take into FINAL food demand, propping consumer prices while the
+   intermediate stage's margin collapses — on seed 123 the mill bled
+   out beside a farm holding 22 unsold wheat, then the staffed bakery
+   starved of flour and the town died. Without welfare the deeper
+   deflation re-cleared the chain and 123 survived.
+
+At **100 bp** all four seeds hold the baseline's 13 employed through the
+decade under every dole variant tried. A pantry-targeted dole (pay only
+the actually-starving) was tried and REJECTED: measured over the last
+500 ticks it was identical to the plain cash floor on three seeds and
+six agents worse on seed 42 — targeting bought complexity, not relief.
+Final: rate 100 bp, plain means test. Steady state: the treasury pins at
+zero (everything collected pays out daily), ~0.9 recipients/day, ~$7,000
+redistributed per decade, and seed 42's mean hunger drops from ~20 to
+~14. The rate lever stays fully in the player's hands — pushing it back
+to 300 reproduces the collapse, which is exactly the "policies have
+costs" emergence Phase 4's probes want.
+
+**Consequences.** Money conservation and metrics totals include the
+treasury; the metrics/CSV grow govt_cash, tax_collected, welfare_paid,
+welfare_recipients. Saves break (SimState/Books/TxKind/Event/
+PlayerCommand grew); schema_version stays 1 pre-1.0. The pop-100 decade
+issue stays open (13/100 employed at year 10 — top of the recorded
+band; a 1% dole cannot fix a structural scaling problem). Deferred to
+later Phase 4 increments: government debt/deficits, the remaining
+levers (income/business tax, minimum wage, subsidies, spending
+programs), welfare as a settable lever, and the UI surface (Phase 5 owns
+screens; the shell still has no command channel).

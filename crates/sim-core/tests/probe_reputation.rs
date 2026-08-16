@@ -33,7 +33,12 @@ fn probe_reputation_bad_news_reaches_strangers_through_gossip() {
     {
         let b = w.state.businesses.get_mut(&bakery).unwrap();
         b.cash = Money::ZERO;
-        b.books = Books::new(Money::ZERO);
+        // The resync must carry `taxes_paid` forward: the government's
+        // remittance sum is global (`tax_reconciliation`), so staging
+        // re-bases starting cash to keep the local identity at zero.
+        let taxes = b.books.taxes_paid;
+        b.books = Books::new(taxes);
+        b.books.taxes_paid = taxes;
     }
     for host in [BusinessId(0), BusinessId(1), BusinessId(2)] {
         let held_out = w

@@ -155,6 +155,16 @@ pub enum Event {
         old_bp: i64,
         new_bp: i64,
     },
+    /// Fiscal policy moved the sales tax rate (Phase 4).
+    SalesTaxSet {
+        old_bp: i64,
+        new_bp: i64,
+    },
+    /// The welfare floor topped a destitute agent up (Phase 4).
+    WelfarePaid {
+        agent: AgentId,
+        amount: Money,
+    },
     AgentHungry {
         agent: AgentId,
         streak: u32,
@@ -196,6 +206,8 @@ impl Event {
             Event::LoanDefaulted { .. } => "loan_defaulted",
             Event::CollateralSeized { .. } => "collateral_seized",
             Event::BankRateSet { .. } => "bank_rate_set",
+            Event::SalesTaxSet { .. } => "sales_tax_set",
+            Event::WelfarePaid { .. } => "welfare_paid",
             Event::AgentHungry { .. } => "agent_hungry",
             Event::MonetaryPolicy { .. } => "monetary_policy",
             Event::CommandRejected { .. } => "command_rejected",

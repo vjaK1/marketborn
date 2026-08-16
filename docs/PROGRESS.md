@@ -5,6 +5,86 @@ Living state of the project. Updated at the end of every session
 
 ---
 
+## Session 7 — 2026-08-16 — Phase 4 increment 1: the government kernel
+
+### Government kernel v1 — DECISIONS #029
+
+- `government.rs`: a first-class ledger account (`AccountId::Government`,
+  appended after Bank), **born broke** — the treasury holds only what
+  taxation collected. One tax end to end: a seller-side sales tax
+  (integer bp, round-toward-zero, sub-cent remainder stays with the
+  seller) collected at BOTH revenue sites — market execution and
+  contract settlement — booked as `Books.taxes_paid` on the payer and in
+  the government's lifetime `GovBooks`. Exempt: liquidations, penalties,
+  wages, dividends, business sales (future levers).
+- **Welfare floor** in a new tick phase 8 (banking → government →
+  consumption; CLAUDE.md's pinned phase order updated with the ADR):
+  agents below $12.00 (~2 days of food) are topped up daily, most
+  destitute first, until the treasury runs dry. `SetSalesTax` command
+  (clamped 0..=10,000 bp) + `SalesTaxSet`/`WelfarePaid` events +
+  metrics/CSV columns (govt_cash, tax_collected, welfare_paid,
+  welfare_recipients).
+- **`tax_reconciliation` invariant** (every sweep): treasury == books;
+  fiscal totals non-negative; rate inside the clamp; Σ business
+  `taxes_paid` == `tax_collected`. It caught its first real bug on
+  contact: `probe_reputation`'s books-resync surgery silently wiped tax
+  history (staging now carries it forward — the invariant note documents
+  the pattern).
+
+### The 300 bp lesson (why the default is 100 bp)
+
+First calibration (300 bp) collapsed seeds 123 and 6 to dead towns by
+year 4 while 42/7 merely inflated. Bisected by experiment (rate 0 ==
+baseline exactly on all four seeds; welfare disabled isolates the tax):
+seed 6 died of the **cascading wedge alone** (a turnover tax hits wheat,
+flour AND food — ≈3× the rate on food's final value); seed 123 died of
+the **dole's final-demand prop** (recycled cash held food/wheat prices
+up while the mill's margin collapsed between them — it bled out beside
+a farm holding 22 unsold wheat, then the staffed bakery starved of
+flour). At 100 bp every seed holds the baseline's 13 employed. A
+pantry-targeted dole was tried and REJECTED on measurement (no relief
+vs the plain floor; seed 42 six agents worse). Full story in ADR #029.
+
+### Verification (actual results)
+
+- `npm run check` exit 0 (132 sim-core unit tests incl. 4 new
+  government + 2 new invariant tests; `taxes.rs` integration suite ×4;
+  all prior suites green after two honest updates: the contract
+  delivery unit test now expects the seller to net gross−tax, and
+  probe_reputation's staging preserves tax history).
+- Release soak, final config (tax 100 bp, floor $12): seeds 42/7/123/6
+  at 3650 → **13 employed each** (baseline preserved); last-500-tick
+  mean hunger 14.2/19.9/19.5/20.1 vs baseline ≈19.4–20.3 (seed 42
+  clearly better, others neutral). Steady state: treasury pins at $0,
+  ~0.9 recipients/day, ~$7,000 redistributed per decade.
+- Pop-100: 1-year acceptance (`scale.rs`) green; decade run 13/100
+  employed — top of the recorded 7–13 band, **still open** (a 1% dole
+  cannot fix a structural scaling problem; owned by `soak_10y` +
+  welfare work later this phase).
+- Saves break (SimState grew `government`; Books/TxKind/Event/
+  PlayerCommand grew) — pre-1.0 policy, schema_version stays 1.
+
+### Exact next task (Phase 4 continues)
+
+1. Session protocol: `npm run check` first.
+2. **The deterministic event system** (tick phase 2, reserved since
+   Phase 0): scheduled events that modify CONDITIONS only — drought
+   first (cuts farm productivity for a window; food scarcity, price
+   response and recovery must emerge from normal systems), wired for
+   `probe_drought` (calibrate once against a pinned seed, then freeze).
+   Suggested shape: event definitions in config/commands (deterministic
+   scheduling, no RNG outside substreams), an `EventState` in SimState,
+   a production-side modifier hook, events + snapshot text.
+3. Then: delayed-policy-effect test (the 300 bp collapse is a ready-made
+   scenario — raise the tax by command mid-run, assert the lagged
+   contraction), then `soak_10y` with non-degeneracy bands, then the
+   remaining levers opportunistically (government debt, income/business
+   tax, minimum wage, subsidies; welfare floor as a settable lever).
+4. Soak checkpoints unchanged: seeds 42/7/123/6 at 365/1500/3650 +
+   pop-100; metrics CSV on surprises.
+
+---
+
 ## Session 6 — 2026-07-26 — Phase 3: COMPLETE (negotiation + contract view)
 
 ### Negotiation v1 — DECISIONS #028

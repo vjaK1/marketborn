@@ -394,6 +394,9 @@ pub fn generate(config: WorldConfig) -> World {
         // loans without dwarfing the real economy (DECISIONS.md #027).
         // It is minted here as part of the initial money supply.
         bank: crate::bank::Bank::new(Money::from_cents(7_000 * i64::from(population))),
+        // The government is born broke: its treasury holds only what the
+        // sales tax collects (DECISIONS.md #029). Nothing minted here.
+        government: crate::government::Government::new(),
         market: MarketState::default(),
         status: SimStatus::Running,
     };

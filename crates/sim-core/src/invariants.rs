@@ -106,6 +106,7 @@ pub fn check_all(state: &SimState, journal: &Journal) -> Result<(), Box<Invarian
     business_books(state, journal)?;
     contract_reconciliation(state, journal)?;
     debt_reconciliation(state, journal)?;
+    tax_reconciliation(state, journal)?;
     // Aggregate reconciliation runs after the specific checks so a negative
     // stock reports as non_negative_inventory, not as a totals mismatch.
     goods_conservation(state, journal)?;
@@ -414,6 +415,73 @@ fn debt_reconciliation(state: &SimState, journal: &Journal) -> Result<(), Box<In
     Ok(())
 }
 
+/// Government fiscal reconciliation (Phase 4): the treasury must equal what
+/// the government's books imply (taxes − welfare + policy), every business's
+/// remitted taxes must sum exactly to what the government collected (every
+/// cent of tax has a payer who booked it), and the rate must sit inside the
+/// command clamp. A tax flow that bypassed a bookkeeping site halts here or
+/// in `business_books`/`money_conservation`. Note for test staging: the
+/// remittance sum makes `Books::taxes_paid` globally load-bearing — any
+/// scenario surgery that resyncs a business's books mid-run must carry
+/// `taxes_paid` forward (re-basing `starting_cash` to keep the local cash
+/// identity).
+fn tax_reconciliation(state: &SimState, journal: &Journal) -> Result<(), Box<InvariantViolation>> {
+    let gov = &state.government;
+    let expected = gov.books.expected_cash();
+    if gov.cash != expected {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            format!("government books imply {expected}"),
+            format!("treasury is {}", gov.cash),
+            gov.cash - expected,
+            Some(AccountId::Government),
+        ));
+    }
+    if gov.cash.is_negative()
+        || gov.books.tax_collected.is_negative()
+        || gov.books.welfare_paid.is_negative()
+    {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            "non-negative treasury and fiscal totals",
+            format!(
+                "treasury {} collected {} welfare {}",
+                gov.cash, gov.books.tax_collected, gov.books.welfare_paid
+            ),
+            "negative fiscal amount",
+            Some(AccountId::Government),
+        ));
+    }
+    if !(0..=crate::government::MAX_SALES_TAX_BP).contains(&gov.sales_tax_bp) {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            format!("0 ≤ rate ≤ {}", crate::government::MAX_SALES_TAX_BP),
+            format!("sales tax {} bp", gov.sales_tax_bp),
+            "rate outside the command clamp",
+            Some(AccountId::Government),
+        ));
+    }
+    let remitted: crate::money::Money = state.businesses.values().map(|b| b.books.taxes_paid).sum();
+    if remitted != gov.books.tax_collected {
+        return Err(violation(
+            state,
+            journal,
+            "tax_reconciliation",
+            format!("businesses remitted {remitted}"),
+            format!("government collected {}", gov.books.tax_collected),
+            gov.books.tax_collected - remitted,
+            Some(AccountId::Government),
+        ));
+    }
+    Ok(())
+}
+
 /// Per-good reconciliation: total on-hand quantity (business inventories +
 /// pantries) equals the expected total, which only the goods ledger
 /// (production mints, consumption/wear burns) may move. Trades are zero-sum;
@@ -696,6 +764,35 @@ mod tests {
         let v = check_all(&w.state, &w.journal).unwrap_err();
         assert_eq!(v.invariant, "contract_reconciliation");
         assert!(v.expected.contains("next_due"));
+    }
+
+    #[test]
+    fn treasury_drift_is_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        // Books say the treasury is empty; the cash says otherwise — but
+        // compensate an agent so money conservation stays green and only
+        // the fiscal reconciliation can see it.
+        let id = *w.state.agents.keys().next().unwrap();
+        w.state.government.cash += Money::from_cents(250);
+        w.state.agents.get_mut(&id).unwrap().cash -= Money::from_cents(250);
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "tax_reconciliation");
+        assert!(v.delta.contains("2.50"));
+    }
+
+    #[test]
+    fn tax_remittance_sum_mismatch_is_caught() {
+        let mut w = World::from_config(WorldConfig::default_with_seed(3));
+        // A business's books claim a remittance the government never saw.
+        // Compensating input_costs keeps its own cash identity green, so
+        // only the cross-side remittance sum can fire.
+        let id = *w.state.businesses.keys().next().unwrap();
+        let b = w.state.businesses.get_mut(&id).unwrap();
+        b.books.taxes_paid += Money::from_cents(300);
+        b.books.input_costs -= Money::from_cents(300);
+        let v = check_all(&w.state, &w.journal).unwrap_err();
+        assert_eq!(v.invariant, "tax_reconciliation");
+        assert!(v.expected.contains("remitted"), "{}", v.expected);
     }
 
     #[test]

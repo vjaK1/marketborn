@@ -8,6 +8,7 @@ use crate::contracts::Contract;
 use crate::decision::DecisionRecord;
 use crate::events::{Event, EventRecord};
 use crate::goods::{Good, Qty};
+use crate::government::Government;
 use crate::ids::{AgentId, BusinessId, ContractId};
 use crate::ledger::Transaction;
 use crate::metrics::MetricsDay;
@@ -67,6 +68,9 @@ pub struct SimState {
     /// The town's single bank (Phase 3): credit, seized collateral, and
     /// its own cash — part of the money supply.
     pub bank: Bank,
+    /// The government (Phase 4): treasury, sales tax rate, fiscal books.
+    /// Born broke — the treasury holds only what taxation collected.
+    pub government: Government,
     pub market: MarketState,
     pub status: SimStatus,
 }
@@ -75,7 +79,7 @@ impl SimState {
     pub fn total_cash(&self) -> Money {
         let agents: Money = self.agents.values().map(|a| a.cash).sum();
         let businesses: Money = self.businesses.values().map(|b| b.cash).sum();
-        agents + businesses + self.bank.cash
+        agents + businesses + self.bank.cash + self.government.cash
     }
 
     /// Total on-hand quantity of one good across the whole world: business

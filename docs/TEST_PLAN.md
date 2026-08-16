@@ -217,7 +217,10 @@ day-by-day time-series analysis — end-state snapshots hide limit cycles.
   ~~negotiation logging~~ ✅ · ~~contract view (launch-verified)~~ ✅ —
   **phase complete**; recorded deferrals in DECISIONS #026–#028.
 - **Phase 4**: `probe_drought`; `soak_10y` (3650 ticks, non-degeneracy
-  band asserts); tax reconciliation; delayed-policy effects.
+  band asserts); ~~tax reconciliation~~ ✅ (`tax_reconciliation`
+  invariant every sweep + `taxes.rs`: organic collection, contract-site
+  levy, welfare floor, `SetSalesTax` clamp — session 7); delayed-policy
+  effects.
 - **Phase 5**: Playwright E2E against `sim-cli serve` (new world, speed,
   inspect agent/business, apply policy, save, load); packaged-app smoke.
 - **Phase 6**: proptest world generators (thousands of ticks, all

@@ -422,6 +422,9 @@ pub fn settle(
                 seller.revenue_window += cost;
                 seller.books.revenue += cost;
             }
+            // Contract sales carry the same sales tax as spot trades —
+            // contracting must never be a tax dodge (DECISIONS.md #029).
+            crate::government::collect_sales_tax(state, journal, tick, seller_id, good, cost)?;
             if let Some(buyer) = state.businesses.get_mut(&buyer_id) {
                 buyer.add_stock(good, take);
                 buyer.costs_window += cost;
@@ -591,6 +594,9 @@ mod tests {
     #[test]
     fn delivery_moves_goods_and_money_and_advances_the_schedule() {
         let (mut w, cid, farm, mill) = stage();
+        // Pin the rate: the exact tax figures below must not move with the
+        // world-default calibration.
+        w.state.government.sales_tax_bp = 300;
         crate::goods_ledger::produce(&mut w.state, farm, Good::Wheat, 15);
         let mill_cash = w.state.businesses[&mill].cash;
         let farm_cash = w.state.businesses[&farm].cash;
@@ -610,10 +616,17 @@ mod tests {
             w.state.businesses[&mill].cash,
             mill_cash - Money::from_cents(5_000)
         );
+        // The farm nets the gross minus the 3% sales tax ($1.50), remitted
+        // at the same settlement site (Phase 4).
         assert_eq!(
             w.state.businesses[&farm].cash,
-            farm_cash + Money::from_cents(5_000)
+            farm_cash + Money::from_cents(5_000 - 150)
         );
+        assert_eq!(
+            w.state.businesses[&farm].books.taxes_paid,
+            Money::from_cents(150)
+        );
+        assert_eq!(w.state.government.cash, Money::from_cents(150));
         assert_eq!(w.state.businesses[&farm].sold_today, 10);
         assert_eq!(
             w.state.businesses[&farm].books.revenue,

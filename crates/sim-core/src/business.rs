@@ -92,6 +92,8 @@ pub struct Books {
     pub interest_paid: Money,
     /// Cash seized by the bank in foreclosure.
     pub seized_cash: Money,
+    /// Sales tax remitted to the government on goods sales (Phase 4).
+    pub taxes_paid: Money,
     /// Net monetary policy applied directly to this account (mint − burn;
     /// may be negative).
     pub policy_net: Money,
@@ -118,6 +120,7 @@ impl Books {
             principal_repaid: Money::ZERO,
             interest_paid: Money::ZERO,
             seized_cash: Money::ZERO,
+            taxes_paid: Money::ZERO,
             policy_net: Money::ZERO,
             spoiled_units: 0,
             seized_units: 0,
@@ -140,11 +143,12 @@ impl Books {
             - self.principal_repaid
             - self.interest_paid
             - self.seized_cash
+            - self.taxes_paid
     }
 
     /// Lifetime operating profit: revenue and penalty income minus all
-    /// operating outflows (contract penalties and loan interest are
-    /// operating consequences). Distributions (dividends) and financing
+    /// operating outflows (contract penalties, loan interest and sales tax
+    /// are operating consequences). Distributions (dividends) and financing
     /// (owner investment, loan principal, policy) are excluded.
     pub fn lifetime_profit(&self) -> Money {
         self.revenue + self.penalties_received
@@ -153,6 +157,7 @@ impl Books {
             - self.wages
             - self.penalties_paid
             - self.interest_paid
+            - self.taxes_paid
     }
 }
 
@@ -294,14 +299,17 @@ mod tests {
         books.owner_invested += Money::from_cents(400);
         books.penalties_received += Money::from_cents(250);
         books.penalties_paid += Money::from_cents(150);
+        books.taxes_paid += Money::from_cents(120);
         books.policy_net -= Money::from_cents(100);
         assert_eq!(
             books.expected_cash(),
-            Money::from_cents(120_000 + 5_000 - 2_000 - 1_000 - 700 - 300 + 400 + 250 - 150 - 100)
+            Money::from_cents(
+                120_000 + 5_000 - 2_000 - 1_000 - 700 - 300 + 400 + 250 - 150 - 120 - 100
+            )
         );
         assert_eq!(
             books.lifetime_profit(),
-            Money::from_cents(5_000 + 250 - 2_000 - 1_000 - 700 - 150),
+            Money::from_cents(5_000 + 250 - 2_000 - 1_000 - 700 - 150 - 120),
             "profit is operating only: dividends/financing excluded"
         );
     }

@@ -68,11 +68,16 @@ impl World {
         // Phase 7 — banking: loan service accrues and collects, defaults
         // foreclose, seized goods fire-sell (Phase 3).
         crate::bank::run(&mut self.state, &mut self.journal, t, &mut acc).map_err(internal)?;
-        // Phase 8 — consumption.
+        // Phase 8 — government: the welfare floor pays out of the treasury
+        // (taxes were collected inline at the market and contract
+        // settlement sites; project Phase 4).
+        crate::government::run(&mut self.state, &mut self.journal, t, &mut acc)
+            .map_err(internal)?;
+        // Phase 9 — consumption.
         systems::consumption::run(&mut self.state, &mut self.journal, t, &mut acc);
-        // Phase 9 — agent decisions (utility engine + owner reviews).
+        // Phase 10 — agent decisions (utility engine + owner reviews).
         systems::decisions::run(&mut self.state, &mut self.journal, t).map_err(internal)?;
-        // Phase 10 — memory, relationships & reputation: every memory
+        // Phase 11 — memory, relationships & reputation: every memory
         // fades a little each day; relations and beliefs drift one step
         // toward neutral on the agent's weekly stagger day, after that
         // day's workplace gossip.
@@ -135,7 +140,7 @@ impl World {
                 crate::reputation::drift(a);
             }
         }
-        // Phase 11 — bookkeeping: EMAs, metrics, invariants, hashing.
+        // Phase 12 — bookkeeping: EMAs, metrics, invariants, hashing.
         self.state.tick = t;
         update_sales_emas(self);
         let day = metrics::capture(&self.state, &acc, t);
@@ -233,6 +238,14 @@ fn apply_commands(world: &mut World, t: u64) {
                 world
                     .journal
                     .push_event(t, Event::BankRateSet { old_bp, new_bp });
+            }
+            PlayerCommand::SetSalesTax { rate_bp } => {
+                let old_bp = world.state.government.sales_tax_bp;
+                let new_bp = rate_bp.clamp(0, crate::government::MAX_SALES_TAX_BP);
+                world.state.government.sales_tax_bp = new_bp;
+                world
+                    .journal
+                    .push_event(t, Event::SalesTaxSet { old_bp, new_bp });
             }
         }
     }

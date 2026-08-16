@@ -25,6 +25,10 @@ pub enum PlayerCommand {
     /// reprices — the credit-contraction lever `probe_rate_shock` guards.
     /// Clamped to 0..=50_000 bp at application.
     SetBankRate { rate_bp: i64 },
+    /// Fiscal policy (Phase 4): set the sales tax in basis points, applied
+    /// to every goods sale (market and contract alike) from this tick on.
+    /// Clamped to 0..=10_000 bp at application.
+    SetSalesTax { rate_bp: i64 },
 }
 
 impl PlayerCommand {
@@ -32,6 +36,7 @@ impl PlayerCommand {
         match self {
             PlayerCommand::AdjustMoneySupply { .. } => "adjust_money_supply",
             PlayerCommand::SetBankRate { .. } => "set_bank_rate",
+            PlayerCommand::SetSalesTax { .. } => "set_sales_tax",
         }
     }
 }
